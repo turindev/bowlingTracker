@@ -101,6 +101,7 @@ var weekNumbers = {};
   });
 
   var bowling = {};
+  var lanesUsed = {};
   (week.matches || []).forEach(function (match, m) {
     var where = label + ' match ' + (m + 1);
     [match.homeTeamId, match.awayTeamId].forEach(function (id) {
@@ -112,6 +113,16 @@ var weekNumbers = {};
     if (match.homeTeamId && match.homeTeamId === match.awayTeamId) {
       err(where + ': a team cannot bowl itself.');
     }
+    if (match.lanes != null) {
+      if (!/^\d+-\d+$/.test(String(match.lanes))) {
+        err(where + ': lanes "' + match.lanes + '" should look like "7-8".');
+      } else if (lanesUsed[match.lanes]) {
+        err(where + ': lanes ' + match.lanes + ' are already in use this week.');
+      } else {
+        lanesUsed[match.lanes] = true;
+      }
+    }
+
     var hasHome = typeof match.homePoints === 'number';
     var hasAway = typeof match.awayPoints === 'number';
     if (hasHome !== hasAway) {

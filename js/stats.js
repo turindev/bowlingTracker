@@ -213,15 +213,17 @@
         var hb = byTeam[home.id];
         var ab = byTeam[away.id];
         var result = scoreMatch(hb, ab, match, scoring);
+        var lanes = match.lanes || null;
         var hTotals = totalsOf(hb, scoring);
         var aTotals = totalsOf(ab, scoring);
-        attach(home, away, hb, result.home, result.away, week, aTotals);
-        attach(away, home, ab, result.away, result.home, week, hTotals);
+        attach(home, away, hb, result.home, result.away, week, aTotals, lanes);
+        attach(away, home, ab, result.away, result.home, week, hTotals, lanes);
         matches.push({
           week: week.number, date: week.date,
           home: home, away: away,
           homeTotals: hTotals, awayTotals: aTotals,
           homePoints: result.home, awayPoints: result.away,
+          lanes: lanes,
           margin: Math.abs(hTotals.hdcpSeries - aTotals.hdcpSeries),
         });
       });
@@ -231,7 +233,7 @@
       teams.forEach(function (team) {
         var alreadyLogged = team.weeks.some(function (w) { return w.number === week.number; });
         if (alreadyLogged || !byTeam[team.id].lines.length) return;
-        attach(team, null, byTeam[team.id], null, null, week, null);
+        attach(team, null, byTeam[team.id], null, null, week, null, null);
       });
     });
 
@@ -497,7 +499,7 @@
     };
   }
 
-  function attach(team, opponent, bucket, points, oppPoints, week, oppTotals) {
+  function attach(team, opponent, bucket, points, oppPoints, week, oppTotals, lanes) {
     var series = sum(bucket.gameTotals);
     var result = null;
     if (points != null && oppPoints != null) {
@@ -526,6 +528,7 @@
       points: points,
       opponentPoints: oppPoints,
       result: result,
+      lanes: lanes,
       opponentSeries: oppTotals ? oppTotals.series : null,
       opponentHdcpSeries: oppTotals ? oppTotals.hdcpSeries : null,
       margin: oppTotals ? series + bucket.handicap * gamesBowled - oppTotals.hdcpSeries : null,
