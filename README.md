@@ -54,6 +54,11 @@ fastest way to check a week was typed in correctly.
 
 ## Handicap and points
 
+Every table carries both figures: scratch columns are unlabelled, handicap
+columns are prefixed `Hdcp`, and each card says so in its heading. The handicap
+columns are omitted entirely when `scoring.useHandicap` is false, so a scratch
+league never sees a column of duplicates.
+
 Handicap is 90% of 220, calculated from each bowler's book average
 (`entryAverage`), floored, never negative — matching the league sheet. The book
 average also drives the over/under figures: a bowler's season average measured
