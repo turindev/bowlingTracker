@@ -39,6 +39,17 @@ jobs:
       # Source: GitHub Actions). The workflow token is not allowed to create
       # the Pages site itself, so there is no enabling it from here.
       - uses: actions/configure-pages@v5
+      # Stamp the commit onto every local asset URL. Without this a browser
+      # can serve a cached js/ or data/ file after a deploy, which would show
+      # stale scores after a weekly update. The checked-in HTML keeps plain
+      # paths so opening index.html straight off disk still works.
+      - name: Version asset URLs
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i -E "s#((src|href)=\"(js|css|data)/[^\"?]+)\"#\1?v=$v\"#g" index.html
+          echo "Stamped with ?v=$v"
+          grep -E '(src|href)="(js|css|data)/' index.html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
