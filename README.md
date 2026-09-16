@@ -22,11 +22,11 @@ npx http-server . -p 8080    # then open http://localhost:8080
 
 | Page | URL | Contents |
 |---|---|---|
-| Overview | `#/` | League totals, scoring pace, standings, average distribution, milestone counts (200+, 220+ …), season bests |
+| Overview | `#/` | League totals, scoring pace, standings, average distribution, over/under book average, scoring by game, honour roll, closest matches, milestone counts (200+, 220+ …), season bests |
 | Bowlers | `#/bowlers` | Every bowler's average, high game, high series and pinfall |
 | Teams | `#/teams` | Standings by points, record, team average and high games |
-| Team | `#/team/t8` | Name banner, summary cards, series and league-position charts, roster averages, weekly results, every bowler's line for any week |
-| Bowler | `#/player/p25` | Monogram, summary cards, every game charted against the bowler's average, average and league rank by week, scores week by week |
+| Team | `#/team/t8` | Name banner, summary cards, series and league-position charts, roster averages, weekly results with margin and handicap-swing markers, every bowler's line for any week |
+| Bowler | `#/player/p25` | Monogram, summary cards including over/under book, every game charted against the bowler's average, average and league rank by week, scores by week, game 1/2/3 splits, milestones |
 
 Team banners and bowler monograms are generated from the name — deterministic
 colours, drawn as SVG, no image files and no calls to an outside avatar
@@ -53,7 +53,12 @@ fastest way to check a week was typed in correctly.
 ## Handicap and points
 
 Handicap is 90% of 220, calculated from each bowler's book average
-(`entryAverage`), floored, never negative — matching the league sheet.
+(`entryAverage`), floored, never negative — matching the league sheet. The book
+average also drives the over/under figures: a bowler's season average measured
+against the average their handicap is set from.
+
+A result is flagged as a handicap swing when the team that took the points was
+out-pinned on scratch.
 
 Points are computed from the scores rather than copied in: one point per
 handicap game won, plus one for handicap total pinfall, four per match. Week 1

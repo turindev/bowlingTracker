@@ -19,6 +19,9 @@
     teamRoster: { key: 'average', dir: 'desc' },
     teamLines: { key: 'series', dir: 'desc' },
     playerWeeks: { key: 'week', dir: 'asc' },
+    /* Long league-wide lists start trimmed and expand on request. */
+    showAllTeams: false,
+    showAllBook: false,
   };
 
   /* ---------- helpers ---------- */
@@ -141,9 +144,10 @@
       label: 'League scoring average by week',
     });
 
-    var standings = model.teams.slice()
-      .sort(function (a, b) { return b.points - a.points || b.pins - a.pins; })
-      .slice(0, 12)
+    var TEAM_PREVIEW = 12;
+    var ranked = model.teams.slice()
+      .sort(function (a, b) { return b.points - a.points || b.pins - a.pins; });
+    var standings = (state.showAllTeams ? ranked : ranked.slice(0, TEAM_PREVIEW))
       .map(function (t) {
         return {
           label: t.name, value: t.points, display: UI.points(t.points),
@@ -151,6 +155,22 @@
           title: t.name + ': ' + plural(UI.points(t.points), 'point') + ', ' + record(t),
         };
       });
+    var standingsCard = [cardBody(Charts.bars({ rows: standings, wideLabel: true }))];
+    if (ranked.length > TEAM_PREVIEW) {
+      standingsCard.push(expandToggle(state.showAllTeams, ranked.length, 'teams', function () {
+        state.showAllTeams = !state.showAllTeams;
+        overviewView();
+      }));
+    }
+
+    var bookRows = vsBookRows(s.vsBook, state.showAllBook);
+    var bookCard = [cardBody(Charts.diverging({ rows: bookRows }))];
+    if (s.vsBook.length > bookRows.length || state.showAllBook) {
+      bookCard.push(expandToggle(state.showAllBook, s.vsBook.length, 'bowlers', function () {
+        state.showAllBook = !state.showAllBook;
+        overviewView();
+      }));
+    }
 
     var milestoneRows = MILESTONES.map(function (threshold) {
       var count = countAtLeast(s.averages, threshold);
@@ -201,10 +221,30 @@
       UI.statGrid(tiles),
       chartPair(
         UI.card('Scoring pace', 'League average each week', cardBody(pace)),
-        UI.card('Standings', 'Points won so far', cardBody(Charts.bars({ rows: standings, wideLabel: true })))
+        UI.card('Standings',
+                state.showAllTeams ? 'Points won so far'
+                                   : 'Top ' + TEAM_PREVIEW + ' of ' + ranked.length,
+                el('div', null, standingsCard))
       ),
       UI.card('Average distribution', 'Bowlers in each 10-pin band',
               cardBody(Charts.bars({ rows: distributionRows(s.averages) }))),
+      UI.card('Over and under book average',
+              state.showAllBook ? 'Current average against book average'
+                                : 'Furthest above and below book average',
+              el('div', null, bookCard)),
+      chartPair(
+        UI.card('By game', 'Where the league scores its pins',
+                slotTable(s.slots, s.average)),
+        UI.card('Honour roll', 'Big scores so far', el('div', null, [
+          el('div', { class: 'card-body' }, milestoneRow(s.milestones)),
+          el('div', { class: 'card-body' }, el('p', { class: 'muted' }, [
+            plural(s.handicapSwings.length, 'match') + ' of ' + s.matches.length +
+            ' went to the team that was out-pinned on scratch.',
+          ])),
+        ]))
+      ),
+      UI.card('Closest matches', 'Handicap pinfall between the two teams',
+              closestMatches(s.matches)),
       UI.card('Averages at a glance', 'Bowlers carrying each average or better', milestones),
       UI.card('Season bests', 'Scratch unless marked', highs),
     ]);
@@ -213,6 +253,13 @@
   /* Two cards side by side once there is room for them. */
   function chartPair(a, b) {
     return el('div', { class: 'chart-pair' }, [a, b]);
+  }
+
+  /* A "show everything" toggle for a card that only lists the top slice. */
+  function expandToggle(expanded, total, noun, onToggle) {
+    return el('div', { class: 'card-body card-action' },
+      el('button', { class: 'link-button', type: 'button', onclick: onToggle },
+        expanded ? 'Show fewer' : 'Show all ' + total + ' ' + noun));
   }
 
   function cardBody(content) {
@@ -233,6 +280,47 @@
       })(floor);
     }
     return rows;
+  }
+
+  /* The extremes are the story; the middle of the pack is not. */
+  function vsBookRows(ranked, expanded) {
+    var edge = Math.min(6, Math.floor(ranked.length / 2));
+    var shown = expanded || !edge
+      ? ranked
+      : ranked.slice(0, edge).concat(ranked.slice(-edge));
+    return shown.map(function (p) {
+      return {
+        label: p.name,
+        value: p.vsBook,
+        display: signed(p.vsBook, 1),
+        href: '#/player/' + p.id,
+        title: p.name + ': ' + UI.avg(p.average) + ' now, ' + p.entryAverage + ' book',
+      };
+    });
+  }
+
+  function closestMatches(matches) {
+    if (!matches.length) return UI.empty('No matches recorded yet.');
+    var rows = matches.slice().sort(function (a, b) { return a.margin - b.margin; }).slice(0, 6);
+    return UI.table({
+      columns: [
+        { key: 'margin', label: 'Margin', className: 'num-strong', sortable: false,
+          render: function (r) { return UI.num(r.margin) + ' pins'; } },
+        { key: 'winner', label: 'Winner', className: 'col-name', sortable: false,
+          render: function (r) {
+            var win = r.homePoints >= r.awayPoints ? r.home : r.away;
+            return el('a', { href: '#/team/' + win.id, text: win.name });
+          } },
+        { key: 'loser', label: 'Opponent', className: 'col-tight', sortable: false,
+          render: function (r) {
+            var lose = r.homePoints >= r.awayPoints ? r.away : r.home;
+            return el('a', { href: '#/team/' + lose.id, text: lose.name });
+          } },
+        { key: 'week', label: 'Wk', className: 'muted', optional: true, sortable: false,
+          render: function (r) { return String(r.week); } },
+      ],
+      rows: rows, state: null, onSort: function () {},
+    });
   }
 
   function countAtLeast(averages, threshold) {
@@ -375,6 +463,8 @@
     var games = gameCount();
 
     var standing = team.trend.length ? team.trend[team.trend.length - 1] : null;
+    var tightest = team.weeks.filter(function (w) { return w.margin != null; })
+      .sort(function (a, b) { return Math.abs(a.margin) - Math.abs(b.margin); })[0];
     var summary = UI.statGrid([
       UI.stat('Points', UI.points(team.points)),
       UI.stat('Record', record(team)),
@@ -383,7 +473,7 @@
       UI.stat('High game', UI.num(team.highGame)),
       UI.stat('High series', UI.num(team.highSeries)),
       UI.stat('High series (hdcp)', UI.num(team.highHdcpSeries)),
-      UI.stat('Weeks bowled', UI.num(team.weeks.length)),
+      UI.stat('Closest margin', tightest ? signed(tightest.margin, 0) + ' pins' : '—'),
     ]);
 
     var hdcpAverage = team.weeks.length
@@ -468,13 +558,31 @@
       { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
         value: function (r) { return r.hdcpSeries; },
         render: function (r) { return UI.num(r.hdcpSeries); } },
+      { key: 'margin', label: 'Margin',
+        value: function (r) { return r.margin; },
+        render: function (r) {
+          if (r.margin == null) return el('span', { class: 'muted', text: '—' });
+          return el('span', {
+            class: r.margin > 0 ? 'result-W' : r.margin < 0 ? 'result-L' : 'muted',
+            text: signed(r.margin, 0),
+          });
+        } },
       { key: 'points', label: 'Pts',
         value: function (r) { return r.points; },
         render: function (r) { return UI.points(r.points); } },
       { key: 'result', label: 'Res', sortable: false,
         render: function (r) {
           if (!r.result) return el('span', { class: 'muted', text: '—' });
-          return el('span', { class: 'result-' + r.result, text: r.result });
+          var mark = el('span', { class: 'result-' + r.result, text: r.result });
+          /* Flag the nights the handicap decided it. */
+          if (r.wonOnHandicap || r.lostOnHandicap) {
+            return el('span', {
+              title: r.wonOnHandicap
+                ? 'Out-pinned on scratch, won on handicap'
+                : 'Out-pinned the opponent, lost on handicap',
+            }, [mark, el('span', { class: 'hdcp-mark', text: 'ᴴ' })]);
+          }
+          return mark;
         } }
     );
 
@@ -574,6 +682,10 @@
         el('span', { class: 'pill', text: UI.num(week.hdcpSeries) + ' with handicap' }),
         week.opponentName ? ' vs ' + week.opponentName : '',
         week.points != null ? ' · ' + UI.points(week.points) + '–' + UI.points(week.opponentPoints) + ' points' : '',
+        week.margin != null
+          ? ' · ' + (week.margin >= 0 ? 'ahead by ' : 'short by ') +
+            UI.num(Math.abs(week.margin)) + ' on handicap pinfall'
+          : '',
       ]));
 
       weekSection = el('div', null, [picker, lines, totals]);
@@ -625,11 +737,11 @@
     var standing = player.trend.length ? player.trend[player.trend.length - 1] : null;
     var tiles = [
       UI.stat('Average', UI.avg(player.average)),
+      UI.stat('vs book', signed(player.vsBook)),
       UI.stat('League rank', standing ? '#' + standing.rank : '—'),
       UI.stat('High game', UI.num(player.highGame)),
       UI.stat('High series', UI.num(player.highSeries)),
       UI.stat('Games', UI.num(player.games)),
-      UI.stat('Weeks', UI.num(player.weeksBowled)),
       UI.stat('Total pins', UI.big(player.pins)),
       model.scoring.useHandicap
         ? UI.stat('Handicap', UI.num(player.handicap))
@@ -762,10 +874,70 @@
         UI.card('League rank by week', 'Against every bowler with a score', cardBody(rankChart))
       ),
       UI.card('Scores by week', games + ' games per week', body),
+      chartPair(
+        UI.card('By game', 'Slow starter or strong finisher',
+                slotTable(player.slots, player.average)),
+        UI.card('Milestones', 'Scores worth remembering', el('div', null, [
+          el('div', { class: 'card-body' }, milestoneRow(player.milestones)),
+          player.entryAverage != null
+            ? el('div', { class: 'card-body' }, el('p', { class: 'muted', text:
+                'Book average ' + player.entryAverage + ', carrying ' +
+                UI.avg(player.average) + ' — ' + signed(player.vsBook) + '.' }))
+            : null,
+        ]))
+      ),
     ]);
   }
 
   /* ---------- shared bits ---------- */
+
+  /* Signed numbers read better with an explicit +. */
+  function signed(value, digits) {
+    if (value == null || !isFinite(value)) return '—';
+    var text = Math.abs(value).toFixed(digits == null ? 1 : digits);
+    return (value > 0 ? '+' : value < 0 ? '\u2212' : '') + text;
+  }
+
+  function milestoneRow(milestones) {
+    var pills = [];
+    function add(counts, noun) {
+      Object.keys(counts).forEach(function (mark) {
+        if (!counts[mark]) return;
+        pills.push(el('span', { class: 'pill',
+          text: counts[mark] + ' \u00d7 ' + mark + '+ ' + noun }));
+      });
+    }
+    add(milestones.games, 'game');
+    add(milestones.series, 'series');
+    if (!pills.length) {
+      return el('p', { class: 'muted', text: 'No milestone scores yet.' });
+    }
+    return el('div', { class: 'pill-row' }, pills);
+  }
+
+  /* Game 1/2/3 averages against the overall average they belong to. */
+  function slotTable(slots, baseline) {
+    if (!slots.length) return UI.empty('No games recorded yet.');
+    return UI.table({
+      columns: [
+        { key: 'game', label: 'Game', className: 'col-name', sortable: false,
+          render: function (r) { return 'Game ' + r.game; } },
+        { key: 'average', label: 'Average', className: 'num-strong', sortable: false,
+          render: function (r) { return UI.avg(r.average); } },
+        { key: 'delta', label: 'vs overall', sortable: false,
+          render: function (r) {
+            var delta = r.average - baseline;
+            return el('span', {
+              class: delta > 0 ? 'result-W' : delta < 0 ? 'result-L' : 'muted',
+              text: signed(delta),
+            });
+          } },
+        { key: 'games', label: 'Games', className: 'muted', optional: true, sortable: false,
+          render: function (r) { return UI.num(r.games); } },
+      ],
+      rows: slots, state: null, onSort: function () {},
+    });
+  }
 
   function plural(count, word) {
     return count + ' ' + word + (Number(count) === 1 ? '' : 's');

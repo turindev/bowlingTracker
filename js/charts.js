@@ -46,6 +46,45 @@
     }));
   }
 
+  /* ---- diverging bars -------------------------------------------------
+     For signed values, where the sign is the point. Bars grow out from a
+     centre rule — right and blue for positive, left and red for negative —
+     and every bar is direct-labelled, so the sign never rests on colour
+     alone. Both poles are validated against the light and dark surfaces.
+     -------------------------------------------------------------------- */
+  function diverging(options) {
+    var rows = options.rows || [];
+    if (!rows.length) return UI.empty(options.empty || 'Nothing to chart yet.');
+
+    var widest = rows.reduce(function (max, row) {
+      return Math.max(max, Math.abs(row.value || 0));
+    }, 0) || 1;
+
+    return el('div', { class: 'div-chart', role: 'list' }, rows.map(function (row) {
+      var value = row.value || 0;
+      var extent = Math.abs(value) / widest * 50;
+      var bar = el('span', {
+        class: 'div-bar ' + (value < 0 ? 'is-neg' : 'is-pos'),
+        style: value < 0
+          ? 'right:50%;width:' + extent + '%'
+          : 'left:50%;width:' + extent + '%',
+      });
+
+      var label = row.href
+        ? el('a', { class: 'dist-band dist-link', href: row.href, text: row.label })
+        : el('span', { class: 'dist-band', text: row.label });
+
+      return el('div', { class: 'div-row', role: 'listitem', title: row.title || '' }, [
+        label,
+        el('span', { class: 'div-track' }, [el('span', { class: 'div-axis' }), bar]),
+        el('span', {
+          class: 'div-value',
+          text: row.display != null ? row.display : (value > 0 ? '+' : '') + value,
+        }),
+      ]);
+    }));
+  }
+
   /* ---- line chart -----------------------------------------------------
      points: { label, value, caption }
      Redraws at the container's real pixel width so the labels stay legible
@@ -226,5 +265,5 @@
     return out;
   }
 
-  window.Charts = { bars: bars, line: line };
+  window.Charts = { bars: bars, diverging: diverging, line: line };
 })();

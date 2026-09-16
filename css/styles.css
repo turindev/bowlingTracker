@@ -15,6 +15,8 @@
   --win: #157f4a;
   --loss: #b3261e;
   --gold: #a8730a;
+  --div-pos: #1f5fd0;
+  --div-neg: #c0452b;
   --shadow: 0 1px 2px rgba(18, 26, 44, .06), 0 6px 18px rgba(18, 26, 44, .06);
   --radius: 14px;
   --radius-sm: 9px;
@@ -33,6 +35,8 @@
     --win: #4ed58e;
     --loss: #ff8b80;
     --gold: #f0c04d;
+    --div-pos: #4a8ae8;
+    --div-neg: #d9634a;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
   }
 }
@@ -49,6 +53,8 @@
   --win: #4ed58e;
   --loss: #ff8b80;
   --gold: #f0c04d;
+  --div-pos: #4a8ae8;
+  --div-neg: #d9634a;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
 }
 
@@ -356,6 +362,43 @@ main { padding: 20px 16px 48px; }
 }
 .dist-band.dist-link:hover { color: var(--accent); text-decoration: underline; }
 
+/* ---------- diverging bars ---------- */
+
+.div-chart { display: flex; flex-direction: column; gap: 2px; max-width: 640px; }
+
+.div-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.div-track {
+  position: relative;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+/* The zero rule: a hairline, not a gap. */
+.div-axis {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--border);
+}
+
+.div-bar { position: absolute; top: 0; bottom: 0; min-width: 2px; }
+.div-bar.is-pos { background: var(--div-pos); border-radius: 0 4px 4px 0; }
+.div-bar.is-neg { background: var(--div-neg); border-radius: 4px 0 0 4px; }
+
+.div-value { font-size: 13px; font-weight: 650; text-align: right; }
+
+.div-row:hover .div-track { background: var(--accent-soft); }
+
 /* ---------- line charts ---------- */
 
 .chart { position: relative; width: 100%; min-height: 190px; }
@@ -566,6 +609,15 @@ th[aria-sort="descending"] button::after { content: " ▼"; }
 .result-L { color: var(--loss); font-weight: 700; }
 .result-T { color: var(--text-dim); font-weight: 700; }
 
+.pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Marks a result the handicap decided. */
+.hdcp-mark {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-left: 2px;
+}
+
 .best { color: var(--gold); font-weight: 700; }
 
 .pill {
@@ -577,6 +629,23 @@ th[aria-sort="descending"] button::after { content: " ▼"; }
   font-size: 12px;
   font-weight: 650;
 }
+
+.card-action {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.link-button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.link-button:hover { text-decoration: underline; }
 
 .empty {
   padding: 28px 16px;
@@ -616,6 +685,10 @@ th[aria-sort="descending"] button::after { content: " ▼"; }
 }
 
 @media (min-width: 640px) {
+  /* Names get the room they need once the screen has it. */
+  .dist-row-wide { grid-template-columns: 172px minmax(0, 1fr) 46px; }
+  .div-row { grid-template-columns: 172px minmax(0, 1fr) 52px; }
+
   main { padding: 26px 16px 56px; }
   .view { gap: 22px; }
   .page-head h1 { font-size: 27px; }
