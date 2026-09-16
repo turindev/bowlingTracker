@@ -104,5 +104,14 @@
     return art;
   }
 
-  window.Avatars = { player: player, banner: banner, initials: initials };
+  /* The same hue a team's banner uses, so a team keeps one identity colour
+     everywhere it appears. Decorative only — it always sits beside the name,
+     never carrying meaning on its own. */
+  function colorFor(name) {
+    return hsl(hashOf(name) % 360, 52, 42);
+  }
+
+  window.Avatars = {
+    player: player, banner: banner, initials: initials, colorFor: colorFor,
+  };
 })();

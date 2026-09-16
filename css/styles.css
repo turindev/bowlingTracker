@@ -219,6 +219,28 @@ main { padding: 20px 16px 48px; }
   color: #fff;
   text-shadow: 0 1px 12px rgba(8, 12, 22, .45);
 }
+.banner-lg { min-height: 152px; }
+
+/* How far through the season we are. */
+.season { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+
+.season-bar {
+  flex: 1 1 auto;
+  max-width: 260px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .28);
+  overflow: hidden;
+}
+.season-bar span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 999px;
+  background: #fff;
+}
+.season-text { font-size: 12.5px; font-weight: 600; opacity: .9; white-space: nowrap; }
+
 .banner-text h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
 .banner-text p { margin: 3px 0 0; font-size: 14px; opacity: .88; }
 
@@ -227,6 +249,7 @@ main { padding: 20px 16px 48px; }
   .avatar-initials { font-size: 36px; }
   .profile-text h1 { font-size: 27px; }
   .banner { min-height: 168px; }
+  .banner-lg { min-height: 196px; }
   .banner-text { padding: 20px 24px; }
   .banner-text h1 { font-size: 31px; }
 }
@@ -604,6 +627,56 @@ th.sortable button:hover { color: var(--accent); }
 th[aria-sort] button { color: var(--text); }
 th[aria-sort] button::after { content: " ▲"; font-size: 9px; }
 th[aria-sort="descending"] button::after { content: " ▼"; }
+
+/* A team's banner colour, carried into the tables so a team reads the same
+   everywhere. Always beside the name, never instead of it. */
+.team-chip {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 7px;
+  vertical-align: 1px;
+  flex: none;
+}
+
+/* The hues are picked for a light surface; lift them on a dark one. */
+:root[data-theme="dark"] .team-chip { filter: brightness(1.5) saturate(1.05); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .team-chip { filter: brightness(1.5) saturate(1.05); }
+}
+
+/* Podium markers. The number stays; the ring is the decoration. */
+.medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  border: 1.5px solid currentColor;
+}
+.medal-1 { color: #b8860b; background: rgba(217, 164, 32, .14); }
+.medal-2 { color: #7c8894; background: rgba(140, 152, 164, .16); }
+.medal-3 { color: #a0642a; background: rgba(176, 110, 52, .14); }
+
+:root[data-theme="dark"] .medal-1,
+:root[data-theme="dark"] .medal-2,
+:root[data-theme="dark"] .medal-3 { color: var(--gold); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .medal-1 { color: #f0c04d; }
+  :root:not([data-theme="light"]) .medal-2 { color: #b9c4d0; }
+  :root:not([data-theme="light"]) .medal-3 { color: #d59a63; }
+}
+
+/* Two links in one row should look alike. */
+td.link-cell a { color: var(--accent); font-weight: 600; text-decoration: none; }
+td.link-cell a:hover { text-decoration: underline; }
 
 .result-W { color: var(--win); font-weight: 700; }
 .result-L { color: var(--loss); font-weight: 700; }

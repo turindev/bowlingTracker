@@ -30,7 +30,9 @@ npx http-server . -p 8080    # then open http://localhost:8080
 
 Team banners and bowler monograms are generated from the name — deterministic
 colours, drawn as SVG, no image files and no calls to an outside avatar
-service.
+service. A team's banner colour follows it into the tables as a small chip
+beside its name, so teammates are easy to pick out of a leaderboard; the chip
+is always next to the name and never carries meaning by itself.
 
 Every table sorts by any column — tap or click a heading, tap again to reverse.
 The leaderboards also have a search box. The layout is built mobile-first and
