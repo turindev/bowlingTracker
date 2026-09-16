@@ -233,28 +233,34 @@
       tabs('overview'),
       UI.statGrid(tiles),
       chartPair(
-        UI.card('Scoring pace', 'League average each week', cardBody(pace)),
+        UI.card('Scoring pace', 'League average each week', cardBody(pace),
+              "How the league as a whole scored on each night, as pins per game across every bowler. The rule marks the season average, so you can see which weeks ran hot or cold."),
         UI.card('Standings',
                 state.showAllTeams ? 'Points won so far'
                                    : 'Top ' + TEAM_PREVIEW + ' of ' + ranked.length,
-                el('div', null, standingsCard))
+                el('div', null, standingsCard),
+              "Points won so far. Each match is worth four: one for each handicap game won, and one for total handicap pinfall.")
       ),
       UI.card('Average distribution', 'Bowlers in each 10-pin band',
-              cardBody(Charts.bars({ rows: distributionRows(s.averages) }))),
+              cardBody(Charts.bars({ rows: distributionRows(s.averages) })),
+              "How many bowlers sit in each 10-pin band of season average. It shows the shape of the league - where most bowlers cluster and how long the tails run."),
       UI.card('Over and under book average',
               state.showAllBook ? 'Current average against book average'
                                 : 'Furthest above and below book average',
-              el('div', null, bookCard)),
+              el('div', null, bookCard),
+              "Each bowler's season average against the book average their handicap is set from. Blue is bowling above book, red below. Early in the season one good or bad night moves this a long way."),
       chartPair(
         UI.card('By game', 'Where the league scores its pins',
-                slotTable(s.slots, s.average)),
+                slotTable(s.slots, s.average),
+              "The league average for the first, second and third game of the night, against the overall average. Lanes tend to open up as the oil moves, so later games often score higher."),
         UI.card('Honour roll', 'Big scores so far', el('div', null, [
           el('div', { class: 'card-body' }, milestoneRow(s.milestones)),
           el('div', { class: 'card-body' }, el('p', { class: 'muted' }, [
             plural(s.handicapSwings.length, 'match') + ' of ' + s.matches.length +
             ' went to the team that was out-pinned on scratch.',
           ])),
-        ]))
+        ]),
+              "A running count of the big scores across the league, plus how often the handicap decided a match - that is, the winning team was out-pinned on scratch.")
       ),
       UI.card('Standings race',
               model.weeks.length < 2
@@ -272,12 +278,16 @@
                     }),
                   };
                 }),
-              }))),
+              })),
+              "Every team's position in the standings after each week. All teams are drawn the same; hover or tap a line to lift one out and name it. It needs several weeks before there is any movement to see."),
       laneCard(s),
       UI.card('Closest matches', 'Handicap pinfall between the two teams',
-              closestMatches(s.matches)),
-      UI.card('Averages at a glance', 'Bowlers carrying each average or better', milestones),
-      UI.card('Season bests', 'Scratch unless marked', highs),
+              closestMatches(s.matches),
+              "The tightest results in the league, measured by the gap in total handicap pinfall between the two teams."),
+      UI.card('Averages at a glance', 'Bowlers carrying each average or better', milestones,
+              "How many bowlers are carrying each average or better, and what share of the league that is. The rows are cumulative, so everyone counted at 220+ is also counted at 210+."),
+      UI.card('Season bests', 'Scratch unless marked', highs,
+              "The highest single game and series of the season, for individuals and for teams. Scratch figures unless the row says handicap."),
     ]);
   }
 
@@ -377,7 +387,8 @@
         plural(pairs[0].games, 'game') + ' behind each pair so far. Teams move ' +
         'around the house every week, so this measures the lanes only once they ' +
         'have all bowled on most of them.' })),
-    ]));
+    ]),
+              "How each pair of lanes has scored, as a difference from the league average. Because teams move around the house every week, this only starts to measure the lanes themselves once most teams have bowled on most pairs.");
   }
 
   /* The extremes are the story; the middle of the pack is not. */
@@ -480,14 +491,9 @@
         pageHead('Leaderboard', leagueSubtitle()),
         tabs('players'),
         sampleNotice(),
-        el('section', { class: 'card' }, [
-          el('div', { class: 'card-head' }, [
-            el('h2', { text: 'Individual standings' }),
-            el('span', { class: 'hint', text: 'Tap a column to sort · +/- is how far a typical game sits from that bowler\u2019s average' }),
-          ]),
-          searchBox('Find a bowler or team', render),
-          body,
-        ]),
+        UI.card('Individual standings', 'Tap a column to sort',
+                el('div', null, [searchBox('Find a bowler or team', render), body]),
+                "Every bowler in the league with a recorded score. Tap any column to sort by it, tap again to reverse, and tap a name for that bowler's own page. +/- is how far a typical game sits from their average, so a low number is a steady bowler."),
       ]);
       restoreFocus(fromSearch);
     }
@@ -560,14 +566,9 @@
         pageHead('Leaderboard', leagueSubtitle()),
         tabs('teams'),
         sampleNotice(),
-        el('section', { class: 'card' }, [
-          el('div', { class: 'card-head' }, [
-            el('h2', { text: 'Team standings' }),
-            el('span', { class: 'hint', text: 'Scratch unless marked Hdcp · Team Avg is the average team game' }),
-          ]),
-          searchBox('Find a team', render),
-          body,
-        ]),
+        UI.card('Team standings', 'Scratch unless marked Hdcp',
+                el('div', null, [searchBox('Find a team', render), body]),
+                "Every team in the league. Tap any column to sort by it and tap a name for that team's page. Team Avg is the average team game with all bowlers combined, not a per-bowler figure."),
       ]);
       restoreFocus(fromSearch);
     }
@@ -871,18 +872,26 @@
       ]),
       summary,
       chartPair(
-        UI.card('Series by week', 'With handicap', cardBody(seriesChart)),
-        UI.card('League position', 'Place in the standings each week', cardBody(positionChart))
+        UI.card('Series by week', 'With handicap', cardBody(seriesChart),
+              "This team's three-game total for each week with handicap added - the number the match points are decided on. The rule marks their own average."),
+        UI.card('League position', 'Place in the standings each week', cardBody(positionChart),
+              "Where this team sat in the standings after each week. Higher on the chart is a better position.")
       ),
       chartPair(
-        UI.card('Roster averages', 'Season to date', cardBody(rosterChart)),
+        UI.card('Roster averages', 'Season to date', cardBody(rosterChart),
+              "Each bowler's season scratch average, so the shape of the roster reads at a glance."),
         UI.card('Share of team pins', 'Who is carrying the load',
-                cardBody(contributionChart))
+                cardBody(contributionChart),
+              "What proportion of the team's total pinfall each bowler has contributed. This catches something an average does not: a high average counts for less if the bowler misses weeks.")
       ),
-      UI.card('Head to head', 'Every opponent faced so far', headToHead(team)),
-      UI.card('Weekly results', 'Scratch unless marked Hdcp', results),
-      UI.card('Scores by week', 'Scratch unless marked Hdcp', weekSection),
-      UI.card('Roster', 'Scratch unless marked Hdcp', roster),
+      UI.card('Head to head', 'Every opponent faced so far', headToHead(team),
+              "Every opponent this team has met, with the record against them and how the points split in those matches."),
+      UI.card('Weekly results', 'Scratch unless marked Hdcp', results,
+              "Every week this team has bowled: the lane pair, each game's team total, the series, and the margin against the opponent in handicap pinfall. An H beside the result means the handicap decided it."),
+      UI.card('Scores by week', 'Scratch unless marked Hdcp', weekSection,
+              "Every bowler's individual line for the week you pick, adding up to the team totals underneath."),
+      UI.card('Roster', 'Scratch unless marked Hdcp', roster,
+              "Season figures for every bowler on the team, scratch and with handicap."),
     ]);
 
     function renderTeam() { teamViewRedraw(team.id); }
@@ -1078,16 +1087,21 @@
         ]),
       ]),
       UI.statGrid(tiles),
-      UI.card('Every game', 'Each game this season, in order', cardBody(gameChart)),
+      UI.card('Every game', 'Each game this season, in order', cardBody(gameChart),
+              "Every single game this bowler has thrown, in the order they were bowled. The rule across the middle is their season average, so peaks and troughs are easy to read."),
       chartPair(
-        UI.card('Average by week', 'Season to date after each night', cardBody(averageChart)),
-        UI.card('League rank by week', 'Against every bowler with a score', cardBody(rankChart))
+        UI.card('Average by week', 'Season to date after each night', cardBody(averageChart),
+              "This bowler's season average as it stood after each week, against the league average. It steadies as the season goes on."),
+        UI.card('League rank by week', 'Against every bowler with a score', cardBody(rankChart),
+              "Where this bowler ranked among everyone in the league after each week. Higher on the chart is a better rank.")
       ),
       UI.card('Scores by week',
-              games + ' games per week · scratch unless marked Hdcp', body),
+              games + ' games per week · scratch unless marked Hdcp', body,
+              "Every week this bowler has bowled, with each game, the series, that night's average, and the season average as it stood afterwards."),
       chartPair(
         UI.card('By game', 'Slow starter or strong finisher',
-                slotTable(player.slots, player.average)),
+                slotTable(player.slots, player.average),
+              "This bowler's average in the first, second and third game of the night, against their own overall average. It shows whether they warm up or fade."),
         UI.card('Milestones', 'Scores worth remembering', el('div', null, [
           el('div', { class: 'card-body' }, milestoneRow(player.milestones)),
           player.entryAverage != null
@@ -1095,7 +1109,8 @@
                 'Book average ' + player.entryAverage + ', carrying ' +
                 UI.avg(player.average) + ' — ' + signed(player.vsBook) + '.' }))
             : null,
-        ]))
+        ]),
+              "A count of this bowler's notable scores - 200 and 250 games, 600 and 700 series - and how their season average compares with their book average.")
       ),
     ]);
   }
