@@ -8,7 +8,7 @@
  * after editing to catch typos before they reach the page.
  *
  * Week 1 note: the printed sheet had teams 7 and 8 under each other's names.
- * The roster it labelled "Team 7" is really 8 - Bowler's Anonymous, and that
+ * The roster it labelled "Team 7" is really 8 - Bowlers Anonymous, and that
  * correction is already applied here.
  */
 window.LEAGUE_DATA =
@@ -59,7 +59,7 @@ window.LEAGUE_DATA =
     },
     {
       "id": "t8",
-      "name": "Bowler's Anonymous"
+      "name": "Bowlers Anonymous"
     },
     {
       "id": "t9",
