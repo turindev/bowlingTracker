@@ -1,0 +1,441 @@
+/*
+ * Turns the raw league data into everything the views need: season averages,
+ * handicaps, team game totals, and head-to-head points.
+ *
+ * Everything is computed once at load and cached on the returned model, so the
+ * views can sort and re-render without recomputing.
+ */
+(function () {
+  'use strict';
+
+  var DEFAULT_SCORING = {
+    gamesPerWeek: 3,
+    useHandicap: false,
+    handicapBasis: 220,
+    handicapPercent: 90,
+    pointsPerGame: 1,
+    pointsForSeries: 1,
+  };
+
+  function isScore(v) {
+    return typeof v === 'number' && isFinite(v) && v >= 0;
+  }
+
+  function sum(nums) {
+    var total = 0;
+    for (var i = 0; i < nums.length; i++) total += nums[i];
+    return total;
+  }
+
+  /* A bowler's handicap off a given average, e.g. 90% of (220 - avg). */
+  function handicapFor(average, scoring) {
+    if (!scoring.useHandicap || average == null) return 0;
+    var diff = scoring.handicapBasis - average;
+    if (diff <= 0) return 0;
+    return Math.floor(diff * (scoring.handicapPercent / 100));
+  }
+
+  function build(raw) {
+    var scoring = Object.assign({}, DEFAULT_SCORING, raw.scoring || {});
+    var league = Object.assign({}, raw.league || {});
+
+    var players = (raw.players || []).map(function (p) {
+      return {
+        id: p.id,
+        name: p.name,
+        teamId: p.teamId,
+        entryAverage: isScore(p.entryAverage) ? p.entryAverage : null,
+        /* Vacant spots and absentee scores count for the team but are not
+           real bowlers, so they stay off the individual leaderboard. */
+        placeholder: !!p.placeholder,
+        substitute: !!p.substitute,
+        weeks: [],
+        games: 0,
+        pins: 0,
+        average: null,
+        handicap: 0,
+        highGame: null,
+        highSeries: null,
+        trend: [],
+      };
+    });
+
+    var teams = (raw.teams || []).map(function (t) {
+      return {
+        id: t.id,
+        name: t.name,
+        players: [],
+        weeks: [],
+        points: 0,
+        trend: [],
+        highHdcpSeries: null,
+        wins: 0,
+        losses: 0,
+        ties: 0,
+        games: 0,
+        pins: 0,
+        average: null,
+        highGame: null,
+        highSeries: null,
+      };
+    });
+
+    var playersById = index(players);
+    var teamsById = index(teams);
+
+    players.forEach(function (p) {
+      var team = teamsById[p.teamId];
+      p.teamName = team ? team.name : 'Unassigned';
+      if (team) team.players.push(p);
+    });
+
+    var weeks = (raw.weeks || [])
+      .slice()
+      .sort(function (a, b) { return a.number - b.number; });
+
+    /* Pass 1: per-bowler lines, week by week. */
+    weeks.forEach(function (week) {
+      (week.scores || []).forEach(function (line) {
+        var player = playersById[line.playerId];
+        if (!player) return;
+        var games = (line.games || []).filter(isScore);
+        if (!games.length) return;
+
+        var series = sum(games);
+        player.weeks.push({
+          number: week.number,
+          date: week.date,
+          games: games,
+          series: series,
+          average: series / games.length,
+        });
+        player.games += games.length;
+        player.pins += series;
+        player.highGame = Math.max(player.highGame || 0, Math.max.apply(null, games));
+        player.highSeries = Math.max(player.highSeries || 0, series);
+      });
+    });
+
+    players.forEach(function (p) {
+      if (p.games > 0) p.average = p.pins / p.games;
+      /* Handicap runs off the book average when one is set, otherwise the
+         season-to-date average. */
+      p.handicap = handicapFor(p.entryAverage != null ? p.entryAverage : p.average, scoring);
+      p.handicapAverage = p.average == null ? null : p.average + p.handicap;
+      p.weeksBowled = p.weeks.length;
+    });
+
+    buildTrend(players, weeks);
+
+    /* Pass 2: team totals per week, then head-to-head points. */
+    weeks.forEach(function (week) {
+      var byTeam = {};
+      teams.forEach(function (t) {
+        byTeam[t.id] = { lines: [], gameTotals: [], handicap: 0 };
+      });
+
+      (week.scores || []).forEach(function (line) {
+        var player = playersById[line.playerId];
+        if (!player || !byTeam[player.teamId]) return;
+        var games = (line.games || []).filter(isScore);
+        if (!games.length) return;
+        byTeam[player.teamId].lines.push({
+          playerId: player.id,
+          name: player.name,
+          placeholder: player.placeholder,
+          games: games,
+          series: sum(games),
+        });
+        byTeam[player.teamId].handicap += player.handicap;
+      });
+
+      Object.keys(byTeam).forEach(function (teamId) {
+        var bucket = byTeam[teamId];
+        var gameCount = bucket.lines.reduce(function (max, l) {
+          return Math.max(max, l.games.length);
+        }, 0);
+        for (var g = 0; g < gameCount; g++) {
+          var total = 0;
+          for (var i = 0; i < bucket.lines.length; i++) {
+            if (isScore(bucket.lines[i].games[g])) total += bucket.lines[i].games[g];
+          }
+          bucket.gameTotals.push(total);
+        }
+      });
+
+      (week.matches || []).forEach(function (match) {
+        var home = teamsById[match.homeTeamId];
+        var away = teamsById[match.awayTeamId];
+        if (!home || !away) return;
+        var result = scoreMatch(byTeam[home.id], byTeam[away.id], match, scoring);
+        attach(home, away, byTeam[home.id], result.home, result.away, week);
+        attach(away, home, byTeam[away.id], result.away, result.home, week);
+      });
+
+      /* Teams that bowled but have no match recorded still get their week
+         listed, so nothing silently disappears from a drill-down. */
+      teams.forEach(function (team) {
+        var alreadyLogged = team.weeks.some(function (w) { return w.number === week.number; });
+        if (alreadyLogged || !byTeam[team.id].lines.length) return;
+        attach(team, null, byTeam[team.id], null, null, week);
+      });
+    });
+
+    buildTeamTrend(teams, weeks);
+
+    teams.forEach(function (t) {
+      t.weeks.sort(function (a, b) { return a.number - b.number; });
+      if (t.games > 0) t.average = t.pins / t.games;
+      t.players.sort(function (a, b) { return (b.average || 0) - (a.average || 0); });
+    });
+
+    return {
+      league: league,
+      scoring: scoring,
+      summary: summarise(players, teams, weeks),
+      teams: teams,
+      players: players,
+      weeks: weeks,
+      teamsById: teamsById,
+      playersById: playersById,
+      lastWeek: weeks.length ? weeks[weeks.length - 1] : null,
+      hasScores: players.some(function (p) { return p.games > 0; }),
+    };
+  }
+
+  /* Walks the season once, week by week, recording where each bowler's average
+     and league rank stood after every night. This is what the trend charts on
+     the profile pages plot. */
+  function buildTrend(players, weeks) {
+    var real = players.filter(function (p) { return !p.placeholder; });
+    var running = {};
+    real.forEach(function (p) { running[p.id] = { pins: 0, games: 0 }; });
+
+    weeks.forEach(function (week) {
+      var bowledThisWeek = {};
+      (week.scores || []).forEach(function (line) {
+        if (!running[line.playerId]) return;
+        var games = (line.games || []).filter(isScore);
+        if (!games.length) return;
+        running[line.playerId].pins += sum(games);
+        running[line.playerId].games += games.length;
+        bowledThisWeek[line.playerId] = sum(games);
+      });
+
+      var standing = real.filter(function (p) { return running[p.id].games > 0; });
+      standing.sort(function (a, b) {
+        return running[b.id].pins / running[b.id].games - running[a.id].pins / running[a.id].games;
+      });
+
+      standing.forEach(function (p, i) {
+        p.trend.push({
+          week: week.number,
+          date: week.date,
+          average: running[p.id].pins / running[p.id].games,
+          rank: i + 1,
+          of: standing.length,
+          series: bowledThisWeek[p.id] != null ? bowledThisWeek[p.id] : null,
+        });
+      });
+    });
+  }
+
+  /* The same walk for teams: cumulative points and standings position after
+     each week, which is what the team dashboard plots. */
+  function buildTeamTrend(teams, weeks) {
+    var running = {};
+    teams.forEach(function (t) { running[t.id] = { points: 0, pins: 0 }; });
+
+    weeks.forEach(function (week) {
+      var thisWeek = {};
+      teams.forEach(function (team) {
+        var entry = team.weeks.filter(function (w) { return w.number === week.number; })[0];
+        if (!entry) return;
+        thisWeek[team.id] = entry;
+        if (entry.points != null) running[team.id].points += entry.points;
+        running[team.id].pins += entry.series;
+      });
+
+      var standing = teams.slice().sort(function (a, b) {
+        return running[b.id].points - running[a.id].points || running[b.id].pins - running[a.id].pins;
+      });
+
+      standing.forEach(function (team, i) {
+        var entry = thisWeek[team.id];
+        team.trend.push({
+          week: week.number,
+          date: week.date,
+          points: running[team.id].points,
+          rank: i + 1,
+          of: teams.length,
+          series: entry ? entry.series : null,
+          hdcpSeries: entry ? entry.hdcpSeries : null,
+          weekPoints: entry ? entry.points : null,
+        });
+      });
+    });
+  }
+
+  /* League-wide totals and record scores for the overview page. Placeholder
+     entries (vacant spots, absentee scores) are team bookkeeping, not people,
+     so they stay out of every count and average here. */
+  function summarise(players, teams, weeks) {
+    var real = players.filter(function (p) { return !p.placeholder && p.games > 0; });
+
+    var pins = 0;
+    var games = 0;
+    var highGame = null;
+    var highSeries = null;
+
+    real.forEach(function (p) {
+      pins += p.pins;
+      games += p.games;
+      p.weeks.forEach(function (week) {
+        week.games.forEach(function (score) {
+          if (!highGame || score > highGame.value) {
+            highGame = { value: score, player: p, week: week.number };
+          }
+        });
+        if (!highSeries || week.series > highSeries.value) {
+          highSeries = { value: week.series, player: p, week: week.number };
+        }
+      });
+    });
+
+    var best = null;
+    function consider(current, value, team, number) {
+      if (value == null) return current;
+      return !current || value > current.value
+        ? { value: value, team: team, week: number }
+        : current;
+    }
+    var teamGame = null, teamSeries = null, teamHdcpGame = null, teamHdcpSeries = null;
+    teams.forEach(function (t) {
+      t.weeks.forEach(function (w) {
+        w.gameTotals.forEach(function (total) {
+          teamGame = consider(teamGame, total, t, w.number);
+        });
+        w.hdcpGameTotals.forEach(function (total) {
+          teamHdcpGame = consider(teamHdcpGame, total, t, w.number);
+        });
+        teamSeries = consider(teamSeries, w.series, t, w.number);
+        teamHdcpSeries = consider(teamHdcpSeries, w.hdcpSeries, t, w.number);
+      });
+      if (!best || (t.points || 0) > best.points) best = t;
+    });
+
+    var byWeek = weeks.map(function (week) {
+      var pins = 0;
+      var count = 0;
+      (week.scores || []).forEach(function (line) {
+        var player = real.filter(function (p) { return p.id === line.playerId; })[0];
+        if (!player) return;
+        var games = (line.games || []).filter(function (g) { return isScore(g); });
+        pins += games.reduce(function (a, b) { return a + b; }, 0);
+        count += games.length;
+      });
+      return {
+        week: week.number, date: week.date, pins: pins, games: count,
+        average: count ? pins / count : null,
+      };
+    });
+
+    return {
+      byWeek: byWeek,
+      bowlers: real.length,
+      teams: teams.length,
+      weeks: weeks.length,
+      games: games,
+      pins: pins,
+      average: games ? pins / games : null,
+      averages: real.map(function (p) { return p.average; }),
+      topAverage: real.slice().sort(function (a, b) { return b.average - a.average; })[0] || null,
+      highGame: highGame,
+      highSeries: highSeries,
+      highTeamGame: teamGame,
+      highTeamSeries: teamSeries,
+      highTeamHdcpGame: teamHdcpGame,
+      highTeamHdcpSeries: teamHdcpSeries,
+    };
+  }
+
+  /* Awards points for one match: a point per game won plus one for total
+     pinfall, unless the week's data spells the points out explicitly. */
+  function scoreMatch(homeBucket, awayBucket, match, scoring) {
+    if (isScore(match.homePoints) && isScore(match.awayPoints)) {
+      return { home: match.homePoints, away: match.awayPoints };
+    }
+
+    var homeHdcp = scoring.useHandicap ? homeBucket.handicap : 0;
+    var awayHdcp = scoring.useHandicap ? awayBucket.handicap : 0;
+    var gameCount = Math.max(homeBucket.gameTotals.length, awayBucket.gameTotals.length);
+    if (!gameCount) return { home: null, away: null };
+
+    var home = 0;
+    var away = 0;
+    for (var g = 0; g < gameCount; g++) {
+      var h = (homeBucket.gameTotals[g] || 0) + homeHdcp;
+      var a = (awayBucket.gameTotals[g] || 0) + awayHdcp;
+      if (h > a) home += scoring.pointsPerGame;
+      else if (a > h) away += scoring.pointsPerGame;
+      else { home += scoring.pointsPerGame / 2; away += scoring.pointsPerGame / 2; }
+    }
+
+    var homeSeries = sum(homeBucket.gameTotals) + homeHdcp * gameCount;
+    var awaySeries = sum(awayBucket.gameTotals) + awayHdcp * gameCount;
+    if (homeSeries > awaySeries) home += scoring.pointsForSeries;
+    else if (awaySeries > homeSeries) away += scoring.pointsForSeries;
+    else { home += scoring.pointsForSeries / 2; away += scoring.pointsForSeries / 2; }
+
+    return { home: home, away: away };
+  }
+
+  function attach(team, opponent, bucket, points, oppPoints, week) {
+    var series = sum(bucket.gameTotals);
+    var result = null;
+    if (points != null && oppPoints != null) {
+      result = points > oppPoints ? 'W' : points < oppPoints ? 'L' : 'T';
+      if (result === 'W') team.wins++;
+      else if (result === 'L') team.losses++;
+      else team.ties++;
+      team.points += points;
+    }
+
+    var gamesBowled = bucket.gameTotals.length;
+    team.weeks.push({
+      number: week.number,
+      date: week.date,
+      /* Points are decided on handicap totals, so carry them alongside
+         scratch — that is also what the printed league sheet reports. */
+      hdcpSeries: series + bucket.handicap * gamesBowled,
+      hdcpGameTotals: bucket.gameTotals.map(function (total) {
+        return total + bucket.handicap;
+      }),
+      opponentId: opponent ? opponent.id : null,
+      opponentName: opponent ? opponent.name : null,
+      gameTotals: bucket.gameTotals.slice(),
+      series: series,
+      handicap: bucket.handicap,
+      points: points,
+      opponentPoints: oppPoints,
+      result: result,
+      lines: bucket.lines.slice().sort(function (a, b) { return b.series - a.series; }),
+    });
+
+    team.games += bucket.gameTotals.length;
+    team.pins += series;
+    if (gamesBowled) {
+      team.highGame = Math.max(team.highGame || 0, Math.max.apply(null, bucket.gameTotals));
+      team.highSeries = Math.max(team.highSeries || 0, series);
+      team.highHdcpSeries = Math.max(team.highHdcpSeries || 0, series + bucket.handicap * gamesBowled);
+    }
+  }
+
+  function index(list) {
+    var map = {};
+    list.forEach(function (item) { map[item.id] = item; });
+    return map;
+  }
+
+  window.LeagueStats = { build: build, handicapFor: handicapFor };
+})();
