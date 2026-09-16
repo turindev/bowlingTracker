@@ -50,6 +50,12 @@
     ]);
   }
 
+  /* Appends handicap columns only where the league actually uses handicap,
+     so a scratch league never sees a column of duplicates. */
+  function withHandicap(columns, extra) {
+    return model.scoring.useHandicap ? columns.concat(extra) : columns;
+  }
+
   function teamChip(name) {
     return el('span', {
       class: 'team-chip', 'aria-hidden': 'true',
@@ -401,11 +407,14 @@
           render: function (r) { return UI.num(r.pins); } },
       ];
 
-      if (model.scoring.useHandicap) {
-        columns.push({ key: 'handicap', label: 'Hdcp', className: 'muted', optional: true,
+      columns = withHandicap(columns, [
+        { key: 'handicap', label: 'Hdcp', className: 'muted', optional: true,
           value: function (r) { return r.handicap; },
-          render: function (r) { return UI.num(r.handicap); } });
-      }
+          render: function (r) { return UI.num(r.handicap); } },
+        { key: 'handicapAverage', label: 'Hdcp Avg', className: 'muted', optional: true,
+          value: function (r) { return r.handicapAverage; },
+          render: function (r) { return UI.avg(r.handicapAverage); } },
+      ]);
 
       var body = rows.length
         ? UI.table({ columns: columns, rows: rows, state: state.players, onSort: render })
@@ -471,6 +480,18 @@
           render: function (r) { return UI.num(r.pins); } },
       ];
 
+      columns = withHandicap(columns, [
+        { key: 'hdcpAverage', label: 'Hdcp Avg', className: 'muted', optional: true,
+          value: function (r) { return r.hdcpAverage; },
+          render: function (r) { return UI.avg(r.hdcpAverage); } },
+        { key: 'highHdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
+          value: function (r) { return r.highHdcpSeries; },
+          render: function (r) { return UI.num(r.highHdcpSeries); } },
+        { key: 'hdcpPins', label: 'Hdcp Pins', className: 'muted', optional: true,
+          value: function (r) { return r.hdcpPins; },
+          render: function (r) { return UI.num(r.hdcpPins); } },
+      ]);
+
       var body = rows.length
         ? UI.table({ columns: columns, rows: rows, state: state.teams, onSort: render })
         : UI.empty(state.search ? 'No team matches “' + state.search + '”.' : 'No teams yet.');
@@ -482,7 +503,7 @@
         el('section', { class: 'card' }, [
           el('div', { class: 'card-head' }, [
             el('h2', { text: 'Team standings' }),
-            el('span', { class: 'hint', text: 'Team Avg is the average team game (all bowlers combined)' }),
+            el('span', { class: 'hint', text: 'Scratch unless marked Hdcp · Team Avg is the average team game' }),
           ]),
           searchBox('Find a team', render),
           body,
@@ -598,6 +619,9 @@
       { key: 'series', label: 'Series', className: 'num-strong',
         value: function (r) { return r.series; },
         render: function (r) { return best(r.series === team.highSeries, UI.num(r.series)); } },
+      { key: 'handicap', label: 'Hdcp', className: 'muted', optional: true,
+        value: function (r) { return r.handicap; },
+        render: function (r) { return UI.num(r.handicap); } },
       { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
         value: function (r) { return r.hdcpSeries; },
         render: function (r) { return UI.num(r.hdcpSeries); } },
@@ -658,7 +682,14 @@
             { key: 'pins', label: 'Pins', className: 'muted', optional: true,
               value: function (r) { return r.pins; },
               render: function (r) { return UI.num(r.pins); } },
-          ],
+          ].concat(model.scoring.useHandicap ? [
+            { key: 'handicap', label: 'Hdcp', className: 'muted', optional: true,
+              value: function (r) { return r.handicap; },
+              render: function (r) { return UI.num(r.handicap); } },
+            { key: 'handicapAverage', label: 'Hdcp Avg', className: 'muted', optional: true,
+              value: function (r) { return r.handicapAverage; },
+              render: function (r) { return UI.avg(r.handicapAverage); } },
+          ] : []),
           rows: team.players,
           state: state.teamRoster,
           onSort: function () { renderTeam(); },
@@ -712,6 +743,14 @@
       lineColumns.push({ key: 'series', label: 'Series', className: 'num-strong',
         value: function (r) { return r.series; },
         render: function (r) { return UI.num(r.series); } });
+      lineColumns = withHandicap(lineColumns, [
+        { key: 'handicap', label: 'Hdcp', className: 'muted', optional: true,
+          value: function (r) { return r.handicap; },
+          render: function (r) { return UI.num(r.handicap); } },
+        { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
+          value: function (r) { return r.hdcpSeries; },
+          render: function (r) { return UI.num(r.hdcpSeries); } },
+      ]);
 
       var lines = week.lines.length
         ? UI.table({ columns: lineColumns, rows: week.lines, state: state.teamLines,
@@ -749,9 +788,9 @@
         UI.card('League position', 'Place in the standings each week', cardBody(positionChart))
       ),
       UI.card('Roster averages', 'Season to date', cardBody(rosterChart)),
-      UI.card('Weekly results', 'Team totals for each game', results),
-      UI.card('Scores by week', 'Every bowler’s line for the selected week', weekSection),
-      UI.card('Roster', 'Season averages', roster),
+      UI.card('Weekly results', 'Scratch unless marked Hdcp', results),
+      UI.card('Scores by week', 'Scratch unless marked Hdcp', weekSection),
+      UI.card('Roster', 'Scratch unless marked Hdcp', roster),
     ]);
 
     function renderTeam() { teamViewRedraw(team.id); }
@@ -831,6 +870,12 @@
       { key: 'series', label: 'Series', className: 'num-strong',
         value: function (r) { return r.series; },
         render: function (r) { return best(r.series === player.highSeries, UI.num(r.series)); } },
+      { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
+        value: function (r) { return r.series + player.handicap * r.games.length; },
+        render: function (r) {
+          if (!model.scoring.useHandicap) return el('span', { class: 'muted', text: '—' });
+          return UI.num(r.series + player.handicap * r.games.length);
+        } },
       { key: 'average', label: 'Avg', optional: true,
         value: function (r) { return r.average; },
         render: function (r) { return UI.avg(r.average); } },
@@ -916,7 +961,8 @@
         UI.card('Average by week', 'Season to date after each night', cardBody(averageChart)),
         UI.card('League rank by week', 'Against every bowler with a score', cardBody(rankChart))
       ),
-      UI.card('Scores by week', games + ' games per week', body),
+      UI.card('Scores by week',
+              games + ' games per week · scratch unless marked Hdcp', body),
       chartPair(
         UI.card('By game', 'Slow starter or strong finisher',
                 slotTable(player.slots, player.average)),

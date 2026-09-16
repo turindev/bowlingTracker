@@ -75,6 +75,9 @@
         weeks: [],
         points: 0,
         trend: [],
+        hdcpPins: 0,
+        hdcpAverage: null,
+        highHdcpGame: null,
         highHdcpSeries: null,
         wins: 0,
         losses: 0,
@@ -183,6 +186,8 @@
           placeholder: player.placeholder,
           games: games,
           series: sum(games),
+          handicap: player.handicap,
+          hdcpSeries: sum(games) + player.handicap * games.length,
         });
         byTeam[player.teamId].handicap += player.handicap;
       });
@@ -234,7 +239,10 @@
 
     teams.forEach(function (t) {
       t.weeks.sort(function (a, b) { return a.number - b.number; });
-      if (t.games > 0) t.average = t.pins / t.games;
+      if (t.games > 0) {
+        t.average = t.pins / t.games;
+        t.hdcpAverage = t.hdcpPins / t.games;
+      }
       t.players.sort(function (a, b) { return (b.average || 0) - (a.average || 0); });
     });
 
@@ -531,9 +539,14 @@
     team.games += bucket.gameTotals.length;
     team.pins += series;
     if (gamesBowled) {
+      var hdcpGames = bucket.gameTotals.map(function (total) {
+        return total + bucket.handicap;
+      });
       team.highGame = Math.max(team.highGame || 0, Math.max.apply(null, bucket.gameTotals));
       team.highSeries = Math.max(team.highSeries || 0, series);
+      team.highHdcpGame = Math.max(team.highHdcpGame || 0, Math.max.apply(null, hdcpGames));
       team.highHdcpSeries = Math.max(team.highHdcpSeries || 0, series + bucket.handicap * gamesBowled);
+      team.hdcpPins += series + bucket.handicap * gamesBowled;
     }
   }
 
