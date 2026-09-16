@@ -131,15 +131,23 @@
     }
 
     var tiles = [
-      UI.stat('Bowlers', UI.num(s.bowlers)),
-      UI.stat('Teams', UI.num(s.teams)),
+      UI.stat('Bowlers', UI.num(s.bowlers),
+              "Everyone in the league with at least one recorded game. Vacant spots and absentee scores are not counted, since they are not people."),
+      UI.stat('Teams', UI.num(s.teams),
+              "How many teams are in the league this season."),
       UI.stat('Weeks bowled', UI.num(s.weeks) +
-              (model.league.weeksInSeason ? ' / ' + model.league.weeksInSeason : '')),
-      UI.stat('League average', UI.avg(s.average)),
-      UI.stat('Games bowled', UI.big(s.games)),
-      UI.stat('Pins toppled', UI.big(s.pins)),
-      UI.stat('200+ bowlers', UI.num(countAtLeast(s.averages, 200))),
-      UI.stat('Top average', UI.avg(s.topAverage.average)),
+              (model.league.weeksInSeason ? ' / ' + model.league.weeksInSeason : ''),
+              "Weeks completed out of the full season schedule."),
+      UI.stat('League average', UI.avg(s.average),
+              "Every pin knocked down by every bowler, divided by every game bowled."),
+      UI.stat('Games bowled', UI.big(s.games),
+              "The total number of individual games bowled across the league so far."),
+      UI.stat('Pins toppled', UI.big(s.pins),
+              "Every pin knocked down by every bowler this season, added up."),
+      UI.stat('200+ bowlers', UI.num(countAtLeast(s.averages, 200)),
+              "How many bowlers are carrying a season average of 200 or better."),
+      UI.stat('Top average', UI.avg(s.topAverage.average),
+              "The highest season average in the league right now."),
     ];
 
     /* How the league as a whole has scored, night by night. */
@@ -591,18 +599,30 @@
     var tightest = team.weeks.filter(function (w) { return w.margin != null; })
       .sort(function (a, b) { return Math.abs(a.margin) - Math.abs(b.margin); })[0];
     var summary = UI.statGrid([
-      UI.stat('Points', UI.points(team.points)),
-      UI.stat('Record', record(team)),
-      UI.stat('League position', standing ? '#' + standing.rank : '—'),
-      UI.stat('Team game avg', UI.avg(team.average)),
-      UI.stat('High game', UI.num(team.highGame)),
-      UI.stat('High series', UI.num(team.highSeries)),
-      UI.stat('High series (hdcp)', UI.num(team.highHdcpSeries)),
-      UI.stat('Closest margin', tightest ? signed(tightest.margin, 0) + ' pins' : '—'),
-      UI.stat('Season pace', team.pace == null ? '—' : UI.num(team.pace) + ' pts'),
-      UI.stat('Opponents faced', UI.avg(team.opponentAverage)),
-      UI.stat('Hdcp game avg', UI.avg(team.hdcpAverage)),
-      UI.stat('Total pins', UI.big(team.pins)),
+      UI.stat('Points', UI.points(team.points),
+              "Points won so far. Each match is worth four: one for each handicap game won, and one for total handicap pinfall."),
+      UI.stat('Record', record(team),
+              "Matches won and lost, and tied if there are any. A match is tied when the points split evenly."),
+      UI.stat('League position', standing ? '#' + standing.rank : '—',
+              "Where this team currently sits in the standings, out of every team in the league."),
+      UI.stat('Team game avg', UI.avg(team.average),
+              "The average single game for the whole team with all bowlers added together, before handicap."),
+      UI.stat('High game', UI.num(team.highGame),
+              "The team's best single game with all bowlers added together, before handicap."),
+      UI.stat('High series', UI.num(team.highSeries),
+              "The team's best three-game total with all bowlers added together, before handicap."),
+      UI.stat('High series (hdcp)', UI.num(team.highHdcpSeries),
+              "The team's best three-game total once each bowler's handicap is added. This is the figure match points are decided on."),
+      UI.stat('Closest margin', tightest ? signed(tightest.margin, 0) + ' pins' : '—',
+              "The tightest result this team has had, as the gap in handicap pinfall against the opponent. A minus means they lost by that much."),
+      UI.stat('Season pace', team.pace == null ? '—' : UI.num(team.pace) + ' pts',
+              "Points this team would finish on if they carried on at their current rate for the whole season."),
+      UI.stat('Opponents faced', UI.avg(team.opponentAverage),
+              "The average team game of every opponent this team has played - a measure of how hard the schedule has been."),
+      UI.stat('Hdcp game avg', UI.avg(team.hdcpAverage),
+              "The average single game for the whole team once every bowler's handicap is added."),
+      UI.stat('Total pins', UI.big(team.pins),
+              "Every pin this team has knocked down this season, before handicap."),
     ]);
 
     var hdcpAverage = team.weeks.length
@@ -942,23 +962,37 @@
     var games = gameCount();
     var standing = player.trend.length ? player.trend[player.trend.length - 1] : null;
     var tiles = [
-      UI.stat('Average', UI.avg(player.average)),
-      UI.stat('vs book', signed(player.vsBook)),
-      UI.stat('League rank', standing ? '#' + standing.rank : '—'),
-      UI.stat('High game', UI.num(player.highGame)),
-      UI.stat('High series', UI.num(player.highSeries)),
-      UI.stat('Games', UI.num(player.games)),
-      UI.stat('Total pins', UI.big(player.pins)),
+      UI.stat('Average', UI.avg(player.average),
+              "Total pins divided by games bowled, across the whole season. This is the number the leaderboard ranks on."),
+      UI.stat('vs book', signed(player.vsBook),
+              "How far the season average sits above or below the book average the handicap is set from. Early on, one good or bad night moves this a long way."),
+      UI.stat('League rank', standing ? '#' + standing.rank : '—',
+              "Position among every bowler in the league with a recorded score, by season average."),
+      UI.stat('High game', UI.num(player.highGame),
+              "The best single game this bowler has thrown this season."),
+      UI.stat('High series', UI.num(player.highSeries),
+              "The best three-game total this bowler has thrown in one night."),
+      UI.stat('Games', UI.num(player.games),
+              "How many individual games this bowler has thrown this season."),
+      UI.stat('Total pins', UI.big(player.pins),
+              "Every pin this bowler has knocked down this season."),
       model.scoring.useHandicap
-        ? UI.stat('Handicap', UI.num(player.handicap))
-        : UI.stat('Book average', UI.avg(player.entryAverage)),
-      UI.stat('Consistency', player.spread == null ? '—' : '± ' + UI.avg(player.spread)),
+        ? UI.stat('Handicap', UI.num(player.handicap),
+              "Pins added to every game, worked out as 90% of the gap between the book average and 220. A higher book average means a smaller handicap.")
+        : UI.stat('Book average', UI.avg(player.entryAverage),
+              "The established average the handicap is calculated from, carried over rather than worked out from this season."),
+      UI.stat('Consistency', player.spread == null ? '—' : '± ' + UI.avg(player.spread),
+              "How far a typical game sits from this bowler's own average. A low number is a steady bowler, a high one is streaky."),
       UI.stat('Last ' + (player.recent ? plural(player.recent.weeks, 'week') : '3 weeks'),
-              player.recent ? UI.avg(player.recent.average) : '—'),
-      UI.stat('Recent form', player.recent ? signed(player.recent.delta) : '—'),
+              player.recent ? UI.avg(player.recent.average) : '—',
+              "The average over the last three weeks bowled, or fewer if the season is younger than that. Compare it with the season average to see who is running hot or cold."),
+      UI.stat('Recent form', player.recent ? signed(player.recent.delta) : '—',
+              "The last three weeks against the season average. Positive means bowling better lately than the season as a whole."),
       model.scoring.useHandicap
-        ? UI.stat('Hdcp average', UI.avg(player.handicapAverage))
-        : UI.stat('Weeks', UI.num(player.weeksBowled)),
+        ? UI.stat('Hdcp average', UI.avg(player.handicapAverage),
+              "The season average with the handicap added - what this bowler contributes to a team total in practice.")
+        : UI.stat('Weeks', UI.num(player.weeksBowled),
+              "How many weeks this bowler has bowled in. It can be fewer than games divided by three if they missed a night."),
     ];
 
     /* Running average after each week, so a hot or cold streak is visible. */
