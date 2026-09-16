@@ -595,6 +595,11 @@
       { key: 'date', label: 'Date', className: 'col-tight muted', optional: true, defaultDir: 'asc',
         value: function (r) { return r.date; },
         render: function (r) { return UI.shortDate(r.date); } },
+      { key: 'lanes', label: 'Lanes', className: 'col-tight muted', optional: true, defaultDir: 'asc',
+        value: function (r) { return r.lanes; },
+        render: function (r) {
+          return r.lanes || el('span', { class: 'muted', text: '—' });
+        } },
       { key: 'opponent', label: 'Opponent', className: 'col-name', defaultDir: 'asc',
         value: function (r) { return r.opponentName; },
         render: function (r) {

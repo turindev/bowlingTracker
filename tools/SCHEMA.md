@@ -62,13 +62,18 @@ and never reuse one for a different team.
     { "playerId": "p25", "games": [204, 178, 193] }
   ],
   "matches": [
-    { "homeTeamId": "t7", "awayTeamId": "t8" }
+    { "homeTeamId": "t7", "awayTeamId": "t8", "lanes": "7-8" }
   ]
 }
 ```
 
 - A bowler who missed a week simply has no entry in `scores`. Averages only
   count games actually bowled.
+- `lanes` is the pair the match was bowled on, taken from the **Lanes** column
+  of the sheet's "Review of Last Week's Bowling". It is optional and affects no
+  calculation — it is recorded so that scoring by lane pair can be charted once
+  enough weeks have accumulated for the teams to have rotated around the house.
+  The validator rejects a malformed pair and a pair used twice in one week.
 - `matches` drives the points. By default each match is scored from the
   handicap totals: `pointsPerGame` for each game won, `pointsForSeries` for
   total pinfall, and a split on a tie.
@@ -84,7 +89,8 @@ and never reuse one for a different team.
 ## Adding a week
 
 1. Append a new object to `weeks` with the next `number`, the date, every
-   bowler's three games, and that week's lane pairings.
+   bowler's three games, and that week's matches — including the `lanes` each
+   was bowled on, which the sheet lists beside the matchup.
 2. Add any new bowlers to `players` first.
 3. Run `node tools/validate.js`.
 4. Open `index.html` and spot-check one team against the printed sheet.
