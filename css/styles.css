@@ -454,6 +454,34 @@ main { padding: 20px 16px 48px; }
   stroke-width: 2;
 }
 
+/* Standings race: every team drawn the same, one lifted out on hover. */
+.race-line {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: .32;
+}
+
+.race-dot { fill: var(--text-dim); opacity: .32; }
+
+/* Transparent copies of the marks, purely to make them easy to hit. */
+.race-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.race-hit-dot { fill: transparent; cursor: pointer; }
+
+.race-team.is-on .race-line {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  opacity: 1;
+}
+.race-team.is-on .race-dot {
+  fill: var(--accent);
+  opacity: 1;
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
 .chart-ref { stroke: var(--text-dim); stroke-width: 1; opacity: .5; }
 .chart-ref-label { fill: var(--text-dim); font-size: 10.5px; font-family: inherit; }
 

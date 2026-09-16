@@ -22,11 +22,11 @@ npx http-server . -p 8080    # then open http://localhost:8080
 
 | Page | URL | Contents |
 |---|---|---|
-| Overview | `#/` | League totals, scoring pace, standings, average distribution, over/under book average, scoring by game, honour roll, closest matches, milestone counts (200+, 220+ …), season bests |
+| Overview | `#/` | League totals, scoring pace, standings, standings race, average distribution, over/under book average, scoring by game, scoring by lane pair, honour roll, closest matches, milestone counts (200+, 220+ …), season bests |
 | Bowlers | `#/bowlers` | Every bowler's average, high game, high series and pinfall |
 | Teams | `#/teams` | Standings by points, record, team average and high games |
-| Team | `#/team/t8` | Name banner, summary cards, series and league-position charts, roster averages, weekly results with margin and handicap-swing markers, every bowler's line for any week |
-| Bowler | `#/player/p25` | Monogram, summary cards including over/under book, every game charted against the bowler's average, average and league rank by week, scores by week, game 1/2/3 splits, milestones |
+| Team | `#/team/t8` | Name banner, summary cards including season pace and schedule strength, series and league-position charts, roster averages, share of team pins, head-to-head, weekly results with lanes, margin and handicap-swing markers, every bowler's line for any week |
+| Bowler | `#/player/p25` | Monogram, summary cards including over/under book, consistency and recent form, every game charted against the bowler's average, average and league rank by week, scores by week, game 1/2/3 splits, milestones |
 
 Team banners and bowler monograms are generated from the name — deterministic
 colours, drawn as SVG, no image files and no calls to an outside avatar
@@ -66,6 +66,11 @@ against the average their handicap is set from.
 
 A result is flagged as a handicap swing when the team that took the points was
 out-pinned on scratch.
+
+Some figures need several weeks before they mean much — scoring by lane pair,
+the standings race, recent form and consistency among them. They are shown from
+week 1 anyway, with the caveat in the card heading where it matters, and the
+caveat retires itself once enough weeks have accumulated.
 
 Points are computed from the scores rather than copied in: one point per
 handicap game won, plus one for handicap total pinfall, four per match. Week 1

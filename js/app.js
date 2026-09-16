@@ -256,6 +256,24 @@
           ])),
         ]))
       ),
+      UI.card('Standings race',
+              model.weeks.length < 2
+                ? 'Every team\u2019s position each week \u00b7 hover to pick one out \u00b7 needs a few weeks to show movement'
+                : 'Every team\u2019s position each week \u00b7 hover to pick one out',
+              cardBody(Charts.race({
+                of: model.teams.length,
+                label: 'League position of every team by week',
+                series: model.teams.map(function (t) {
+                  return {
+                    name: t.name,
+                    caption: plural(UI.points(t.points), 'point'),
+                    values: t.trend.map(function (x) {
+                      return { week: x.week, rank: x.rank };
+                    }),
+                  };
+                }),
+              }))),
+      laneCard(s),
       UI.card('Closest matches', 'Handicap pinfall between the two teams',
               closestMatches(s.matches)),
       UI.card('Averages at a glance', 'Bowlers carrying each average or better', milestones),
@@ -326,6 +344,40 @@
       })(floor);
     }
     return rows;
+  }
+
+  /* Scoring by lane pair, as a difference from the league average. A bar
+     anchored at zero would squash 162-202 into a near-flat block and hide the
+     very thing the card is for. Omitted entirely until lanes are recorded. */
+  function laneCard(s) {
+    var pairs = (s.lanePairs || []).filter(function (p) { return p.average != null; });
+    if (!pairs.length) return null;
+
+    var rows = pairs.map(function (p) {
+      var delta = p.average - s.average;
+      return {
+        label: 'Lanes ' + p.lanes,
+        value: delta,
+        display: signed(delta),
+        title: 'Lanes ' + p.lanes + ': ' + UI.avg(p.average) + ' average over ' +
+               plural(p.games, 'game') + ' in ' + plural(p.weeks, 'week'),
+      };
+    });
+
+    /* The caveat retires itself once there is enough data to trust. */
+    var weeks = pairs.reduce(function (max, p) { return Math.max(max, p.weeks); }, 0);
+    var hint = weeks < 6
+      ? 'vs league average · after ' + plural(weeks, 'week') +
+        ' this still mostly reflects who bowled there'
+      : 'vs league average, across every week bowled on that pair';
+
+    return UI.card('Scoring by lane pair', hint, el('div', null, [
+      cardBody(Charts.diverging({ rows: rows })),
+      el('div', { class: 'card-body' }, el('p', { class: 'muted', text:
+        plural(pairs[0].games, 'game') + ' behind each pair so far. Teams move ' +
+        'around the house every week, so this measures the lanes only once they ' +
+        'have all bowled on most of them.' })),
+    ]));
   }
 
   /* The extremes are the story; the middle of the pack is not. */
@@ -405,6 +457,10 @@
         { key: 'pins', label: 'Pins', className: 'muted', optional: true,
           value: function (r) { return r.pins; },
           render: function (r) { return UI.num(r.pins); } },
+        { key: 'spread', label: '+/-', className: 'muted', optional: true,
+          defaultDir: 'asc',
+          value: function (r) { return r.spread; },
+          render: function (r) { return UI.avg(r.spread); } },
       ];
 
       columns = withHandicap(columns, [
@@ -427,7 +483,7 @@
         el('section', { class: 'card' }, [
           el('div', { class: 'card-head' }, [
             el('h2', { text: 'Individual standings' }),
-            el('span', { class: 'hint', text: 'Tap a column to sort · tap a name for weekly scores' }),
+            el('span', { class: 'hint', text: 'Tap a column to sort · +/- is how far a typical game sits from that bowler\u2019s average' }),
           ]),
           searchBox('Find a bowler or team', render),
           body,
@@ -478,6 +534,10 @@
         { key: 'pins', label: 'Pins', className: 'muted', optional: true,
           value: function (r) { return r.pins; },
           render: function (r) { return UI.num(r.pins); } },
+        { key: 'spread', label: '+/-', className: 'muted', optional: true,
+          defaultDir: 'asc',
+          value: function (r) { return r.spread; },
+          render: function (r) { return UI.avg(r.spread); } },
       ];
 
       columns = withHandicap(columns, [
@@ -538,6 +598,10 @@
       UI.stat('High series', UI.num(team.highSeries)),
       UI.stat('High series (hdcp)', UI.num(team.highHdcpSeries)),
       UI.stat('Closest margin', tightest ? signed(tightest.margin, 0) + ' pins' : '—'),
+      UI.stat('Season pace', team.pace == null ? '—' : UI.num(team.pace) + ' pts'),
+      UI.stat('Opponents faced', UI.avg(team.opponentAverage)),
+      UI.stat('Hdcp game avg', UI.avg(team.hdcpAverage)),
+      UI.stat('Total pins', UI.big(team.pins)),
     ]);
 
     var hdcpAverage = team.weeks.length
@@ -574,6 +638,24 @@
       format: function (v) { return '#' + Math.round(v); },
       formatAxis: function (v) { return '#' + Math.round(v); },
       label: 'League position by week',
+    });
+
+    /* Share of the team's pins, which is what a roster average does not show:
+       a high average matters less if the bowler misses weeks. */
+    var contributors = team.players.filter(function (p) { return p.pins > 0; });
+    var contributionChart = Charts.bars({
+      wideLabel: true,
+      rows: contributors.map(function (p) {
+        var share = team.pins ? p.pins / team.pins * 100 : 0;
+        return {
+          label: p.name,
+          value: share,
+          display: share.toFixed(1) + '%',
+          href: p.placeholder ? null : '#/player/' + p.id,
+          title: p.name + ': ' + UI.big(p.pins) + ' of the team\u2019s ' +
+                 UI.big(team.pins) + ' pins',
+        };
+      }),
     });
 
     var rosterChart = Charts.bars({
@@ -792,7 +874,12 @@
         UI.card('Series by week', 'With handicap', cardBody(seriesChart)),
         UI.card('League position', 'Place in the standings each week', cardBody(positionChart))
       ),
-      UI.card('Roster averages', 'Season to date', cardBody(rosterChart)),
+      chartPair(
+        UI.card('Roster averages', 'Season to date', cardBody(rosterChart)),
+        UI.card('Share of team pins', 'Who is carrying the load',
+                cardBody(contributionChart))
+      ),
+      UI.card('Head to head', 'Every opponent faced so far', headToHead(team)),
       UI.card('Weekly results', 'Scratch unless marked Hdcp', results),
       UI.card('Scores by week', 'Scratch unless marked Hdcp', weekSection),
       UI.card('Roster', 'Scratch unless marked Hdcp', roster),
@@ -803,6 +890,29 @@
 
   /* teamView rebuilds from scratch on sort; this keeps the call site tidy. */
   function teamViewRedraw(teamId) { teamView(teamId); }
+
+  function headToHead(team) {
+    if (!team.headToHead.length) return UI.empty('No matches recorded yet.');
+    return UI.table({
+      columns: [
+        { key: 'name', label: 'Opponent', className: 'col-name link-cell', sortable: false,
+          render: function (r) {
+            return el('a', { href: '#/team/' + r.opponentId, text: r.name });
+          } },
+        { key: 'played', label: 'Met', className: 'muted', sortable: false,
+          render: function (r) { return UI.num(r.played); } },
+        { key: 'record', label: 'W-L', className: 'num-strong', sortable: false,
+          render: function (r) {
+            return r.wins + '-' + r.losses + (r.ties ? '-' + r.ties : '');
+          } },
+        { key: 'points', label: 'Pts', sortable: false,
+          render: function (r) {
+            return UI.points(r.points) + '\u2013' + UI.points(r.opponentPoints);
+          } },
+      ],
+      rows: team.headToHead, state: null, onSort: function () {},
+    });
+  }
 
   function describeTeam(team, standing) {
     var bits = [];
@@ -833,6 +943,13 @@
       model.scoring.useHandicap
         ? UI.stat('Handicap', UI.num(player.handicap))
         : UI.stat('Book average', UI.avg(player.entryAverage)),
+      UI.stat('Consistency', player.spread == null ? '—' : '± ' + UI.avg(player.spread)),
+      UI.stat('Last ' + (player.recent ? plural(player.recent.weeks, 'week') : '3 weeks'),
+              player.recent ? UI.avg(player.recent.average) : '—'),
+      UI.stat('Recent form', player.recent ? signed(player.recent.delta) : '—'),
+      model.scoring.useHandicap
+        ? UI.stat('Hdcp average', UI.avg(player.handicapAverage))
+        : UI.stat('Weeks', UI.num(player.weeksBowled)),
     ];
 
     /* Running average after each week, so a hot or cold streak is visible. */
