@@ -95,12 +95,18 @@
       return p.value != null && isFinite(p.value);
     });
 
-    var wrap = el('div', { class: 'chart' });
     if (!points.length) {
-      wrap.appendChild(UI.empty(options.empty || 'No data to chart yet.'));
-      return wrap;
+      return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
     }
+    return responsive(function (width, tip) {
+      return draw(width, points, options, tip);
+    });
+  }
 
+  /* Charts are drawn at the container's real pixel width, so labels stay
+     legible instead of being scaled by a viewBox, and redrawn on resize. */
+  function responsive(drawAt) {
+    var wrap = el('div', { class: 'chart' });
     var tip = el('div', { class: 'chart-tip', 'aria-hidden': 'true' });
     wrap.appendChild(tip);
 
@@ -109,7 +115,7 @@
       var width = wrap.clientWidth;
       if (!width || Math.abs(width - lastWidth) < 2) return;
       lastWidth = width;
-      var svg = draw(width, points, options, tip, wrap);
+      var svg = drawAt(width, tip);
       var old = wrap.querySelector('svg');
       if (old) wrap.removeChild(old);
       wrap.appendChild(svg);
@@ -118,8 +124,111 @@
     /* The element is not measurable until it is in the document. */
     requestAnimationFrame(render);
     if (window.ResizeObserver) new ResizeObserver(render).observe(wrap);
-
     return wrap;
+  }
+
+  /* ---- standings race -------------------------------------------------
+     Every team's league position over the season. Two dozen series is far
+     past what categorical colour can separate, so they all share one muted
+     stroke and hovering lifts a single team out and names it — identity
+     comes from the tooltip, never from a hue.
+     -------------------------------------------------------------------- */
+  function race(options) {
+    var series = (options.series || []).filter(function (s) { return s.values.length; });
+    if (!series.length) {
+      return el('div', { class: 'chart' }, UI.empty(options.empty || 'No standings yet.'));
+    }
+    return responsive(function (width, tip) {
+      return drawRace(width, series, options, tip);
+    });
+  }
+
+  function drawRace(width, series, options, tip) {
+    var height = options.height || 240;
+    var pad = { top: 14, right: 14, bottom: 26, left: 44 };
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var plotH = height - pad.top - pad.bottom;
+
+    var weeks = [];
+    series.forEach(function (s) {
+      s.values.forEach(function (v) {
+        if (weeks.indexOf(v.week) === -1) weeks.push(v.week);
+      });
+    });
+    weeks.sort(function (a, b) { return a - b; });
+
+    var places = options.of || series.length;
+    function x(week) {
+      var i = weeks.indexOf(week);
+      return weeks.length === 1 ? pad.left + plotW / 2
+        : pad.left + (i / (weeks.length - 1)) * plotW;
+    }
+    function y(rank) {
+      return pad.top + ((rank - 1) / Math.max(1, places - 1)) * plotH;
+    }
+
+    var svg = node('svg', {
+      width: width, height: height, viewBox: '0 0 ' + width + ' ' + height,
+      role: 'img', 'aria-label': options.label || 'Standings over time',
+    });
+
+    [1, Math.round(places / 2), places].forEach(function (rank) {
+      var ty = y(rank);
+      svg.appendChild(node('line', {
+        class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: ty, y2: ty,
+      }));
+      var text = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: ty + 4, 'text-anchor': 'end' });
+      text.textContent = '#' + rank;
+      svg.appendChild(text);
+    });
+
+    var step = Math.ceil(weeks.length / Math.max(1, Math.floor(plotW / 46)));
+    weeks.forEach(function (week, i) {
+      if (i % step !== 0 && i !== weeks.length - 1) return;
+      var text = node('text', {
+        class: 'chart-axis-label', x: x(week), y: height - 8, 'text-anchor': 'middle',
+      });
+      text.textContent = String(week);
+      svg.appendChild(text);
+    });
+
+    series.forEach(function (s) {
+      var coords = s.values.map(function (v) { return x(v.week) + ',' + y(v.rank); });
+      var group = node('g', { class: 'race-team' });
+      if (coords.length > 1) {
+        group.appendChild(node('polyline', { class: 'race-line', points: coords.join(' ') }));
+        /* A fat transparent copy makes the line easy to hit. */
+        group.appendChild(node('polyline', { class: 'race-hit', points: coords.join(' ') }));
+      }
+      s.values.forEach(function (v) {
+        group.appendChild(node('circle', { class: 'race-dot', cx: x(v.week), cy: y(v.rank), r: 3.5 }));
+        /* A 3.5px dot is far too small to aim at, and a single-week season
+           has no line to hover at all, so every point gets a wide target. */
+        group.appendChild(node('circle', {
+          class: 'race-hit-dot', cx: x(v.week), cy: y(v.rank), r: 10,
+        }));
+      });
+
+      var last = s.values[s.values.length - 1];
+      group.addEventListener('mouseenter', function () {
+        group.classList.add('is-on');
+        tip.textContent = '';
+        tip.appendChild(el('strong', { text: s.name }));
+        tip.appendChild(el('span', { text: '#' + last.rank + ' after week ' + last.week }));
+        if (s.caption) tip.appendChild(el('small', { text: s.caption }));
+        tip.classList.add('is-on');
+        var w = tip.offsetWidth;
+        tip.style.left = Math.max(2, Math.min(width - w - 2, x(last.week) - w / 2)) + 'px';
+        tip.style.top = Math.max(0, y(last.rank) - tip.offsetHeight - 12) + 'px';
+      });
+      group.addEventListener('mouseleave', function () {
+        group.classList.remove('is-on');
+        tip.classList.remove('is-on');
+      });
+      svg.appendChild(group);
+    });
+
+    return svg;
   }
 
   var NS = 'http://www.w3.org/2000/svg';
@@ -132,7 +241,7 @@
     return element;
   }
 
-  function draw(width, points, options, tip, wrap) {
+  function draw(width, points, options, tip) {
     var height = options.height || 190;
     var pad = { top: 14, right: 14, bottom: 26, left: 44 };
     var plotW = Math.max(40, width - pad.left - pad.right);
@@ -265,5 +374,5 @@
     return out;
   }
 
-  window.Charts = { bars: bars, diverging: diverging, line: line };
+  window.Charts = { bars: bars, diverging: diverging, line: line, race: race };
 })();

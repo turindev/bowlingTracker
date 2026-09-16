@@ -62,6 +62,8 @@
         highSeries: null,
         trend: [],
         vsBook: null,
+        spread: null,
+        recent: null,
         slots: [],
         milestones: { games: {}, series: {} },
       };
@@ -77,6 +79,9 @@
         trend: [],
         hdcpPins: 0,
         hdcpAverage: null,
+        pace: null,
+        opponentAverage: null,
+        headToHead: [],
         highHdcpGame: null,
         highHdcpSeries: null,
         wins: 0,
@@ -152,6 +157,36 @@
           return week.series >= mark;
         }).length;
       });
+
+      /* Consistency: how far a typical game sits from the bowler's own
+         average. A low number is a steady bowler, a high one is streaky. */
+      var allGames = [];
+      p.weeks.forEach(function (week) {
+        week.games.forEach(function (score) { allGames.push(score); });
+      });
+      if (allGames.length > 1) {
+        var mean = sum(allGames) / allGames.length;
+        var variance = allGames.reduce(function (acc, g) {
+          return acc + (g - mean) * (g - mean);
+        }, 0) / allGames.length;
+        p.spread = Math.sqrt(variance);
+      }
+
+      /* Recent form: the last three weeks against the season as a whole. */
+      var lastThree = p.weeks.slice(-3);
+      if (lastThree.length) {
+        var recentPins = 0;
+        var recentGames = 0;
+        lastThree.forEach(function (week) {
+          recentPins += week.series;
+          recentGames += week.games.length;
+        });
+        p.recent = {
+          average: recentPins / recentGames,
+          weeks: lastThree.length,
+          delta: p.average == null ? null : recentPins / recentGames - p.average,
+        };
+      }
 
       /* Against the book average handicap is set from — the number bowlers
          actually argue about. */
@@ -237,8 +272,6 @@
       });
     });
 
-    buildTeamTrend(teams, weeks);
-
     teams.forEach(function (t) {
       t.weeks.sort(function (a, b) { return a.number - b.number; });
       if (t.games > 0) {
@@ -247,6 +280,9 @@
       }
       t.players.sort(function (a, b) { return (b.average || 0) - (a.average || 0); });
     });
+
+    buildTeamTrend(teams, weeks);
+    buildTeamContext(teams, league);
 
     return {
       league: league,
@@ -332,6 +368,48 @@
           weekPoints: entry ? entry.points : null,
         });
       });
+    });
+  }
+
+  /* Projected finish, schedule strength and head-to-head, all of which need
+     every team's season totals in place first. */
+  function buildTeamContext(teams, league) {
+    var byId = index(teams);
+
+    teams.forEach(function (team) {
+      var played = team.weeks.filter(function (w) { return w.points != null; });
+      if (played.length && league.weeksInSeason) {
+        team.pace = team.points / played.length * league.weeksInSeason;
+      }
+
+      /* Strength of schedule: the average team game of everyone faced. */
+      var opponents = played.filter(function (w) { return w.opponentId; });
+      if (opponents.length) {
+        var total = 0;
+        var counted = 0;
+        opponents.forEach(function (w) {
+          var opponent = byId[w.opponentId];
+          if (opponent && opponent.average != null) { total += opponent.average; counted++; }
+        });
+        if (counted) team.opponentAverage = total / counted;
+      }
+
+      var records = {};
+      opponents.forEach(function (w) {
+        var record = records[w.opponentId] || (records[w.opponentId] = {
+          opponentId: w.opponentId,
+          name: w.opponentName,
+          played: 0, wins: 0, losses: 0, ties: 0, points: 0, opponentPoints: 0,
+        });
+        record.played++;
+        record.points += w.points;
+        record.opponentPoints += w.opponentPoints;
+        if (w.result === 'W') record.wins++;
+        else if (w.result === 'L') record.losses++;
+        else record.ties++;
+      });
+      team.headToHead = Object.keys(records).map(function (k) { return records[k]; })
+        .sort(function (a, b) { return b.points - a.points || a.name.localeCompare(b.name); });
     });
   }
 
@@ -426,6 +504,36 @@
       }, 0);
     });
 
+    /* Scoring by lane pair, across every week bowled there. Teams rotate
+       around the house, so this only starts measuring the lanes rather than
+       the rosters once several weeks have accumulated. */
+    var byLanes = {};
+    matches.forEach(function (m) {
+      if (!m.lanes) return;
+      var entry = byLanes[m.lanes] || (byLanes[m.lanes] = {
+        lanes: m.lanes,
+        first: parseInt(m.lanes, 10),
+        pins: 0,
+        games: 0,
+        weeks: 0,
+      });
+      [m.home, m.away].forEach(function (team) {
+        var week = team.weeks.filter(function (w) { return w.number === m.week; })[0];
+        if (!week) return;
+        week.lines.forEach(function (line) {
+          entry.pins += line.series;
+          entry.games += line.games.length;
+        });
+      });
+      entry.weeks++;
+    });
+
+    var lanePairs = Object.keys(byLanes).map(function (key) {
+      var entry = byLanes[key];
+      entry.average = entry.games ? entry.pins / entry.games : null;
+      return entry;
+    }).sort(function (a, b) { return a.first - b.first; });
+
     var swings = matches.filter(function (m) {
       if (m.homePoints == null || m.homePoints === m.awayPoints) return false;
       var pointsWinner = m.homePoints > m.awayPoints ? 'home' : 'away';
@@ -435,6 +543,7 @@
 
     return {
       byWeek: byWeek,
+      lanePairs: lanePairs,
       slots: slots,
       milestones: milestones,
       matches: matches,
