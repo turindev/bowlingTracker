@@ -34,6 +34,11 @@ service. A team's banner colour follows it into the tables as a small chip
 beside its name, so teammates are easy to pick out of a leaderboard; the chip
 is always next to the name and never carries meaning by itself.
 
+Every card carries an **i** button that opens a plain-English note on what it
+shows. It is a tap-toggle rather than a hover tooltip, so it behaves the same
+on a phone, with a mouse and from the keyboard, and an open note survives a
+re-sort.
+
 Every table sorts by any column — tap or click a heading, tap again to reverse.
 The leaderboards also have a search box. The layout is built mobile-first and
 follows the phone's light/dark setting, with a toggle in the header.

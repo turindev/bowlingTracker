@@ -88,14 +88,54 @@
     return el('dl', { class: 'stat-grid' }, items);
   }
 
-  function card(title, hint, body) {
+  /* Which explanations are open, keyed by card title. Views rebuild
+     themselves on every sort, so this has to outlive the element. */
+  var openNotes = {};
+
+  /* card(title, hint, body, explain)
+     `hint` is the terse subtitle; `explain` is a plain-English sentence behind
+     an info button. The button is a tap-toggle rather than a hover tooltip, so
+     it works the same on a phone, with a mouse, and from the keyboard. */
+  function card(title, hint, body, explain) {
     var children = [];
+
     if (title) {
+      var heading = [el('h2', { text: title })];
+      var note = null;
+
+      if (explain) {
+        var id = 'note-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        var open = !!openNotes[title];
+
+        note = el('p', { class: 'card-note', id: id, text: explain });
+        if (!open) note.hidden = true;
+
+        var button = el('button', {
+          type: 'button',
+          class: 'card-info',
+          'aria-expanded': open ? 'true' : 'false',
+          'aria-controls': id,
+          title: explain,
+          onclick: function () {
+            var nowOpen = note.hidden;
+            note.hidden = !nowOpen;
+            button.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+            openNotes[title] = nowOpen;
+          },
+        }, [
+          el('span', { 'aria-hidden': 'true', text: 'i' }),
+          el('span', { class: 'sr-only', text: 'What does ' + title + ' show?' }),
+        ]);
+        heading.push(button);
+      }
+
       children.push(el('div', { class: 'card-head' }, [
-        el('h2', { text: title }),
+        el('div', { class: 'card-title' }, heading),
         hint ? el('span', { class: 'hint', text: hint }) : null,
       ]));
+      if (note) children.push(note);
     }
+
     children.push(body);
     return el('section', { class: 'card' }, children);
   }
