@@ -50,10 +50,17 @@
     ]);
   }
 
+  function teamChip(name) {
+    return el('span', {
+      class: 'team-chip', 'aria-hidden': 'true',
+      style: 'background:' + Avatars.colorFor(name),
+    });
+  }
+
   function nameCell(href, name, sub) {
     return [
       href ? el('a', { href: href, text: name }) : el('span', { class: 'muted', text: name }),
-      sub ? el('span', { class: 'sub', text: sub }) : null,
+      sub ? el('span', { class: 'sub' }, sub) : null,
     ];
   }
 
@@ -216,7 +223,7 @@
     });
 
     draw([
-      pageHead('League overview', leagueSubtitle()),
+      masthead(),
       tabs('overview'),
       UI.statGrid(tiles),
       chartPair(
@@ -247,6 +254,39 @@
               closestMatches(s.matches)),
       UI.card('Averages at a glance', 'Bowlers carrying each average or better', milestones),
       UI.card('Season bests', 'Scratch unless marked', highs),
+    ]);
+  }
+
+  /* The landing page gets a face: the league's own banner, with how far
+     through the season we are. */
+  function masthead() {
+    var name = model.league.name || 'Bowling League';
+    var total = model.league.weeksInSeason;
+    var done = model.weeks.length;
+
+    var meta = [];
+    if (model.league.venue) meta.push(model.league.venue);
+    if (model.league.night) meta.push(model.league.night);
+
+    var progress = null;
+    if (total && done) {
+      progress = el('div', { class: 'season' }, [
+        el('div', {
+          class: 'season-bar',
+          role: 'img',
+          'aria-label': 'Week ' + done + ' of ' + total,
+        }, el('span', { style: 'width:' + Math.min(100, done / total * 100) + '%' })),
+        el('span', { class: 'season-text', text: 'Week ' + done + ' of ' + total }),
+      ]);
+    }
+
+    return el('section', { class: 'banner banner-lg' }, [
+      Avatars.banner(name),
+      el('div', { class: 'banner-text' }, [
+        el('h1', { text: name }),
+        el('p', { text: meta.join(' · ') }),
+        progress,
+      ]),
     ]);
   }
 
@@ -306,7 +346,7 @@
       columns: [
         { key: 'margin', label: 'Margin', className: 'num-strong', sortable: false,
           render: function (r) { return UI.num(r.margin) + ' pins'; } },
-        { key: 'winner', label: 'Winner', className: 'col-name', sortable: false,
+        { key: 'winner', label: 'Winner', className: 'col-name link-cell', sortable: false,
           render: function (r) {
             var win = r.homePoints >= r.awayPoints ? r.home : r.away;
             return el('a', { href: '#/team/' + win.id, text: win.name });
@@ -338,10 +378,12 @@
 
       var columns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
-          render: function (row, i) { return String(i + 1); } },
+          render: function (row, i) { return rankMark(i); } },
         { key: 'name', label: 'Bowler', className: 'col-name', defaultDir: 'asc',
           value: function (r) { return r.name; },
-          render: function (r) { return bowlerCell(r, r.teamName); } },
+          render: function (r) {
+            return bowlerCell(r, [teamChip(r.teamName), r.teamName]);
+          } },
         { key: 'average', label: 'Avg', className: 'num-strong',
           value: function (r) { return r.average; },
           render: function (r) { return UI.avg(r.average); } },
@@ -400,13 +442,14 @@
 
       var columns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
-          render: function (row, i) { return String(i + 1); } },
+          render: function (row, i) { return rankMark(i); } },
         { key: 'name', label: 'Team', className: 'col-name', defaultDir: 'asc',
           value: function (r) { return r.name; },
           render: function (r) {
             /* The W-L column is hidden on phones, so carry the record here. */
             var sub = r.weeks.length ? record(r) + ' · ' : '';
-            return nameCell('#/team/' + r.id, r.name, sub + plural(r.players.length, 'bowler'));
+            return [teamChip(r.name)].concat(
+              nameCell('#/team/' + r.id, r.name, sub + plural(r.players.length, 'bowler')));
           } },
         { key: 'points', label: 'Pts', className: 'num-strong',
           value: function (r) { return r.points; },
@@ -945,6 +988,14 @@
 
   function record(team) {
     return team.wins + '-' + team.losses + (team.ties ? '-' + team.ties : '');
+  }
+
+  /* The podium gets a medal; everyone else gets a plain number. Only ever a
+     decoration on top of the number that is already there. */
+  function rankMark(index) {
+    var place = index + 1;
+    if (place > 3) return String(place);
+    return el('span', { class: 'medal medal-' + place, text: String(place) });
   }
 
   function best(isBest, content) {
