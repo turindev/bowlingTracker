@@ -81,5 +81,21 @@ tools/SCHEMA.md     data format reference
 
 ## Publishing
 
-`.github/workflows/pages.yml` publishes the site to GitHub Pages on every push
-to `main`. Enable it once under **Settings → Pages → Source → GitHub Actions**.
+`.github/workflows/pages.yml` validates the league data and then publishes the
+site to GitHub Pages on every push to `main`.
+
+It needs Pages switched on once, by hand, under **Settings → Pages → Source →
+GitHub Actions**. The workflow cannot do this for itself — the Actions token is
+not permitted to create a Pages site — so until it is enabled the deploy job
+fails with `Resource not accessible by integration`. Note that Pages on a
+private repository requires a paid GitHub plan; on the free plan the repository
+has to be public.
+
+### Previewing without publishing
+
+Open `index.html` directly, or serve the folder and load it on a phone on the
+same network:
+
+```sh
+npx http-server . -p 8080    # then browse to http://<your-ip>:8080
+```
