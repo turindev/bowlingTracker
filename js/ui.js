@@ -77,15 +77,46 @@
     });
   }
 
-  function stat(label, value, unit) {
-    return el('div', { class: 'stat' }, [
-      el('dt', { text: label }),
-      el('dd', null, unit ? [value, ' ', el('span', { class: 'unit', text: unit })] : value),
-    ]);
+  /* Which tile explanations are open, keyed by label. Like the card notes,
+     this has to outlive the element because views rebuild on sort. */
+  var openStats = {};
+
+  /* stat(label, value, explain)
+     With an explanation the whole tile becomes the button - a small circle
+     would be a poor target on a phone, and there are a dozen tiles per page,
+     so twelve of them would be clutter. Tapping reveals the note under the
+     value; the value stays visible. */
+  function stat(label, value, explain) {
+    var parts = [
+      el('span', { class: 'stat-label', text: label }),
+      el('span', { class: 'stat-value' }, value),
+    ];
+
+    if (!explain) return el('div', { class: 'stat' }, parts);
+
+    var open = !!openStats[label];
+    var note = el('span', { class: 'stat-note', text: explain });
+    if (!open) note.hidden = true;
+    parts.push(note);
+
+    var tile = el('button', {
+      type: 'button',
+      class: 'stat stat-button',
+      'aria-expanded': open ? 'true' : 'false',
+      title: explain,
+      onclick: function () {
+        var nowOpen = note.hidden;
+        note.hidden = !nowOpen;
+        tile.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+        openStats[label] = nowOpen;
+      },
+    }, parts);
+
+    return tile;
   }
 
   function statGrid(items) {
-    return el('dl', { class: 'stat-grid' }, items);
+    return el('div', { class: 'stat-grid' }, items);
   }
 
   /* Which explanations are open, keyed by card title. Views rebuild
