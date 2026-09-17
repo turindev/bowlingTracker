@@ -346,17 +346,25 @@ main { padding: 20px 16px 48px; }
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 4px;
+  /* On the narrowest phones four tabs do not quite fit. Scrolling the strip
+     is better than shrinking the text until it is unreadable. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
+.tabs::-webkit-scrollbar { display: none; }
 
 .tabs a {
   flex: 1;
   text-align: center;
-  padding: 9px 12px;
+  padding: 9px 6px;
   border-radius: 999px;
   text-decoration: none;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
+  /* Four tabs at phone width: never let a label break mid-word. */
+  white-space: nowrap;
 }
 .tabs a[aria-current="page"] {
   background: var(--surface);
@@ -608,6 +616,61 @@ main { padding: 20px 16px 48px; }
 @media (min-width: 860px) {
   .chart-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
 }
+
+/* ---------- bowler comparison ---------- */
+
+/* Two bowler names as column headings is a lot of width. Let them wrap, but
+   at spaces only - the page-wide `overflow-wrap: anywhere` would otherwise
+   break them mid-word. Dropping the uppercase treatment keeps them compact
+   and reads better for a person's name. */
+.compare-table th {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+.compare-table th.col-name, .compare-table td.col-name { min-width: 92px; }
+.compare-table td { white-space: nowrap; }
+
+.compare-heads {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.compare-head {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.compare-head .avatar { width: 44px; height: 44px; }
+.compare-head .avatar-initials { font-size: 40px; }
+
+.compare-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.compare-name strong { font-size: 15px; letter-spacing: -.01em; }
+.compare-name small { font-size: 12px; color: var(--text-dim); }
+.compare-name .pill { align-self: flex-start; }
+.compare-head:hover strong { color: var(--accent); }
+
+.compare-vs {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+}
+
+/* The winning figure in a row. Bold as well as coloured, so the mark does
+   not rest on colour alone. */
+.compare-win { color: var(--accent); font-weight: 750; }
 
 /* ---------- controls ---------- */
 
