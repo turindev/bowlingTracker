@@ -39,6 +39,7 @@
       el('a', { href: '#/', 'aria-current': active === 'overview' ? 'page' : null }, 'Overview'),
       el('a', { href: '#/bowlers', 'aria-current': active === 'players' ? 'page' : null }, 'Bowlers'),
       el('a', { href: '#/teams', 'aria-current': active === 'teams' ? 'page' : null }, 'Teams'),
+      el('a', { href: '#/compare', 'aria-current': active === 'compare' ? 'page' : null }, 'Compare'),
     ]);
   }
 
@@ -444,6 +445,176 @@
     return averages.filter(function (value) { return value >= threshold; }).length;
   }
 
+
+  /* ---------- two bowlers, side by side ---------- */
+
+  /* direction: 'high' means a bigger number wins, 'low' a smaller one, and
+     null means the row is context rather than a contest. */
+  function compareRows(a, b) {
+    var rows = [
+      ['Season average', 'high', function (p) { return p.average; }, UI.avg],
+      ['League rank', 'low', function (p) { return p.trend.length ? p.trend[p.trend.length - 1].rank : null; },
+        function (v) { return v == null ? '—' : '#' + v; }],
+      ['vs book average', 'high', function (p) { return p.vsBook; }, function (v) { return signed(v); }],
+      ['High game', 'high', function (p) { return p.highGame; }, UI.num],
+      ['High series', 'high', function (p) { return p.highSeries; }, UI.num],
+      ['Consistency', 'low', function (p) { return p.spread; },
+        function (v) { return v == null ? '—' : '± ' + UI.avg(v); }],
+      ['Recent form', 'high', function (p) { return p.recent ? p.recent.delta : null; },
+        function (v) { return signed(v); }],
+      ['Games bowled', null, function (p) { return p.games; }, UI.num],
+      ['Total pins', null, function (p) { return p.pins; }, UI.big],
+      ['Book average', null, function (p) { return p.entryAverage; }, UI.num],
+    ];
+
+    if (model.scoring.useHandicap) {
+      rows.push(['Handicap', null, function (p) { return p.handicap; }, UI.num]);
+      rows.push(['Hdcp average', 'high', function (p) { return p.handicapAverage; }, UI.avg]);
+    }
+
+    var games = gameCount();
+    for (var g = 0; g < games; g++) {
+      (function (i) {
+        rows.push(['Game ' + (i + 1) + ' average', 'high',
+          function (p) { return p.slots[i] ? p.slots[i].average : null; }, UI.avg]);
+      })(g);
+    }
+
+    return rows.map(function (row) {
+      var va = row[2](a);
+      var vb = row[2](b);
+      var winner = null;
+      if (row[1] && va != null && vb != null && va !== vb) {
+        var aWins = row[1] === 'high' ? va > vb : va < vb;
+        winner = aWins ? 'a' : 'b';
+      }
+      return { label: row[0], a: va, b: vb, format: row[3], winner: winner };
+    });
+  }
+
+  function compareView(idA, idB) {
+    var pool = model.players.filter(function (p) {
+      return !p.placeholder && p.games > 0;
+    }).sort(function (x, y) { return x.name.localeCompare(y.name); });
+
+    document.title = 'Compare · ' + (model.league.name || 'Bowling League');
+
+    if (pool.length < 2) {
+      return draw([
+        pageHead('Compare bowlers', leagueSubtitle()),
+        tabs('compare'),
+        el('section', { class: 'card' }, UI.empty('Two bowlers with scores are needed to compare.')),
+      ]);
+    }
+
+    /* Default to the top two averages, so the page shows something useful
+       before anyone touches a picker. */
+    var byAverage = pool.slice().sort(function (x, y) { return y.average - x.average; });
+    var a = model.playersById[idA] || byAverage[0];
+    var b = model.playersById[idB] || byAverage[1];
+    if (a === b) b = byAverage[0] === a ? byAverage[1] : byAverage[0];
+
+    function go(nextA, nextB) {
+      location.hash = '#/compare/' + nextA.id + '/' + nextB.id;
+    }
+
+    function picker(side, selected, other) {
+      return el('div', { class: 'control-field' }, [
+        el('label', { for: 'cmp-' + side, text: side === 'a' ? 'Bowler' : 'Compared with' }),
+        el('select', {
+          id: 'cmp-' + side,
+          onchange: function (e) {
+            var picked = model.playersById[e.target.value];
+            if (side === 'a') go(picked, other); else go(other, picked);
+          },
+        }, pool.map(function (p) {
+          return el('option', {
+            value: p.id,
+            selected: p.id === selected.id,
+          }, p.name + ' · ' + p.teamName);
+        })),
+      ]);
+    }
+
+    var rows = compareRows(a, b);
+
+    var table = UI.table({
+      columns: [
+        { key: 'label', label: 'Stat', className: 'col-name', sortable: false,
+          render: function (r) { return r.label; } },
+        { key: 'a', label: a.name, className: 'num-strong', sortable: false,
+          render: function (r) {
+            return el('span', { class: r.winner === 'a' ? 'compare-win' : null },
+                      r.format(r.a));
+          } },
+        { key: 'b', label: b.name, className: 'num-strong', sortable: false,
+          render: function (r) {
+            return el('span', { class: r.winner === 'b' ? 'compare-win' : null },
+                      r.format(r.b));
+          } },
+      ],
+      rows: rows, state: null, onSort: function () {},
+    });
+
+    var wins = rows.reduce(function (acc, r) {
+      if (r.winner) acc[r.winner]++;
+      return acc;
+    }, { a: 0, b: 0 });
+
+    /* Two small charts rather than one overlaid: no second hue to introduce,
+       and each reads on its own. */
+    function weekChart(p) {
+      return Charts.line({
+        points: p.trend.map(function (t) {
+          return {
+            label: 'Week ' + t.week,
+            axis: String(t.week),
+            value: t.average,
+            caption: t.series != null ? UI.num(t.series) + ' series' : 'did not bowl',
+          };
+        }),
+        format: function (v) { return UI.avg(v); },
+        reference: { value: model.summary.average, label: 'league ' + UI.avg(model.summary.average) },
+        label: p.name + ' average by week',
+      });
+    }
+
+    draw([
+      pageHead('Compare bowlers', leagueSubtitle()),
+      tabs('compare'),
+      el('section', { class: 'card' }, [
+        el('div', { class: 'card-body' },
+          el('div', { class: 'controls' }, [picker('a', a, b), picker('b', b, a)])),
+        el('div', { class: 'card-body compare-heads' }, [
+          compareHead(a, wins.a),
+          el('span', { class: 'compare-vs', text: 'vs' }),
+          compareHead(b, wins.b),
+        ]),
+      ]),
+      UI.card('Side by side', 'The better figure in each row is highlighted',
+              el('div', { class: 'compare-table' }, table),
+              "Every comparable figure for the two bowlers. Rows where one is simply " +
+              "ahead are highlighted; rows like games bowled or handicap are context, " +
+              "not a contest, so neither side is marked."),
+      chartPair(
+        UI.card(a.name, 'Average by week', cardBody(weekChart(a)),
+                "How " + a.name + "'s season average has moved, against the league average."),
+        UI.card(b.name, 'Average by week', cardBody(weekChart(b)),
+                "How " + b.name + "'s season average has moved, against the league average.")
+      ),
+    ]);
+  }
+
+  function compareHead(player, wins) {
+    return el('a', { class: 'compare-head', href: '#/player/' + player.id }, [
+      Avatars.player(player.name),
+      el('span', { class: 'compare-name' }, [
+        el('strong', { text: player.name }),
+        el('small', { text: player.teamName }),
+        el('span', { class: 'pill', text: wins + ' ahead' }),
+      ]),
+    ]);
+  }
 
   /* ---------- individual leaderboard ---------- */
 
@@ -1267,6 +1438,7 @@
     if (parts[0] === 'player' && parts[1]) return playerView(parts[1]);
     if (parts[0] === 'teams') return teamsView();
     if (parts[0] === 'bowlers') return playersView();
+    if (parts[0] === 'compare') return compareView(parts[1], parts[2]);
     return overviewView();
   }
 

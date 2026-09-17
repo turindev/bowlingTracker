@@ -25,6 +25,7 @@ npx http-server . -p 8080    # then open http://localhost:8080
 | Overview | `#/` | League totals, scoring pace, standings, standings race, average distribution, over/under book average, scoring by game, scoring by lane pair, honour roll, closest matches, milestone counts (200+, 220+ …), season bests |
 | Bowlers | `#/bowlers` | Every bowler's average, high game, high series and pinfall |
 | Teams | `#/teams` | Standings by points, record, team average and high games |
+| Compare | `#/compare/p21/p25` | Two bowlers side by side, every comparable figure with the better one marked, plus each one's average by week |
 | Team | `#/team/t8` | Name banner, summary cards including season pace and schedule strength, series and league-position charts, roster averages, share of team pins, head-to-head, weekly results with lanes, margin and handicap-swing markers, every bowler's line for any week |
 | Bowler | `#/player/p25` | Monogram, summary cards including over/under book, consistency and recent form, every game charted against the bowler's average, average and league rank by week, scores by week, game 1/2/3 splits, milestones |
 
