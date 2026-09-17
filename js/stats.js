@@ -53,6 +53,9 @@
            real bowlers, so they stay off the individual leaderboard. */
         placeholder: !!p.placeholder,
         substitute: !!p.substitute,
+        /* vacant | absentee | substitute — what the page shows beside the
+           name. Substitutes bowl for real, so they keep their own flag. */
+        role: p.role || (p.substitute ? 'substitute' : null),
         weeks: [],
         games: 0,
         pins: 0,
@@ -219,6 +222,8 @@
           playerId: player.id,
           name: player.name,
           placeholder: player.placeholder,
+          substitute: player.substitute,
+          role: player.role,
           games: games,
           series: sum(games),
           handicap: player.handicap,
@@ -260,6 +265,8 @@
           homePoints: result.home, awayPoints: result.away,
           lanes: lanes,
           margin: Math.abs(hTotals.hdcpSeries - aTotals.hdcpSeries),
+          homeWeek: home.weeks[home.weeks.length - 1],
+          awayWeek: away.weeks[away.weeks.length - 1],
         });
       });
 
@@ -288,6 +295,7 @@
       league: league,
       scoring: scoring,
       summary: summarise(players, teams, weeks, matches),
+      matches: matches,
       teams: teams,
       players: players,
       weeks: weeks,

@@ -946,6 +946,12 @@ td.link-cell a:hover { text-decoration: underline; }
   .col-optional { display: none; }
   th, td { padding: 10px 7px; }
   table { font-size: 14px; }
+  /* Five tabs on a 390px phone: tighten the strip so they all fit rather
+     than leaving one half off the edge. */
+  .tabs { gap: 3px; padding: 3px; }
+  .tabs a { padding: 9px 4px; font-size: 13px; }
+  .week-nav { gap: 8px; }
+  .week-step { padding: 9px 10px; font-size: 13px; }
 }
 
 @media (min-width: 640px) {
@@ -974,4 +980,80 @@ td.link-cell a:hover { text-decoration: underline; }
 @media print {
   .site-header, .tabs, .controls, .theme-toggle, .back-link { display: none; }
   .card { box-shadow: none; break-inside: avoid; }
+}
+
+/* ---------- roles on a scoring line ---------- */
+
+/* A vacancy, an absentee score or a stand-in. All three count for the team,
+   so the line is marked rather than hidden. */
+.role-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.role-substitute { border-color: var(--accent-soft); color: var(--accent); }
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.legend-item { display: block; }
+.legend .role-tag { margin: 0 7px 0 0; }
+
+/* ---------- weekly results ---------- */
+
+/* Two rows make one match, so the pair needs to read as a unit: a rule above
+   the first row, and the winning handicap total picked out. */
+tbody tr.match-start > td { border-top: 2px solid var(--border); }
+tbody tr.match-start:first-child > td { border-top: 0; }
+tbody tr.match-won td.num-strong { color: var(--win); }
+.vs-mark {
+  margin-right: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.week-picker { margin-bottom: 14px; }
+.week-nav {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.week-nav .control-field { flex: 1 1 160px; }
+.week-step {
+  flex: none;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.week-step:hover { background: var(--surface-2); }
+.week-step.is-off { color: var(--text-dim); opacity: .45; pointer-events: none; }
+
+/* A record is worth more with the name attached. */
+.stat-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-dim);
 }
