@@ -1,8 +1,11 @@
-# Bowling League Tracker
+# LeagueCraft
+
+*Master your Game.*
 
 A small, dependency-free website for following a bowling league: a league
-dashboard, sortable bowler and team leaderboards, and a dashboard for every
-team and every bowler with cards, charts and scores week by week.
+dashboard, a week-by-week scoreboard, sortable bowler and team leaderboards,
+and a dashboard for every team and every bowler with cards, charts and scores
+week by week.
 
 Currently tracking **Championship League 2026-27** at Leisure Time Bowling —
 24 teams, 92 bowlers, 32 weeks.
