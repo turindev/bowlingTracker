@@ -19,9 +19,11 @@
     teamRoster: { key: 'average', dir: 'desc' },
     teamLines: { key: 'series', dir: 'desc' },
     playerWeeks: { key: 'week', dir: 'asc' },
+    weekLines: { key: 'series', dir: 'desc' },
     /* Long league-wide lists start trimmed and expand on request. */
     showAllTeams: false,
     showAllBook: false,
+    showAllWeekLines: false,
   };
 
   /* ---------- helpers ---------- */
@@ -37,6 +39,7 @@
   function tabs(active) {
     return el('nav', { class: 'tabs', 'aria-label': 'League sections' }, [
       el('a', { href: '#/', 'aria-current': active === 'overview' ? 'page' : null }, 'Overview'),
+      el('a', { href: '#/week', 'aria-current': active === 'week' ? 'page' : null }, 'Week'),
       el('a', { href: '#/bowlers', 'aria-current': active === 'players' ? 'page' : null }, 'Bowlers'),
       el('a', { href: '#/teams', 'aria-current': active === 'teams' ? 'page' : null }, 'Teams'),
       el('a', { href: '#/compare', 'aria-current': active === 'compare' ? 'page' : null }, 'Compare'),
@@ -64,9 +67,10 @@
     });
   }
 
-  function nameCell(href, name, sub) {
+  function nameCell(href, name, sub, role) {
     return [
       href ? el('a', { href: href, text: name }) : el('span', { class: 'muted', text: name }),
+      roleTag(role),
       sub ? el('span', { class: 'sub' }, sub) : null,
     ];
   }
@@ -74,7 +78,58 @@
   /* Placeholder lines get no link — there is no page behind them. */
   function bowlerCell(person, sub) {
     var href = person.placeholder ? null : '#/player/' + (person.id || person.playerId);
-    return nameCell(href, person.name, sub);
+    return nameCell(href, person.name, sub, person.role);
+  }
+
+  /* Lines that are not an ordinary bowler's night. All three count toward the
+     team total, which is why they need saying out loud. */
+  var ROLES = {
+    vacant: {
+      label: 'vacant',
+      note: 'An empty spot on the roster. The league scores it at a fixed number ' +
+            'every game so the team still bowls a full line-up. It counts for the ' +
+            'team but never reaches the bowlers leaderboard.',
+    },
+    absentee: {
+      label: 'absent',
+      note: 'A rostered bowler who missed the night. The league scores it at a ' +
+            'fixed number that counts for the team, but it is nobody\u2019s real ' +
+            'game, so it stays off the bowlers leaderboard.',
+    },
+    substitute: {
+      label: 'sub',
+      note: 'Bowled in place of a rostered team-mate. These are real games, so ' +
+            'they count for the team and the substitute keeps their own line on ' +
+            'the bowlers leaderboard.',
+    },
+  };
+
+  var ROLE_ORDER = ['vacant', 'absentee', 'substitute'];
+
+  function roleTag(role) {
+    if (!role || !ROLES[role]) return null;
+    return el('span', { class: 'role-tag role-' + role, title: ROLES[role].note },
+              ROLES[role].label);
+  }
+
+  /* Spell out only the markers the table above actually used — hovering a tag
+     is no help on a phone. */
+  function legendBody(rows) {
+    var legend = roleLegend(rows);
+    return legend ? el('div', { class: 'card-body' }, legend) : null;
+  }
+
+  function roleLegend(rows) {
+    var seen = [];
+    (rows || []).forEach(function (r) {
+      if (r && r.role && ROLES[r.role] && seen.indexOf(r.role) === -1) seen.push(r.role);
+    });
+    if (!seen.length) return null;
+    /* Always the same order, whatever order the table happened to be in. */
+    seen.sort(function (a, b) { return ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b); });
+    return el('p', { class: 'legend' }, seen.map(function (role) {
+      return el('span', { class: 'legend-item' }, [roleTag(role), ROLES[role].note]);
+    }));
   }
 
   function matches(player, query) {
@@ -665,6 +720,7 @@
       var body = rows.length
         ? UI.table({ columns: columns, rows: rows, state: state.players, onSort: render })
         : UI.empty(state.search ? 'No bowler matches “' + state.search + '”.' : 'No scores recorded yet.');
+      body = el('div', null, [body, legendBody(rows)]);
 
       draw([
         pageHead('Leaderboard', leagueSubtitle()),
@@ -679,6 +735,263 @@
 
     document.title = 'Leaderboard · ' + (model.league.name || 'Bowling League');
     render(false);
+  }
+
+  /* ---------- one week's results ---------- */
+
+  /* The whole night on one page: every match, who won which game, and every
+     line bowled. Reachable as #/week for the latest or #/week/3 for a
+     particular one. */
+  function weekView(requested) {
+    document.title = 'Weekly results · ' + (model.league.name || 'Bowling League');
+
+    var numbers = model.weeks.map(function (w) { return w.number; });
+    if (!numbers.length) {
+      return draw([
+        pageHead('Weekly results', leagueSubtitle()),
+        tabs('week'),
+        sampleNotice(),
+        el('section', { class: 'card' },
+           UI.empty('Results appear here once a week has been scored.')),
+      ]);
+    }
+
+    var number = Number(requested);
+    if (numbers.indexOf(number) === -1) number = numbers[numbers.length - 1];
+    var week = model.weeks.filter(function (w) { return w.number === number; })[0];
+    var games = gameCount();
+    var played = model.matches.filter(function (m) { return m.week === number; });
+
+    /* Every line bowled that night, vacancies and absentee scores included —
+       they are part of how the team totals came out. */
+    var lines = [];
+    model.players.forEach(function (p) {
+      p.weeks.forEach(function (w) {
+        if (w.number !== number) return;
+        lines.push({
+          id: p.id, name: p.name, role: p.role, placeholder: p.placeholder,
+          teamId: p.teamId, teamName: p.teamName, handicap: p.handicap,
+          games: w.games, series: w.series, average: w.average,
+          hdcpSeries: w.series + p.handicap * w.games.length,
+        });
+      });
+    });
+
+    var real = lines.filter(function (l) { return !l.placeholder; });
+    var pins = lines.reduce(function (t, l) { return t + l.series; }, 0);
+    var gamesBowled = lines.reduce(function (t, l) { return t + l.games.length; }, 0);
+    var bestGame = topBy(real, function (l) { return Math.max.apply(null, l.games); });
+    var bestSeries = topBy(real, function (l) { return l.series; });
+
+    function render() {
+      /* Two rows per match, kept adjacent, so a scoreboard reads down the
+         page the way it does on the sheet. */
+      var board = [];
+      played.forEach(function (match, i) {
+        board.push(side(match, match.home, match.homeWeek, true, i));
+        board.push(side(match, match.away, match.awayWeek, false, i));
+      });
+
+      var boardColumns = [
+        { key: 'lanes', label: 'Lanes', className: 'col-tight muted',
+          optional: true, sortable: false,
+          render: function (r) {
+            if (!r.first) return '';
+            return r.lanes || el('span', { class: 'muted', text: '—' });
+          } },
+        { key: 'team', label: 'Team', className: 'col-name', sortable: false,
+          render: function (r) {
+            /* Lanes are the first column to go on a phone, so the second row
+               of each pair says who it is playing. */
+            return [r.first ? null : el('span', { class: 'vs-mark', text: 'vs' })]
+              .concat(nameCell('#/team/' + r.id, r.name));
+          } },
+      ];
+
+      for (var g = 0; g < games; g++) {
+        (function (idx) {
+          boardColumns.push({ key: 'g' + idx, label: 'G' + (idx + 1),
+            optional: true, sortable: false,
+            render: function (r) {
+              var value = r.week.gameTotals[idx];
+              if (value == null) return el('span', { class: 'muted', text: '—' });
+              /* Mark the games this team actually won on handicap. */
+              var mine = r.week.hdcpGameTotals[idx];
+              var theirs = r.opponent ? r.opponent.hdcpGameTotals[idx] : null;
+              return best(theirs != null && mine > theirs, UI.num(value));
+            } });
+        })(g);
+      }
+
+      boardColumns.push(
+        { key: 'series', label: 'Scratch', sortable: false,
+          render: function (r) { return UI.num(r.week.series); } },
+        { key: 'handicap', label: 'Hdcp', className: 'muted',
+          optional: true, sortable: false,
+          render: function (r) { return UI.num(r.week.handicap * games); } },
+        { key: 'total', label: 'Total', className: 'num-strong', sortable: false,
+          render: function (r) { return UI.num(r.week.hdcpSeries); } },
+        { key: 'points', label: 'Pts', sortable: false,
+          render: function (r) {
+            if (r.week.points == null) return el('span', { class: 'muted', text: '—' });
+            return UI.points(r.week.points);
+          } },
+        { key: 'result', label: 'Res', sortable: false,
+          render: function (r) {
+            if (!r.week.result) return el('span', { class: 'muted', text: '—' });
+            return el('span', { class: 'result-' + r.week.result, text: r.week.result });
+          } }
+      );
+
+      var scoreboard = board.length
+        ? UI.table({
+            columns: boardColumns, rows: board,
+            rowClass: function (r) {
+              return [r.first ? 'match-start' : null,
+                      r.week.result === 'W' ? 'match-won' : null].filter(Boolean).join(' ');
+            },
+          })
+        : UI.empty('No matches were recorded for week ' + number + '.');
+
+      var lineColumns = [
+        { key: 'rank', label: '#', className: 'col-rank', sortable: false,
+          render: function (row, i) { return rankMark(i); } },
+        { key: 'name', label: 'Bowler', className: 'col-name', defaultDir: 'asc',
+          value: function (r) { return r.name; },
+          render: function (r) {
+            return bowlerCell(r, [teamChip(r.teamName), r.teamName]);
+          } },
+      ];
+
+      for (var s = 0; s < games; s++) {
+        (function (idx) {
+          lineColumns.push({ key: 'lg' + idx, label: 'G' + (idx + 1), optional: true,
+            value: function (r) { return r.games[idx]; },
+            render: function (r) {
+              var value = r.games[idx];
+              if (value == null) return el('span', { class: 'muted', text: '—' });
+              return best(!r.placeholder && value === bestGame.value, UI.num(value));
+            } });
+        })(s);
+      }
+
+      lineColumns.push(
+        { key: 'series', label: 'Series', className: 'num-strong',
+          value: function (r) { return r.series; },
+          render: function (r) {
+            return best(!r.placeholder && r.series === bestSeries.value, UI.num(r.series));
+          } },
+        { key: 'average', label: 'Avg', className: 'muted', optional: true,
+          value: function (r) { return r.average; },
+          render: function (r) { return UI.avg(r.average); } }
+      );
+
+      lineColumns = withHandicap(lineColumns, [
+        { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
+          value: function (r) { return r.hdcpSeries; },
+          render: function (r) { return UI.num(r.hdcpSeries); } },
+      ]);
+
+      var showAll = state.showAllWeekLines;
+      var lineTable = el('div', null, [
+        UI.table({ columns: lineColumns, rows: lines, state: state.weekLines,
+                   onSort: render, limit: showAll ? null : 10 }),
+        legendBody(lines),
+        lines.length > 10
+          ? expandToggle(showAll, lines.length, 'lines', function () {
+              state.showAllWeekLines = !showAll;
+              render();
+            })
+          : null,
+      ]);
+
+      draw([
+        pageHead('Week ' + number + ' results',
+                 week.date ? UI.longDate(week.date) : leagueSubtitle()),
+        tabs('week'),
+        sampleNotice(),
+        numbers.length > 1 ? weekPicker(numbers, number) : null,
+        UI.statGrid([
+          UI.stat('Matches', UI.num(played.length),
+                  'How many head-to-head matches were bowled this week.'),
+          UI.stat('Bowlers', UI.num(real.length),
+                  'Real bowlers who put a score up this week. Vacancies and absentee scores are left out.'),
+          UI.stat('Games', UI.num(gamesBowled),
+                  'Every game bowled this week, counting vacancies and absentee scores, because those went into the team totals.'),
+          UI.stat('Pins', UI.big(pins),
+                  'Total scratch pinfall for the whole league this week, before handicap.'),
+          UI.stat('Scoring average', UI.avg(gamesBowled ? pins / gamesBowled : null),
+                  "The league's scratch average per game this week — the number to compare one week against another."),
+          statWithName('Highest game', bestGame),
+          statWithName('Highest series', bestSeries),
+        ]),
+        UI.card('Scoreboard', 'Scratch unless marked Hdcp', scoreboard,
+                'Every match this week, two rows per match. Game columns show scratch pinfall, with a marker on the games that team won once handicap was added. Total is the handicap series the points were actually decided on.'),
+        UI.card("Every line bowled", 'Tap a column to sort', lineTable,
+                'Every score bowled this week, best series first. Tap a name for that bowler’s page, or a column to sort by it.'),
+      ]);
+    }
+
+    render();
+  }
+
+  /* One side of a match, carrying the other side so a won game can be marked. */
+  function side(match, team, weekEntry, first, pair) {
+    return {
+      id: team.id, name: team.name, week: weekEntry, first: first, pair: pair,
+      lanes: match.lanes,
+      opponent: first ? match.awayWeek : match.homeWeek,
+    };
+  }
+
+  function topBy(rows, pick) {
+    var bestRow = null;
+    var bestValue = null;
+    rows.forEach(function (row) {
+      var value = pick(row);
+      if (bestValue == null || value > bestValue) { bestValue = value; bestRow = row; }
+    });
+    return { value: bestValue, row: bestRow };
+  }
+
+  /* A number is only half the story when somebody bowled it. */
+  function statWithName(label, top) {
+    var value = [el('span', null, top.value == null ? '—' : UI.num(top.value))];
+    if (top.row) value.push(el('span', { class: 'stat-sub', text: top.row.name }));
+    return UI.stat(label, value,
+                   label === 'Highest game'
+                     ? 'The single best game anybody bowled this week, scratch.'
+                     : 'The best three-game scratch series anybody bowled this week.');
+  }
+
+  function weekPicker(numbers, current) {
+    var at = numbers.indexOf(current);
+    var prev = at > 0 ? numbers[at - 1] : null;
+    var next = at < numbers.length - 1 ? numbers[at + 1] : null;
+
+    return el('div', { class: 'card week-picker' }, el('div', { class: 'card-body' },
+      el('div', { class: 'week-nav' }, [
+        el('a', {
+          class: 'week-step' + (prev == null ? ' is-off' : ''),
+          href: prev == null ? null : '#/week/' + prev,
+          'aria-disabled': prev == null ? 'true' : null,
+        }, '← Week ' + (prev == null ? '' : prev)),
+        el('div', { class: 'control-field' }, [
+          el('label', { for: 'week-jump', text: 'Week' }),
+          el('select', {
+            id: 'week-jump',
+            onchange: function (e) { location.hash = '#/week/' + e.target.value; },
+          }, model.weeks.map(function (w) {
+            return el('option', { value: w.number, selected: w.number === current },
+                      'Week ' + w.number + (w.date ? ' · ' + UI.shortDate(w.date) : ''));
+          })),
+        ]),
+        el('a', {
+          class: 'week-step' + (next == null ? ' is-off' : ''),
+          href: next == null ? null : '#/week/' + next,
+          'aria-disabled': next == null ? 'true' : null,
+        }, 'Week ' + (next == null ? '' : next) + ' →'),
+      ])));
   }
 
   /* ---------- team leaderboard ---------- */
@@ -944,7 +1257,7 @@
             { key: 'name', label: 'Bowler', className: 'col-name', defaultDir: 'asc',
               value: function (r) { return r.name; },
               render: function (r) {
-                return bowlerCell(r, r.substitute ? 'substitute' : null);
+                return bowlerCell(r);
               } },
             { key: 'games', label: 'Gms', className: 'muted', optional: true,
               value: function (r) { return r.games; },
@@ -974,6 +1287,7 @@
           onSort: function () { renderTeam(); },
         })
       : UI.empty('No bowlers on this roster yet.');
+    roster = el('div', null, [roster, legendBody(team.players)]);
 
     /* One week's individual lines, chosen from a picker. */
     var weekNumbers = team.weeks.map(function (w) { return w.number; });
@@ -1049,7 +1363,8 @@
           : '',
       ]));
 
-      weekSection = el('div', null, [picker, lines, totals]);
+      weekSection = el('div', null,
+                       [picker, lines, legendBody(week.lines), totals]);
     }
 
     draw([
@@ -1439,6 +1754,7 @@
     if (parts[0] === 'teams') return teamsView();
     if (parts[0] === 'bowlers') return playersView();
     if (parts[0] === 'compare') return compareView(parts[1], parts[2]);
+    if (parts[0] === 'week') return weekView(parts[1]);
     return overviewView();
   }
 

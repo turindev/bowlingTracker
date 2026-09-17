@@ -179,6 +179,9 @@
      columns: { key, label, className, optional, sortable, defaultDir,
                 value(row) -> sort key, render(row) -> cell content }
      `state` is owned by the caller so a sort survives a re-render.
+     `limit` trims the rendered rows after sorting, for a collapsed list.
+     `rowClass(row, i)` marks individual rows — a scoreboard uses it to keep
+     the two sides of a match visually paired.
      ------------------------------------------------------------------ */
   function table(options) {
     var columns = options.columns;
@@ -194,6 +197,10 @@
         });
       }
     }
+
+    /* Trim after sorting, never before, so a collapsed table still shows the
+       top of whatever column the reader picked. */
+    if (options.limit != null) rows = rows.slice(0, options.limit);
 
     var head = el('tr', null, columns.map(function (column) {
       var className = [column.className, column.optional ? 'col-optional' : null, column.sortable === false ? null : 'sortable']
@@ -216,7 +223,8 @@
     }));
 
     var body = el('tbody', null, rows.map(function (row, i) {
-      return el('tr', null, columns.map(function (column) {
+      var rowClass = options.rowClass ? options.rowClass(row, i) : null;
+      return el('tr', { class: rowClass || null }, columns.map(function (column) {
         var className = [column.className, column.optional ? 'col-optional' : null]
           .filter(Boolean).join(' ');
         return el('td', { class: className || null }, column.render(row, i));

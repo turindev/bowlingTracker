@@ -50,7 +50,8 @@ and never reuse one for a different team.
 |---|---|
 | `entryAverage` | The book average handicap is calculated from. Without it, the season-to-date average is used instead. |
 | `placeholder` | `true` for vacant spots and absentee scores. They count toward team totals but are kept off the bowler leaderboard and get no player page. |
-| `substitute` | `true` for a fill-in bowler. They appear normally, tagged "substitute" on the team roster. |
+| `substitute` | `true` for a fill-in bowler. Their games are real, so they keep a place on the bowler leaderboard, tagged "sub". |
+| `role` | `"vacant"` or `"absentee"` — why a `placeholder` line exists. It picks the marker shown beside the name and the sentence in the legend under the table. A `substitute` is tagged from its own flag and needs no `role`. |
 
 ## `weeks`
 

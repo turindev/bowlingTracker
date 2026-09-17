@@ -318,6 +318,7 @@ window.LEAGUE_DATA =
       "name": "Vacant",
       "teamId": "t7",
       "entryAverage": 120,
+      "role": "vacant",
       "placeholder": true
     },
     {
@@ -487,6 +488,7 @@ window.LEAGUE_DATA =
       "name": "Vacant",
       "teamId": "t15",
       "entryAverage": 120,
+      "role": "vacant",
       "placeholder": true
     },
     {
@@ -687,6 +689,7 @@ window.LEAGUE_DATA =
       "name": "Absentee",
       "teamId": "t24",
       "entryAverage": 220,
+      "role": "absentee",
       "placeholder": true
     },
     {
@@ -700,6 +703,7 @@ window.LEAGUE_DATA =
       "name": "Absentee",
       "teamId": "t24",
       "entryAverage": 220,
+      "role": "absentee",
       "placeholder": true
     },
     {
