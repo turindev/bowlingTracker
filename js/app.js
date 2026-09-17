@@ -4,6 +4,7 @@
   'use strict';
 
   var el = UI.el;
+  var APP_NAME = 'LeagueCraft';
   var model = null;
   var viewRoot = null;
 
@@ -175,7 +176,7 @@
   var MILESTONES = [220, 210, 200, 190, 180, 170];
 
   function overviewView() {
-    document.title = 'Overview · ' + (model.league.name || 'Bowling League');
+    document.title = 'Overview · ' + APP_NAME;
     var s = model.summary;
 
     if (!s.bowlers) {
@@ -358,7 +359,7 @@
   /* The landing page gets a face: the league's own banner, with how far
      through the season we are. */
   function masthead() {
-    var name = model.league.name || 'Bowling League';
+    var name = model.league.name || APP_NAME;
     var total = model.league.weeksInSeason;
     var done = model.weeks.length;
 
@@ -552,7 +553,7 @@
       return !p.placeholder && p.games > 0;
     }).sort(function (x, y) { return x.name.localeCompare(y.name); });
 
-    document.title = 'Compare · ' + (model.league.name || 'Bowling League');
+    document.title = 'Compare · ' + APP_NAME;
 
     if (pool.length < 2) {
       return draw([
@@ -733,7 +734,7 @@
       restoreFocus(fromSearch);
     }
 
-    document.title = 'Leaderboard · ' + (model.league.name || 'Bowling League');
+    document.title = 'Leaderboard · ' + APP_NAME;
     render(false);
   }
 
@@ -743,7 +744,7 @@
      line bowled. Reachable as #/week for the latest or #/week/3 for a
      particular one. */
   function weekView(requested) {
-    document.title = 'Weekly results · ' + (model.league.name || 'Bowling League');
+    document.title = 'Weekly results · ' + APP_NAME;
 
     var numbers = model.weeks.map(function (w) { return w.number; });
     if (!numbers.length) {
@@ -1065,7 +1066,7 @@
       restoreFocus(fromSearch);
     }
 
-    document.title = 'Team standings · ' + (model.league.name || 'Bowling League');
+    document.title = 'Team standings · ' + APP_NAME;
     render(false);
   }
 
@@ -1075,7 +1076,7 @@
     var team = model.teamsById[teamId];
     if (!team) return notFound('That team is not in the league.');
 
-    document.title = team.name + ' · ' + (model.league.name || 'Bowling League');
+    document.title = team.name + ' · ' + APP_NAME;
 
     var games = gameCount();
 
@@ -1443,7 +1444,7 @@
     var player = model.playersById[playerId];
     if (!player) return notFound('That bowler is not in the league.');
 
-    document.title = player.name + ' · ' + (model.league.name || 'Bowling League');
+    document.title = player.name + ' · ' + APP_NAME;
 
     var games = gameCount();
     var standing = player.trend.length ? player.trend[player.trend.length - 1] : null;
@@ -1731,7 +1732,7 @@
   }
 
   function notFound(message) {
-    document.title = 'Not found · ' + (model.league.name || 'Bowling League');
+    document.title = 'Not found · ' + APP_NAME;
     draw([
       pageHead('Not found', message, '#/', 'Overview'),
       el('section', { class: 'card' }, UI.empty('Check the link, or head back to the overview.')),
@@ -1799,11 +1800,10 @@
 
     model = window.LeagueStats.build(raw);
 
-    document.getElementById('league-name').textContent = model.league.name || 'Bowling League';
-    var meta = [model.league.venue, model.league.night].filter(Boolean).join(' · ');
-    document.getElementById('league-meta').textContent = meta;
-
     var footer = [];
+    var where = [model.league.name, model.league.venue, model.league.night]
+      .filter(Boolean).join(' · ');
+    if (where) footer.push(where + '.');
     if (model.scoring.useHandicap) {
       footer.push('Handicap: ' + model.scoring.handicapPercent + '% of ' +
                   model.scoring.handicapBasis + '.');

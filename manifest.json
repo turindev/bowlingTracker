@@ -1,7 +1,7 @@
 {
-  "name": "Bowling League Tracker",
-  "short_name": "Bowling",
-  "description": "Standings, averages and weekly scores for our bowling league.",
+  "name": "LeagueCraft",
+  "short_name": "LeagueCraft",
+  "description": "Master your Game — standings, averages and weekly scores for our bowling league.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
