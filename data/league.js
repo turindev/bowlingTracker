@@ -25,6 +25,7 @@ window.LEAGUE_DATA =
     "useHandicap": true,
     "handicapBasis": 220,
     "handicapPercent": 90,
+    "establishAfterGames": 12,
     "pointsPerGame": 1,
     "pointsForSeries": 1
   },

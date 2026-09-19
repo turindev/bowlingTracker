@@ -28,6 +28,7 @@ add a week of scores.
 | `useHandicap` | `false` | |
 | `handicapBasis` | `220` | |
 | `handicapPercent` | `90` | Handicap = `floor((basis − average) × percent/100)`, never below 0. |
+| `establishAfterGames` | `12` | League rule 9. A bowler's first 12 games are handicapped off `entryAverage`; from game 13 the average they have actually bowled takes over. Each week is scored on the handicap in force when it was bowled, decided by the games completed before it — so no week is ever rescored. Counted in games, not weeks, so a bowler who misses nights establishes later. |
 | `pointsPerGame` | `1` | Points for winning a single game. |
 | `pointsForSeries` | `1` | Points for winning total pinfall. |
 

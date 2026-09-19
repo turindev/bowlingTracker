@@ -1805,8 +1805,20 @@
       .filter(Boolean).join(' · ');
     if (where) footer.push(where + '.');
     if (model.scoring.useHandicap) {
-      footer.push('Handicap: ' + model.scoring.handicapPercent + '% of ' +
-                  model.scoring.handicapBasis + '.');
+      var rule = 'Handicap: ' + model.scoring.handicapPercent + '% of ' +
+                 model.scoring.handicapBasis + '.';
+      /* Until a bowler has bowled enough games the number comes off last
+         season's book average, which is worth saying while it is true. */
+      if (model.scoring.establishAfterGames) {
+        var settled = model.players.filter(function (p) {
+          return !p.placeholder && p.established;
+        }).length;
+        rule += settled
+          ? ' Averages establish after ' + model.scoring.establishAfterGames + ' games.'
+          : ' Off last season\u2019s averages until ' +
+            model.scoring.establishAfterGames + ' games are bowled.';
+      }
+      footer.push(rule);
     }
     footer.push('Averages are season to date.');
     if (model.weeks.length) footer.push(plural(model.weeks.length, 'week') + ' recorded.');
