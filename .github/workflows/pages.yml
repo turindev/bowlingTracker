@@ -27,6 +27,9 @@ jobs:
       - name: Validate league data
         run: node tools/validate.js
 
+      - name: Check the handicap rule
+        run: node tools/test-handicap.js
+
   deploy:
     needs: check
     runs-on: ubuntu-latest

@@ -17,6 +17,9 @@
     useHandicap: false,
     handicapBasis: 220,
     handicapPercent: 90,
+    /* League rule 9: last season's book average carries the first 12 games,
+       then handicap is recalculated from the games actually bowled. */
+    establishAfterGames: 12,
     pointsPerGame: 1,
     pointsForSeries: 1,
   };
@@ -37,6 +40,15 @@
     var diff = scoring.handicapBasis - average;
     if (diff <= 0) return 0;
     return Math.floor(diff * (scoring.handicapPercent / 100));
+  }
+
+  /* Which average a bowler's handicap comes off, given the games already
+     behind them. Before the league establishes an average it is the book one;
+     after, it is what they have bowled. */
+  function handicapBase(player, games, pins, establish) {
+    if (games >= establish && games > 0) return pins / games;
+    if (player.entryAverage != null) return player.entryAverage;
+    return player.average;
   }
 
   function build(raw) {
@@ -196,9 +208,27 @@
       if (p.entryAverage != null && p.average != null) {
         p.vsBook = p.average - p.entryAverage;
       }
-      /* Handicap runs off the book average when one is set, otherwise the
-         season-to-date average. */
-      p.handicap = handicapFor(p.entryAverage != null ? p.entryAverage : p.average, scoring);
+      /* Handicap is not one number for the season. Rule 9 puts every bowler
+         on last year's book average for their first 12 games, then moves them
+         onto the average they have actually bowled. A week is scored with the
+         handicap that was in force when it was bowled, which is set by the
+         games completed BEFORE it — the league adjusts between weeks, never
+         part way through one. */
+      var establish = scoring.establishAfterGames;
+      var doneGames = 0;
+      var donePins = 0;
+      p.handicapByWeek = {};
+      p.weeks.forEach(function (week) {
+        week.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
+        p.handicapByWeek[week.number] = week.handicap;
+        doneGames += week.games.length;
+        donePins += week.series;
+      });
+
+      /* What the next week will be bowled on, and the number the tables show. */
+      p.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
+      p.established = doneGames >= establish;
+      p.gamesToEstablish = Math.max(establish - doneGames, 0);
       p.handicapAverage = p.average == null ? null : p.average + p.handicap;
       p.weeksBowled = p.weeks.length;
     });
@@ -218,6 +248,9 @@
         if (!player || !byTeam[player.teamId]) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
+        /* The handicap this bowler carried that night, not today's. */
+        var hdcp = player.handicapByWeek[week.number];
+        if (hdcp == null) hdcp = player.handicap;
         byTeam[player.teamId].lines.push({
           playerId: player.id,
           name: player.name,
@@ -226,10 +259,10 @@
           role: player.role,
           games: games,
           series: sum(games),
-          handicap: player.handicap,
-          hdcpSeries: sum(games) + player.handicap * games.length,
+          handicap: hdcp,
+          hdcpSeries: sum(games) + hdcp * games.length,
         });
-        byTeam[player.teamId].handicap += player.handicap;
+        byTeam[player.teamId].handicap += hdcp;
       });
 
       Object.keys(byTeam).forEach(function (teamId) {
