@@ -30,6 +30,9 @@ jobs:
       - name: Check the handicap rule
         run: node tools/test-handicap.js
 
+      - name: Check the split season
+        run: node tools/test-season.js
+
   deploy:
     needs: check
     runs-on: ubuntu-latest

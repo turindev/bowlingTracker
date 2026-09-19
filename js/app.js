@@ -25,6 +25,8 @@
     showAllTeams: false,
     showAllBook: false,
     showAllWeekLines: false,
+    /* 'season', or a half's number as a string. */
+    teamScope: 'season',
   };
 
   /* ---------- helpers ---------- */
@@ -44,6 +46,7 @@
       el('a', { href: '#/bowlers', 'aria-current': active === 'players' ? 'page' : null }, 'Bowlers'),
       el('a', { href: '#/teams', 'aria-current': active === 'teams' ? 'page' : null }, 'Teams'),
       el('a', { href: '#/compare', 'aria-current': active === 'compare' ? 'page' : null }, 'Compare'),
+      el('a', { href: '#/rules', 'aria-current': active === 'rules' ? 'page' : null }, 'Rules'),
     ]);
   }
 
@@ -306,6 +309,7 @@
                 el('div', null, standingsCard),
               "Points won so far. Each match is worth four: one for each handicap game won, and one for total handicap pinfall.")
       ),
+      rollOffCard(),
       UI.card('Average distribution', 'Bowlers in each 10-pin band',
               cardBody(Charts.bars({ rows: distributionRows(s.averages) })),
               "How many bowlers sit in each 10-pin band of season average. It shows the shape of the league - where most bowlers cluster and how long the tails run."),
@@ -738,6 +742,145 @@
     render(false);
   }
 
+  /* ---------- the split season ---------- */
+
+  /* Rules 1 and 2: two 16-week halves, each with its own position round, and
+     the top four of each half go to the roll-off. Which means from week 17
+     "the standings" is two tables, and a team that wins the first half has
+     already banked its place. */
+  function rollOffCard() {
+    var halves = model.halves || [];
+    var live = halves.filter(function (h) { return h.started; });
+    if (!live.length || !halves[0].qualifiers) return null;
+
+    var seats = halves[0].qualifiers;
+    var rows = live.map(function (half) {
+      var head = el('div', { class: 'half-head' }, [
+        el('strong', { text: half.name }),
+        el('span', { class: 'muted', text: halfProgress(half) }),
+      ]);
+      var table = UI.table({
+        columns: [
+          { key: 'rank', label: '#', className: 'col-rank', sortable: false,
+            render: function (r) { return String(r.rank); } },
+          { key: 'team', label: 'Team', className: 'col-name', sortable: false,
+            render: function (r) {
+              return [
+                el('a', { href: '#/team/' + r.team.id, text: r.team.name }),
+                r.qualifies
+                  ? el('span', { class: 'seat', title: 'In a roll-off place' }, 'in')
+                  : null,
+              ];
+            } },
+          { key: 'record', label: 'W-L', className: 'muted', optional: true, sortable: false,
+            render: function (r) { return r.wins + '-' + r.losses + (r.ties ? '-' + r.ties : ''); } },
+          { key: 'points', label: 'Pts', className: 'num-strong', sortable: false,
+            render: function (r) { return UI.points(r.points); } },
+        ],
+        rows: half.standings,
+        limit: seats + 2,
+        rowClass: function (r) { return r.qualifies ? 'qualifies' : null; },
+      });
+      return el('div', { class: 'half' }, [head, table]);
+    });
+
+    return UI.card('Roll-off picture',
+                   'Top ' + seats + ' of each half qualify',
+                   el('div', { class: 'halves' }, rows),
+                   'The season is bowled in two halves. The top ' + seats +
+                   ' teams from each half go to the ' + (seats * 2) +
+                   '-team roll-off, so winning the first half banks a place ' +
+                   'whatever happens after Christmas. Teams just outside are ' +
+                   'shown too, marked by where they would finish today.');
+  }
+
+  /* Season / first half / second half, once there is a difference to see. */
+  function scopePicker(splits, splittable, rerender) {
+    if (!splittable) return null;
+    var choices = [{ key: 'season', label: 'Whole season' }].concat(
+      splits.map(function (h) { return { key: String(h.number), label: h.name }; }));
+
+    return el('div', { class: 'card-body' },
+      el('div', { class: 'scope', role: 'group', 'aria-label': 'Which stretch of the season' },
+        choices.map(function (c) {
+          var on = state.teamScope === c.key;
+          return el('button', {
+            type: 'button',
+            class: 'scope-btn' + (on ? ' is-on' : ''),
+            'aria-pressed': on ? 'true' : 'false',
+            onclick: function () { state.teamScope = c.key; rerender(); },
+          }, c.label);
+        })));
+  }
+
+  function halfProgress(half) {
+    var span = half.to - half.from + 1;
+    if (half.complete) return 'complete';
+    if (!half.started) return 'not started yet';
+    return 'week ' + half.weeksBowled + ' of ' + span;
+  }
+
+  /* ---------- league rules ---------- */
+
+  /* The printed sheet, on a phone. Everything comes from data/rules.js so a
+     rule change never means touching this file. */
+  function rulesView() {
+    document.title = 'Rules \u00b7 ' + APP_NAME;
+    var doc = window.LEAGUE_RULES;
+
+    if (!doc || !doc.rules || !doc.rules.length) {
+      return draw([
+        pageHead('League rules', leagueSubtitle()),
+        tabs('rules'),
+        el('section', { class: 'card' },
+           UI.empty('Could not load data/rules.js \u2014 check that the file is present.')),
+      ]);
+    }
+
+    var officers = (doc.officers || []).length
+      ? UI.card('Officers', 'Who to ask',
+          el('div', { class: 'card-body' },
+             el('ul', { class: 'officers' }, doc.officers.map(function (o) {
+               return el('li', null, [
+                 el('span', { class: 'officer-role', text: o.role }),
+                 el('strong', { text: o.name }),
+               ]);
+             }))),
+          'The people who run the league. Postponements go to the president; fees and roster changes go to the secretary.')
+      : null;
+
+    var list = el('ol', { class: 'rules' }, doc.rules.map(function (rule) {
+      var body = [];
+      var text = rule.text instanceof Array ? rule.text : [rule.text];
+      text.forEach(function (part) {
+        if (part instanceof Array) {
+          body.push(el('ol', { class: 'rule-sub' }, part.map(function (item) {
+            return el('li', { text: item });
+          })));
+        } else {
+          body.push(el('p', { text: part }));
+        }
+      });
+      return el('li', { class: 'rule', id: 'rule-' + rule.number }, [
+        el('div', { class: 'rule-head' }, [
+          el('span', { class: 'rule-number', text: String(rule.number) }),
+          rule.heading ? el('h3', { text: rule.heading }) : null,
+        ]),
+        el('div', { class: 'rule-body' }, body),
+      ]);
+    }));
+
+    draw([
+      pageHead('League rules', doc.title || leagueSubtitle()),
+      tabs('rules'),
+      sampleNotice(),
+      officers,
+      UI.card('The rules', plural(doc.rules.length, 'rule'),
+              el('div', { class: 'card-body' }, list),
+              doc.source || 'The league rules as printed.'),
+    ]);
+  }
+
   /* ---------- one week's results ---------- */
 
   /* The whole night on one page: every match, who won which game, and every
@@ -998,11 +1141,35 @@
   /* ---------- team leaderboard ---------- */
 
   function teamsView() {
+    /* Only worth offering once both halves have games in them: while the
+       first half is running it IS the season, and the control would be a
+       switch between two identical tables. */
+    var splits = (model.halves || []).filter(function (h) { return h.started; });
+    var splittable = splits.length > 1;
+    if (!splittable) state.teamScope = 'season';
+
     function render(fromSearch) {
       var query = state.search.toLowerCase();
+      var scope = splittable ? state.teamScope : 'season';
+      var half = scope === 'season' ? null
+        : splits.filter(function (h) { return String(h.number) === scope; })[0];
+
       var rows = model.teams.filter(function (t) {
         return !query || t.name.toLowerCase().indexOf(query) > -1;
       });
+
+      /* Within a half the team's season totals are the wrong numbers, so the
+         rows carry that half's points and record instead. */
+      if (half) {
+        var byTeam = {};
+        half.standings.forEach(function (r) { byTeam[r.team.id] = r; });
+        rows = rows.map(function (t) {
+          var r = byTeam[t.id] || { points: 0, wins: 0, losses: 0, ties: 0, weeks: 0 };
+          return Object.assign(Object.create(t), {
+            points: r.points, wins: r.wins, losses: r.losses, ties: r.ties,
+          });
+        });
+      }
 
       var columns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
@@ -1060,7 +1227,8 @@
         tabs('teams'),
         sampleNotice(),
         UI.card('Team standings', 'Scratch unless marked Hdcp',
-                el('div', null, [searchBox('Find a team', render), body]),
+                el('div', null, [scopePicker(splits, splittable, render),
+                                 searchBox('Find a team', render), body]),
                 "Every team in the league. Tap any column to sort by it and tap a name for that team's page. Team Avg is the average team game with all bowlers combined, not a per-bowler figure."),
       ]);
       restoreFocus(fromSearch);
@@ -1756,6 +1924,7 @@
     if (parts[0] === 'bowlers') return playersView();
     if (parts[0] === 'compare') return compareView(parts[1], parts[2]);
     if (parts[0] === 'week') return weekView(parts[1]);
+    if (parts[0] === 'rules') return rulesView();
     return overviewView();
   }
 

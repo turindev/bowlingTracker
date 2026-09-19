@@ -18,6 +18,10 @@ add a week of scores.
 | `venue` | `"Leisure Time Bowling"` | Optional. |
 | `night` | `"Tuesdays, 6:30 PM"` | Optional. |
 | `weeksInSeason` | `32` | Optional — drives "through week 4 of 32". |
+| `halfLength` | `16` | Rule 1: the season is bowled in halves of this many weeks. Standings are tallied per half as well as for the season. Omit for a single continuous season. |
+| `positionRounds` | `[16, 32]` | Rule 1: the week each half finishes on. |
+| `rollOff` | `{ "date": "2027-04-27", "teamsPerHalf": 4 }` | Rule 2: how many teams from each half qualify, and when they bowl. Drives the roll-off card. |
+| `offWeeks` | `[{ "date": "2026-12-29", "note": "…" }]` | Scheduled weeks with no bowling. Recorded for reference; week numbers are not affected. |
 | `sampleData` | `true` | Optional. Shows a "placeholder data" banner. Delete for real seasons. |
 
 ## `scoring`
@@ -104,3 +108,21 @@ confirm the **Hdcp Ser** figure on its page matches the handicap total on the
 league sheet. If every team matches, the individual scores underneath are
 almost certainly right too, and the computed points will agree with the
 standings.
+
+## `data/rules.js`
+
+The printed league rules, kept beside the scores so a rule change is a data
+edit rather than a code one. Loaded into `window.LEAGUE_RULES` and rendered by
+the Rules page.
+
+```json
+{ "number": 7, "heading": "Vacancy, blind and new bowlers", "text": "…" }
+```
+
+| Field | Notes |
+|---|---|
+| `title` | Heading shown under the page title. |
+| `officers` | `[{ "role": "President", "name": "…" }]`, listed in their own card. |
+| `rules[].number` | Printed rule number; also the anchor id, so `#/rules` deep-links as `rule-9`. |
+| `rules[].heading` | Short label for scanning on a phone. Optional. |
+| `rules[].text` | A string, or an array where each entry is a paragraph. A nested array becomes a lettered sub-list, which is how rule 12's conditions are set. |

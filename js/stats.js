@@ -329,6 +329,7 @@
       scoring: scoring,
       summary: summarise(players, teams, weeks, matches),
       matches: matches,
+      halves: buildHalves(teams, league, weeks),
       teams: teams,
       players: players,
       weeks: weeks,
@@ -701,6 +702,65 @@
       team.highHdcpSeries = Math.max(team.highHdcpSeries || 0, series + bucket.handicap * gamesBowled);
       team.hdcpPins += series + bucket.handicap * gamesBowled;
     }
+  }
+
+  /* The season is bowled in two 16-week halves, each with its own position
+     round, and the top teams from each half go to the roll-off (rules 1 and
+     2). That makes "the standings" two tables once week 17 arrives, so the
+     points are tallied per half as well as for the season. */
+  function buildHalves(teams, league, weeks) {
+    var length = league.halfLength;
+    if (!length || !league.weeksInSeason) return [];
+
+    var count = Math.ceil(league.weeksInSeason / length);
+    var rounds = league.positionRounds || [];
+    var qualify = (league.rollOff || {}).teamsPerHalf || 0;
+    var last = weeks.length ? weeks[weeks.length - 1].number : 0;
+
+    var halves = [];
+    for (var i = 0; i < count; i++) {
+      var from = i * length + 1;
+      var to = Math.min((i + 1) * length, league.weeksInSeason);
+
+      var standings = teams.map(function (team) {
+        var mine = team.weeks.filter(function (w) {
+          return w.number >= from && w.number <= to && w.points != null;
+        });
+        return {
+          team: team,
+          weeks: mine.length,
+          points: mine.reduce(function (t, w) { return t + w.points; }, 0),
+          wins: mine.filter(function (w) { return w.result === 'W'; }).length,
+          losses: mine.filter(function (w) { return w.result === 'L'; }).length,
+          ties: mine.filter(function (w) { return w.result === 'T'; }).length,
+          pins: mine.reduce(function (t, w) { return t + w.series; }, 0),
+        };
+      });
+
+      /* Points first, then handicap pinfall, the way the sheet breaks ties. */
+      standings.sort(function (a, b) {
+        return b.points - a.points || b.pins - a.pins ||
+               a.team.name.localeCompare(b.team.name);
+      });
+      standings.forEach(function (row, at) {
+        row.rank = at + 1;
+        row.qualifies = qualify > 0 && at < qualify;
+      });
+
+      halves.push({
+        number: i + 1,
+        name: count === 2 ? (i === 0 ? 'First half' : 'Second half') : 'Weeks ' + from + '-' + to,
+        from: from,
+        to: to,
+        positionRound: rounds[i] || to,
+        weeksBowled: standings.length ? standings[0].weeks : 0,
+        started: last >= from,
+        complete: last >= to,
+        qualifiers: qualify,
+        standings: standings,
+      });
+    }
+    return halves;
   }
 
   function index(list) {

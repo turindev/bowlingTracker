@@ -18,6 +18,10 @@ window.LEAGUE_DATA =
     "season": "2026-27",
     "venue": "Leisure Time Bowling",
     "night": "Tuesdays, 6:30 PM",
+    "halfLength": 16,
+    "positionRounds": [16, 32],
+    "offWeeks": [{ "date": "2026-12-29", "note": "No bowling — the only scheduled week off." }],
+    "rollOff": { "date": "2027-04-27", "teamsPerHalf": 4 },
     "weeksInSeason": 32
   },
   "scoring": {

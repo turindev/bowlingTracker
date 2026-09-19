@@ -949,10 +949,17 @@ td.link-cell a:hover { text-decoration: underline; }
   .col-optional { display: none; }
   th, td { padding: 10px 7px; }
   table { font-size: 14px; }
-  /* Five tabs on a 390px phone: tighten the strip so they all fit rather
-     than leaving one half off the edge. */
-  .tabs { gap: 3px; padding: 3px; }
-  .tabs a { padding: 9px 4px; font-size: 13px; }
+  /* Six tabs will not fit one row on a 390px phone. Scrolling would park
+     the last one off-screen, where nobody finds it, so the strip wraps onto
+     two rows instead and the pill squares off a little to suit. */
+  .tabs {
+    gap: 4px;
+    padding: 4px;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    border-radius: 18px;
+  }
+  .tabs a { flex: 1 1 28%; padding: 9px 4px; font-size: 13px; }
   .week-nav { gap: 8px; }
   .week-step { padding: 9px 10px; font-size: 13px; }
 }
@@ -1059,4 +1066,94 @@ tbody tr.match-won td.num-strong { color: var(--win); }
   font-size: 12.5px;
   font-weight: 500;
   color: var(--text-dim);
+}
+
+/* ---------- the split season ---------- */
+
+.halves { display: grid; gap: 18px; }
+.half-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px 8px;
+  font-size: 14px;
+}
+.half-head .muted { font-size: 12.5px; }
+
+/* Teams currently holding a roll-off place. */
+tbody tr.qualifies td { background: var(--accent-soft); }
+tbody tr.qualifies td.num-strong { color: var(--text); }
+.seat {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+/* Whole season / first half / second half. */
+.scope { display: flex; gap: 6px; flex-wrap: wrap; }
+.scope-btn {
+  flex: 1 1 auto;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scope-btn:hover { background: var(--surface-2); }
+.scope-btn.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- league rules ---------- */
+
+.officers { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.officers li { display: flex; flex-direction: column; gap: 1px; }
+.officer-role {
+  font-size: 11.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
+.rule-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.rule-head h3 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+.rule-number {
+  flex: none;
+  min-width: 25px;
+  height: 25px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rule-body { padding-left: 35px; }
+.rule-body p { margin: 0 0 9px; line-height: 1.55; }
+.rule-body p:last-child { margin-bottom: 0; }
+.rule-sub { margin: 4px 0 0; padding-left: 20px; list-style: lower-alpha; }
+.rule-sub li { margin-bottom: 6px; line-height: 1.5; }
+
+@media (max-width: 639px) {
+  .rule-body { padding-left: 0; }
 }
