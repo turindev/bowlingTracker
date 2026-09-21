@@ -1157,3 +1157,7 @@ tbody tr.qualifies td.num-strong { color: var(--text); }
 @media (max-width: 639px) {
   .rule-body { padding-left: 0; }
 }
+
+/* The league has no page behind it, so its head is a plain block. */
+.compare-head.is-league { cursor: default; }
+.compare-head.is-league:hover { background: none; }

@@ -570,29 +570,46 @@
     /* Default to the top two averages, so the page shows something useful
        before anyone touches a picker. */
     var byAverage = pool.slice().sort(function (x, y) { return y.average - x.average; });
-    var a = model.playersById[idA] || byAverage[0];
-    var b = model.playersById[idB] || byAverage[1];
-    if (a === b) b = byAverage[0] === a ? byAverage[1] : byAverage[0];
+    var league = leagueBowler();
+
+    function resolve(id, fallback) {
+      if (id === LEAGUE_ID) return league;
+      return model.playersById[id] || fallback;
+    }
+
+    var a = resolve(idA, byAverage[0]);
+    var b = resolve(idB, byAverage[1]);
+    /* Two copies of the same thing compares nothing, and the league against
+       itself least of all. */
+    if (a === b) b = a === byAverage[0] ? byAverage[1] : byAverage[0];
 
     function go(nextA, nextB) {
       location.hash = '#/compare/' + nextA.id + '/' + nextB.id;
     }
 
     function picker(side, selected, other) {
+      var options = [el('option', {
+        value: LEAGUE_ID,
+        selected: selected.id === LEAGUE_ID,
+      }, league.name + ' · ' + league.teamName)].concat(pool.map(function (p) {
+        return el('option', {
+          value: p.id,
+          selected: p.id === selected.id,
+        }, p.name + ' · ' + p.teamName);
+      }));
+
       return el('div', { class: 'control-field' }, [
         el('label', { for: 'cmp-' + side, text: side === 'a' ? 'Bowler' : 'Compared with' }),
         el('select', {
           id: 'cmp-' + side,
           onchange: function (e) {
-            var picked = model.playersById[e.target.value];
-            if (side === 'a') go(picked, other); else go(other, picked);
+            var picked = resolve(e.target.value, selected);
+            /* Picking what the other side already holds swaps the two, rather
+               than landing on a page comparing something with itself. */
+            var mate = picked === other ? selected : other;
+            if (side === 'a') go(picked, mate); else go(mate, picked);
           },
-        }, pool.map(function (p) {
-          return el('option', {
-            value: p.id,
-            selected: p.id === selected.id,
-          }, p.name + ' · ' + p.teamName);
-        })),
+        }, options),
       ]);
     }
 
@@ -630,7 +647,8 @@
             label: 'Week ' + t.week,
             axis: String(t.week),
             value: t.average,
-            caption: t.series != null ? UI.num(t.series) + ' series' : 'did not bowl',
+            caption: t.caption ? t.caption
+              : t.series != null ? UI.num(t.series) + ' series' : 'did not bowl',
           };
         }),
         format: function (v) { return UI.avg(v); },
@@ -653,27 +671,49 @@
       ]),
       UI.card('Side by side', 'The better figure in each row is highlighted',
               el('div', { class: 'compare-table' }, table),
-              "Every comparable figure for the two bowlers. Rows where one is simply " +
-              "ahead are highlighted; rows like games bowled or handicap are context, " +
-              "not a contest, so neither side is marked."),
+              sideBySideNote(a, b)),
       chartPair(
-        UI.card(a.name, 'Average by week', cardBody(weekChart(a)),
-                "How " + a.name + "'s season average has moved, against the league average."),
-        UI.card(b.name, 'Average by week', cardBody(weekChart(b)),
-                "How " + b.name + "'s season average has moved, against the league average.")
+        UI.card(a.name, 'Average by week', cardBody(weekChart(a)), weekChartNote(a)),
+        UI.card(b.name, 'Average by week', cardBody(weekChart(b)), weekChartNote(b))
       ),
     ]);
   }
 
-  function compareHead(player, wins) {
-    return el('a', { class: 'compare-head', href: '#/player/' + player.id }, [
-      Avatars.player(player.name),
+  function sideBySideNote(a, b) {
+    var note = 'Every comparable figure for the two, side by side. Rows where ' +
+               'one is simply ahead are highlighted; rows like games bowled or ' +
+               'handicap are context, not a contest, so neither side is marked.';
+    if (a.synthetic || b.synthetic) {
+      note += ' In the league column every figure is the typical bowler\u2019s: ' +
+              'the average of everyone\u2019s best game, not the best game anybody ' +
+              'has bowled. Season average and the per-game averages are the ' +
+              'league\u2019s own, across every game bowled.';
+    }
+    return note;
+  }
+
+  function weekChartNote(person) {
+    if (person.synthetic) {
+      return 'How the league as a whole scored each night, as pins per game ' +
+             'across every bowler. The rule marks the season average.';
+    }
+    return 'How ' + person.name + '\u2019s season average has moved, against ' +
+           'the league average.';
+  }
+
+  function compareHead(person, wins) {
+    var inner = [
+      Avatars.player(person.name),
       el('span', { class: 'compare-name' }, [
-        el('strong', { text: player.name }),
-        el('small', { text: player.teamName }),
+        el('strong', { text: person.name }),
+        el('small', { text: person.teamName }),
         el('span', { class: 'pill', text: wins + ' ahead' }),
       ]),
-    ]);
+    ];
+    /* The league has no page to open. */
+    return person.synthetic
+      ? el('div', { class: 'compare-head is-league' }, inner)
+      : el('a', { class: 'compare-head', href: '#/player/' + person.id }, inner);
   }
 
   /* ---------- individual leaderboard ---------- */
@@ -740,6 +780,67 @@
 
     document.title = 'Leaderboard · ' + APP_NAME;
     render(false);
+  }
+
+  /* ---------- the league as a bowler ---------- */
+
+  /* "Am I above or below the league?" is the question people actually ask, so
+     the comparison needs something on the other side of it. This builds the
+     league into the same shape as a bowler: the scoring average and per-slot
+     averages come from the league totals, and the rest is the mean across
+     every real bowler — the typical bowler's best game, not the best game
+     anybody has bowled, which nobody could beat. */
+  var LEAGUE_ID = 'league';
+  var leagueCache = null;
+
+  function mean(list, pick) {
+    var total = 0;
+    var count = 0;
+    list.forEach(function (item) {
+      var v = pick(item);
+      if (v == null || !isFinite(v)) return;
+      total += v;
+      count++;
+    });
+    return count ? total / count : null;
+  }
+
+  function leagueBowler() {
+    if (leagueCache) return leagueCache;
+    var s = model.summary;
+    var real = model.players.filter(function (p) {
+      return !p.placeholder && p.games > 0;
+    });
+
+    leagueCache = {
+      id: LEAGUE_ID,
+      synthetic: true,
+      name: 'League average',
+      teamName: plural(real.length, 'bowler'),
+      average: s.average,
+      vsBook: mean(real, function (p) { return p.vsBook; }),
+      highGame: mean(real, function (p) { return p.highGame; }),
+      highSeries: mean(real, function (p) { return p.highSeries; }),
+      spread: mean(real, function (p) { return p.spread; }),
+      recent: { delta: mean(real, function (p) { return p.recent ? p.recent.delta : null; }) },
+      games: mean(real, function (p) { return p.games; }),
+      pins: mean(real, function (p) { return p.pins; }),
+      entryAverage: mean(real, function (p) { return p.entryAverage; }),
+      handicap: mean(real, function (p) { return p.handicap; }),
+      handicapAverage: mean(real, function (p) { return p.handicapAverage; }),
+      slots: (s.slots || []).map(function (slot) {
+        return { game: slot.game, average: slot.average, games: slot.games };
+      }),
+      /* No rank: the league is not in its own standings. */
+      trend: (s.byWeek || []).map(function (w) {
+        return {
+          week: w.week,
+          average: w.average,
+          caption: UI.big(w.pins) + ' pins over ' + w.games + ' games',
+        };
+      }),
+    };
+    return leagueCache;
   }
 
   /* ---------- the split season ---------- */
