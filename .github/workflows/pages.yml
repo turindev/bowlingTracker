@@ -33,6 +33,9 @@ jobs:
       - name: Check the split season
         run: node tools/test-season.js
 
+      - name: Check how lines count
+        run: node tools/test-lines.js
+
   deploy:
     needs: check
     runs-on: ubuntu-latest

@@ -96,15 +96,17 @@
     },
     absentee: {
       label: 'absent',
-      note: 'A rostered bowler who missed the night. The league scores it at a ' +
-            'fixed number that counts for the team, but it is nobody\u2019s real ' +
-            'game, so it stays off the bowlers leaderboard.',
+      note: 'A blind score for a bowler who missed the night: ten pins under ' +
+            'their average, plus their handicap (rule 7). It counts for the ' +
+            'team, but it is not a game they bowled, so it stays out of their ' +
+            'own average.',
     },
     substitute: {
       label: 'sub',
-      note: 'Bowled in place of a rostered team-mate. These are real games, so ' +
-            'they count for the team and the substitute keeps their own line on ' +
-            'the bowlers leaderboard.',
+      note: 'Bowled in place of a missing team-mate \u2014 a league substitute, or ' +
+            'a bowler from another roster filling in for the night. These are ' +
+            'real games: they count for the team bowled for, and toward the ' +
+            'bowler\u2019s own average.',
     },
   };
 
@@ -118,6 +120,22 @@
 
   /* Spell out only the markers the table above actually used — hovering a tag
      is no help on a phone. */
+  /* Points the engine did not work out from the scores — taken from the
+     printed sheet instead — are marked, and the reason spelled out below. */
+  function sheetMark(note) {
+    return note ? el('span', { class: 'sheet-mark', title: note, 'aria-label': 'see note' }, '\u2020') : null;
+  }
+
+  function sheetNotes(notes) {
+    var seen = [];
+    notes.forEach(function (n) { if (n && seen.indexOf(n) === -1) seen.push(n); });
+    if (!seen.length) return null;
+    return el('div', { class: 'card-body' },
+      el('p', { class: 'legend' }, seen.map(function (n) {
+        return el('span', { class: 'legend-item' }, [el('span', { class: 'sheet-mark' }, '\u2020'), ' ' + n]);
+      })));
+  }
+
   function legendBody(rows) {
     var legend = roleLegend(rows);
     return legend ? el('div', { class: 'card-body' }, legend) : null;
@@ -1007,22 +1025,28 @@
     var games = gameCount();
     var played = model.matches.filter(function (m) { return m.week === number; });
 
-    /* Every line bowled that night, vacancies and absentee scores included —
-       they are part of how the team totals came out. */
+    /* Every line bowled that night, vacancies and blinds included — they are
+       part of how the team totals came out. Taken from each team's night
+       rather than each bowler's season, so a substitute is listed under the
+       team they bowled for, and a blind appears at all. */
     var lines = [];
-    model.players.forEach(function (p) {
-      p.weeks.forEach(function (w) {
+    model.teams.forEach(function (t) {
+      t.weeks.forEach(function (w) {
         if (w.number !== number) return;
-        lines.push({
-          id: p.id, name: p.name, role: p.role, placeholder: p.placeholder,
-          teamId: p.teamId, teamName: p.teamName, handicap: p.handicap,
-          games: w.games, series: w.series, average: w.average,
-          hdcpSeries: w.series + p.handicap * w.games.length,
+        w.lines.forEach(function (l) {
+          lines.push({
+            id: l.playerId, name: l.name, role: l.role,
+            placeholder: l.placeholder, blind: l.blind,
+            teamId: t.id, teamName: t.name, handicap: l.handicap,
+            games: l.games, series: l.series,
+            average: l.series / l.games.length, hdcpSeries: l.hdcpSeries,
+          });
         });
       });
     });
 
-    var real = lines.filter(function (l) { return !l.placeholder; });
+    /* A vacancy or a blind is nobody's real game. */
+    var real = lines.filter(function (l) { return !l.placeholder && !l.blind; });
     var pins = lines.reduce(function (t, l) { return t + l.series; }, 0);
     var gamesBowled = lines.reduce(function (t, l) { return t + l.games.length; }, 0);
     var bestGame = topBy(real, function (l) { return Math.max.apply(null, l.games); });
@@ -1079,7 +1103,7 @@
         { key: 'points', label: 'Pts', sortable: false,
           render: function (r) {
             if (r.week.points == null) return el('span', { class: 'muted', text: '—' });
-            return UI.points(r.week.points);
+            return [UI.points(r.week.points), sheetMark(r.week.note)];
           } },
         { key: 'result', label: 'Res', sortable: false,
           render: function (r) {
@@ -1097,6 +1121,8 @@
             },
           })
         : UI.empty('No matches were recorded for week ' + number + '.');
+      scoreboard = el('div', null, [scoreboard,
+        sheetNotes(played.map(function (m) { return m.note; }))]);
 
       var lineColumns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
@@ -1115,7 +1141,7 @@
             render: function (r) {
               var value = r.games[idx];
               if (value == null) return el('span', { class: 'muted', text: '—' });
-              return best(!r.placeholder && value === bestGame.value, UI.num(value));
+              return best(!r.placeholder && !r.blind && value === bestGame.value, UI.num(value));
             } });
         })(s);
       }
@@ -1124,7 +1150,7 @@
         { key: 'series', label: 'Series', className: 'num-strong',
           value: function (r) { return r.series; },
           render: function (r) {
-            return best(!r.placeholder && r.series === bestSeries.value, UI.num(r.series));
+            return best(!r.placeholder && !r.blind && r.series === bestSeries.value, UI.num(r.series));
           } },
         { key: 'average', label: 'Avg', className: 'muted', optional: true,
           value: function (r) { return r.average; },
@@ -1160,9 +1186,9 @@
           UI.stat('Matches', UI.num(played.length),
                   'How many head-to-head matches were bowled this week.'),
           UI.stat('Bowlers', UI.num(real.length),
-                  'Real bowlers who put a score up this week. Vacancies and absentee scores are left out.'),
+                  'Real bowlers who put a score up this week. Vacancies and blind scores are left out.'),
           UI.stat('Games', UI.num(gamesBowled),
-                  'Every game bowled this week, counting vacancies and absentee scores, because those went into the team totals.'),
+                  'Every game bowled this week, counting vacancies and blind scores, because those went into the team totals.'),
           UI.stat('Pins', UI.big(pins),
                   'Total scratch pinfall for the whole league this week, before handicap.'),
           UI.stat('Scoring average', UI.avg(gamesBowled ? pins / gamesBowled : null),
@@ -1417,7 +1443,23 @@
 
     /* Share of the team's pins, which is what a roster average does not show:
        a high average matters less if the bowler misses weeks. */
-    var contributors = team.players.filter(function (p) { return p.pins > 0; });
+    /* Counted from what was bowled FOR this team, not each bowler's season:
+       a substitute who filled in belongs here, and a rostered bowler's games
+       for another team do not. */
+    var byBowler = {};
+    var contributors = [];
+    team.weeks.forEach(function (w) {
+      w.lines.forEach(function (l) {
+        var row = byBowler[l.playerId];
+        if (!row) {
+          row = byBowler[l.playerId] = { id: l.playerId, name: l.name,
+                                         placeholder: l.placeholder, pins: 0 };
+          contributors.push(row);
+        }
+        row.pins += l.series;
+      });
+    });
+    contributors.sort(function (a, b) { return b.pins - a.pins; });
     var contributionChart = Charts.bars({
       wideLabel: true,
       rows: contributors.map(function (p) {
@@ -1498,7 +1540,7 @@
         } },
       { key: 'points', label: 'Pts',
         value: function (r) { return r.points; },
-        render: function (r) { return UI.points(r.points); } },
+        render: function (r) { return [UI.points(r.points), sheetMark(r.note)]; } },
       { key: 'result', label: 'Res', sortable: false,
         render: function (r) {
           if (!r.result) return el('span', { class: 'muted', text: '—' });
@@ -1516,8 +1558,11 @@
     );
 
     var results = team.weeks.length
-      ? UI.table({ columns: resultColumns, rows: team.weeks, state: state.teamResults,
-                   onSort: function () { renderTeam(); } })
+      ? el('div', null, [
+          UI.table({ columns: resultColumns, rows: team.weeks, state: state.teamResults,
+                     onSort: function () { renderTeam(); } }),
+          sheetNotes(team.weeks.map(function (w) { return w.note; })),
+        ])
       : UI.empty('No results recorded for this team yet.');
 
     /* Roster averages. */
@@ -1757,9 +1802,12 @@
     var rows = player.weeks.map(function (week) {
       runningPins += week.series;
       runningGames += week.games.length;
+      var forTeam = week.teamId && week.teamId !== player.teamId
+        ? model.teamsById[week.teamId] : null;
       return {
         name: 'Week ' + week.number,
         number: week.number,
+        forTeam: forTeam,
         date: week.date,
         games: week.games,
         series: week.series,
@@ -1776,6 +1824,15 @@
         value: function (r) { return r.date; },
         render: function (r) { return UI.shortDate(r.date); } },
     ];
+    /* Only when some week was bowled for another team — for a sub, always. */
+    if (rows.some(function (r) { return r.forTeam; })) {
+      columns.push({ key: 'for', label: 'For', className: 'col-tight', sortable: false,
+        render: function (r) {
+          var t = r.forTeam || model.teamsById[player.teamId];
+          return t ? el('a', { href: '#/team/' + t.id, text: t.name })
+                   : el('span', { class: 'muted', text: '\u2014' });
+        } });
+    }
     for (var i = 0; i < games; i++) {
       (function (idx) {
         columns.push({ key: 'g' + idx, label: 'G' + (idx + 1),
@@ -1869,11 +1926,11 @@
         el('div', { class: 'profile-text' }, [
           el('h1', { text: player.name }),
           el('p', { text: subtitle.join(' · ') }),
-          el('p', { class: 'muted' }, [
+          el('p', { class: 'muted' }, player.teamId ? [
             'Bowls for ',
             el('a', { href: '#/team/' + player.teamId, text: player.teamName }),
             player.substitute ? ' · substitute' : '',
-          ]),
+          ] : ['League substitute \u2014 bowls for whichever team is short']),
         ]),
       ]),
       UI.statGrid(tiles),

@@ -1161,3 +1161,12 @@ tbody tr.qualifies td.num-strong { color: var(--text); }
 /* The league has no page behind it, so its head is a plain block. */
 .compare-head.is-league { cursor: default; }
 .compare-head.is-league:hover { background: none; }
+
+/* Points taken from the printed sheet rather than worked out from scores. */
+.sheet-mark {
+  margin-left: 3px;
+  color: var(--gold);
+  font-weight: 700;
+  cursor: help;
+}
+.legend .sheet-mark { margin: 0 4px 0 0; }
