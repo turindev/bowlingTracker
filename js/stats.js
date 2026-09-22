@@ -51,6 +51,19 @@
     return player.average;
   }
 
+  /* The handicap in force for a week the bowler has no line of their own in,
+     such as one covered by a blind. */
+  function handicapAt(player, weekNumber, scoring) {
+    var games = 0;
+    var pins = 0;
+    player.weeks.forEach(function (w) {
+      if (w.number >= weekNumber) return;
+      games += w.games.length;
+      pins += w.series;
+    });
+    return handicapFor(handicapBase(player, games, pins, scoring.establishAfterGames), scoring);
+  }
+
   function build(raw) {
     var scoring = Object.assign({}, DEFAULT_SCORING, raw.scoring || {});
     var league = Object.assign({}, raw.league || {});
@@ -115,7 +128,9 @@
 
     players.forEach(function (p) {
       var team = teamsById[p.teamId];
-      p.teamName = team ? team.name : 'Unassigned';
+      /* A substitute belongs to no team; each of their lines says which
+         team they bowled for that night. */
+      p.teamName = team ? team.name : (p.substitute ? 'Substitute' : 'Unassigned');
       if (team) team.players.push(p);
     });
 
@@ -130,6 +145,10 @@
         if (!player) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
+        /* A blind (rule 7: ten under the bowler's average) counts for the
+           team, which pass 2 handles, but it is not a game the bowler threw,
+           so it stays out of their average, highs and trend. */
+        if (line.blind) return;
 
         var series = sum(games);
         player.weeks.push({
@@ -138,6 +157,8 @@
           games: games,
           series: series,
           average: series / games.length,
+          /* Who they bowled for that night, when it was not their own team. */
+          teamId: line.teamId || player.teamId,
         });
         player.games += games.length;
         player.pins += series;
@@ -245,24 +266,32 @@
 
       (week.scores || []).forEach(function (line) {
         var player = playersById[line.playerId];
-        if (!player || !byTeam[player.teamId]) return;
+        /* A line counts for the team it names, else the bowler's own. That
+           covers a substitute, and a rostered bowler filling in elsewhere. */
+        var teamId = line.teamId || player && player.teamId;
+        if (!player || !byTeam[teamId]) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
-        /* The handicap this bowler carried that night, not today's. */
+        /* The handicap this bowler carried that night, not today's. A blind
+           never reaches pass 1, so it is worked out from the games before. */
         var hdcp = player.handicapByWeek[week.number];
-        if (hdcp == null) hdcp = player.handicap;
-        byTeam[player.teamId].lines.push({
+        if (hdcp == null) hdcp = handicapAt(player, week.number, scoring);
+        byTeam[teamId].lines.push({
           playerId: player.id,
           name: player.name,
           placeholder: player.placeholder,
-          substitute: player.substitute,
-          role: player.role,
+          substitute: player.substitute || teamId !== player.teamId,
+          blind: !!line.blind,
+          /* A rostered bowler filling in for another team is that team's
+             substitute for the night, and should be marked as one there. */
+          role: line.blind ? 'absentee'
+            : teamId !== player.teamId ? 'substitute' : player.role,
           games: games,
           series: sum(games),
           handicap: hdcp,
           hdcpSeries: sum(games) + hdcp * games.length,
         });
-        byTeam[player.teamId].handicap += hdcp;
+        byTeam[teamId].handicap += hdcp;
       });
 
       Object.keys(byTeam).forEach(function (teamId) {
@@ -300,7 +329,12 @@
           margin: Math.abs(hTotals.hdcpSeries - aTotals.hdcpSeries),
           homeWeek: home.weeks[home.weeks.length - 1],
           awayWeek: away.weeks[away.weeks.length - 1],
+          note: match.note || null,
         });
+        if (match.note) {
+          home.weeks[home.weeks.length - 1].note = match.note;
+          away.weeks[away.weeks.length - 1].note = match.note;
+        }
       });
 
       /* Teams that bowled but have no match recorded still get their week

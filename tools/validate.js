@@ -48,8 +48,11 @@ var playerIds = {};
   else if (playerIds[player.id]) err('Duplicate player id "' + player.id + '".');
   else playerIds[player.id] = player;
   if (!player.name) err(where + ' ("' + player.id + '") has no name.');
-  if (!player.teamId) err('Player "' + (player.name || player.id) + '" has no teamId.');
-  else if (!teamIds[player.teamId]) {
+  /* Only a substitute may be teamless; every line of theirs then has to say
+     which team it was bowled for (checked with the weeks below). */
+  if (!player.teamId) {
+    if (!player.substitute) err('Player "' + (player.name || player.id) + '" has no teamId.');
+  } else if (!teamIds[player.teamId]) {
     err('Player "' + (player.name || player.id) + '" is on unknown team "' + player.teamId + '".');
   }
 });
@@ -72,6 +75,7 @@ var weekNumbers = {};
   }
 
   var seen = {};
+  var lines = {};
   (week.scores || []).forEach(function (line) {
     var who = line.playerId;
     if (!playerIds[who]) {
@@ -81,6 +85,23 @@ var weekNumbers = {};
     var name = playerIds[who].name;
     if (seen[who]) err(label + ': two score lines for ' + name + '.');
     seen[who] = true;
+
+    /* The team this line counts for: its own teamId, else the bowler's. */
+    if (line.teamId != null && !teamIds[line.teamId]) {
+      err(label + ': ' + name + ' is bowling for unknown team "' + line.teamId + '".');
+    }
+    var forTeam = line.teamId || playerIds[who].teamId;
+    if (!forTeam) {
+      err(label + ': ' + name + ' has no team of their own, so the line needs a teamId.');
+    } else {
+      lines[forTeam] = (lines[forTeam] || 0) + 1;
+    }
+    if (line.blind != null && typeof line.blind !== 'boolean') {
+      err(label + ': ' + name + ' has blind set to something other than true/false.');
+    }
+    if (line.blind && playerIds[who].placeholder) {
+      err(label + ': ' + name + ' is a placeholder, so their line cannot also be a blind.');
+    }
 
     if (!Array.isArray(line.games)) {
       err(label + ': ' + name + ' has no games array.');
@@ -130,11 +151,18 @@ var weekNumbers = {};
     }
   });
 
+  /* Four-man teams (rule 1). More lines than that almost always means a
+     bowler counted for the wrong team — a sub who needs a teamId. */
+  Object.keys(lines).forEach(function (id) {
+    if (lines[id] > 4) {
+      warn(label + ': ' + (teamIds[id] || {}).name + ' has ' + lines[id] +
+           ' score lines; a team bowls four.');
+    }
+  });
+
   /* A roster that bowled but has no match is legal (a bye), just worth flagging. */
   Object.keys(teamIds).forEach(function (id) {
-    var bowled = (week.scores || []).some(function (line) {
-      return playerIds[line.playerId] && playerIds[line.playerId].teamId === id;
-    });
+    var bowled = !!lines[id];
     if (bowled && (week.matches || []).length && !bowling[id]) {
       warn(label + ': ' + teamIds[id].name + ' has scores but no match recorded.');
     }

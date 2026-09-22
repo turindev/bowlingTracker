@@ -55,8 +55,9 @@ and never reuse one for a different team.
 |---|---|
 | `entryAverage` | The book average handicap is calculated from. Without it, the season-to-date average is used instead. |
 | `placeholder` | `true` for vacant spots and absentee scores. They count toward team totals but are kept off the bowler leaderboard and get no player page. |
-| `substitute` | `true` for a fill-in bowler. Their games are real, so they keep a place on the bowler leaderboard, tagged "sub". |
+| `substitute` | `true` for a league substitute. They may have `"teamId": null` — no team of their own — in which case every score line of theirs must carry a `teamId`. Their games are real, so they keep a place on the bowler leaderboard, tagged "sub". |
 | `role` | `"vacant"` or `"absentee"` — why a `placeholder` line exists. It picks the marker shown beside the name and the sentence in the legend under the table. A `substitute` is tagged from its own flag and needs no `role`. |
+| `provisional` | `true` when the sheet prints a bare `120` with no `bk`: a new bowler with no average from last season. `entryAverage` is then `120`, which the league uses (handicap 90) until the bowler establishes one. |
 
 ## `weeks`
 
@@ -91,6 +92,26 @@ and never reuse one for a different team.
   ```
 
   Set both or neither.
+
+
+### Score line fields
+
+```json
+{ "playerId": "p84", "teamId": "t22", "games": [259, 248, 190] }
+{ "playerId": "p96", "games": [220, 220, 220], "blind": true }
+```
+
+| Field | Notes |
+|---|---|
+| `teamId` | The team this line counts for, when it is not the bowler's own — a substitute, or a rostered bowler filling in for another team that night (John Hancock for Bowling Buddies, week 2). Required for a teamless substitute. |
+| `blind` | `true` for a blind score (rule 7: ten under the bowler's average). It counts toward the team total, with the bowler's handicap, but not toward the bowler's own average, highs or trend. Printed on the sheet with an `a` prefix, e.g. `a220`. |
+
+### Match fields
+
+| Field | Notes |
+|---|---|
+| `homePoints`, `awayPoints` | Set both to use the printed points instead of working them out from the scores. |
+| `note` | Why the points above were overridden. Shown under the scoreboard and the team's results, with a † on the points. |
 
 ## Adding a week
 
