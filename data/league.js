@@ -23,8 +23,10 @@
  *  - The printed Team 7 and Bowlers Anonymous rosters were scrambled (names,
  *    books and pins crossed). The rosters here are right as they were; only
  *    the week-2 game scores were taken from that part of the sheet. The sheet
- *    scored both teams' week-2 matches as forfeits, and those points are
- *    used as printed, with a note, until the league says otherwise.
+ *    scored both teams' week-2 matches as forfeits. Steve confirms Bowlers
+ *    Anonymous bowled and beat 9 Pin City 3-1, which is what the scores give,
+ *    so that match is scored normally. Team 7 v House Hacks keeps the printed
+ *    points, with a note, until the league corrects it.
  *  - Every other team's week-2 handicap games, and all 22 of those teams'
  *    season points, scratch and handicap pinfall, match the sheet exactly.
  */
@@ -2422,15 +2424,12 @@ window.LEAGUE_DATA =
           "lanes": "1-2",
           "homePoints": 0,
           "awayPoints": 4,
-          "note": "Points as printed on the league sheet, which scored this match as a forfeit while the Team 7 and Bowlers Anonymous rosters were crossed in the league software."
+          "note": "Points as printed on the league sheet, which scored this match as a forfeit while the Team 7 roster was crossed in the league software. Expected to be corrected on a later sheet; on the scores it would be Team 7 3, House Hacks 1."
         },
         {
           "homeTeamId": "t5",
           "awayTeamId": "t8",
-          "lanes": "3-4",
-          "homePoints": 3,
-          "awayPoints": 0,
-          "note": "Points as printed on the league sheet, which scored this match as a forfeit while the Team 7 and Bowlers Anonymous rosters were crossed in the league software."
+          "lanes": "3-4"
         },
         {
           "homeTeamId": "t3",
