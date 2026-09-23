@@ -1170,3 +1170,41 @@ tbody tr.qualifies td.num-strong { color: var(--text); }
   cursor: help;
 }
 .legend .sheet-mark { margin: 0 4px 0 0; }
+
+/* ---------- team numbers ---------- */
+
+/* The league refers to teams by number as much as by name, so the number
+   rides in front of the name wherever a team appears. Sized in em so it sits
+   right in a table cell, a small sub-line or a heading alike. */
+.team-no {
+  display: inline-block;
+  min-width: 1.75em;
+  margin-right: .45em;
+  padding: 0 .3em;
+  border-radius: .4em;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: .8em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  text-align: center;
+  vertical-align: .1em;
+}
+a:hover .team-no { color: var(--accent); }
+td.col-name .sub .team-no { margin-right: .35em; }
+
+/* On the team banner the number sits on the team's own colour. */
+.banner h1 .team-no {
+  background: rgba(255, 255, 255, .22);
+  color: #fff;
+  font-size: .62em;
+  vertical-align: .22em;
+}
+.team-lead { white-space: nowrap; }
+
+/* A dozen columns squeeze the team names in the standings; past phone width
+   the table scrolls sideways before a name wraps onto three lines. */
+@media (min-width: 640px) {
+  td.col-team { min-width: 13.5em; }
+}

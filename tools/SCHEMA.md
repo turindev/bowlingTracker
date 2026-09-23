@@ -42,6 +42,10 @@ add a week of scores.
 { "id": "t7", "name": "Team 7" }
 ```
 
+The team's league number (shown beside its name everywhere on the site) comes
+from the digits in `id`, so `t7` is team 7. Add `"number": 7` only if an id
+ever stops matching the league's numbering.
+
 `id` is any stable string. It shows up in URLs (`#/team/t7`), so keep it short
 and never reuse one for a different team.
 
