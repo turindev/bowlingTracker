@@ -97,7 +97,8 @@
       };
     });
 
-    var teams = (raw.teams || []).map(function (t) {
+    var rawTeams = raw.teams || [];
+    var teams = rawTeams.map(function (t) {
       return {
         id: t.id,
         name: t.name,
@@ -126,8 +127,17 @@
     var playersById = index(players);
     var teamsById = index(teams);
 
+    /* The league numbers its teams (1-24) and people say "team 8" as often as
+       the name. An explicit number wins; otherwise it comes from the id. */
+    teams.forEach(function (t, i) {
+      var raw = (rawTeams[i] || {}).number;
+      var fromId = parseInt(String(t.id).replace(/\D+/g, ''), 10);
+      t.number = raw != null ? raw : (isFinite(fromId) ? fromId : null);
+    });
+
     players.forEach(function (p) {
       var team = teamsById[p.teamId];
+      p.teamNumber = team ? team.number : null;
       /* A substitute belongs to no team; each of their lines says which
          team they bowled for that night. */
       p.teamName = team ? team.name : (p.substitute ? 'Substitute' : 'Unassigned');

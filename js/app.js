@@ -64,6 +64,38 @@
     return model.scoring.useHandicap ? columns.concat(extra) : columns;
   }
 
+  /* Wherever a team appears, so does its number — the league refers to
+     teams by both, and the printed sheets always pair them. In markup the
+     number is a small badge; in plain text (titles, pickers, chart labels,
+     captions) it reads the way the sheet writes it: "8 – Bowlers Anonymous". */
+  function teamText(team) {
+    if (!team) return '';
+    return team.number != null ? team.number + ' \u2013 ' + team.name : team.name;
+  }
+
+  function teamBadge(number) {
+    return number == null ? null : el('span', { class: 'team-no' }, String(number));
+  }
+
+  function teamLink(team) {
+    if (!team) return el('span', { class: 'muted', text: '\u2014' });
+    return el('a', { href: '#/team/' + team.id }, numbered(team.number, team.name));
+  }
+
+  /* The number is glued to the first word of the name, so a narrow column
+     can wrap the name but never strand the number on a line by itself. */
+  function numbered(number, name) {
+    var cut = name.indexOf(' ');
+    var head = cut < 0 ? name : name.slice(0, cut);
+    var tail = cut < 0 ? '' : name.slice(cut);
+    return [el('span', { class: 'team-lead' }, [teamBadge(number), head]), tail];
+  }
+
+  /* The team line under a bowler's name. */
+  function teamSub(name, number) {
+    return [teamChip(name)].concat(numbered(number, name));
+  }
+
   function teamChip(name) {
     return el('span', {
       class: 'team-chip', 'aria-hidden': 'true',
@@ -156,7 +188,10 @@
 
   function matches(player, query) {
     if (!query) return true;
-    var q = query.toLowerCase();
+    var q = query.toLowerCase().trim();
+    /* A bare number means a team number. Matching it as text as well would
+       turn "8" into team 8 and Team 18, whose name contains an 8. */
+    if (/^\d+$/.test(q)) return player.teamNumber === Number(q);
     return player.name.toLowerCase().indexOf(q) > -1 ||
            (player.teamName || '').toLowerCase().indexOf(q) > -1;
   }
@@ -249,9 +284,9 @@
     var standings = (state.showAllTeams ? ranked : ranked.slice(0, TEAM_PREVIEW))
       .map(function (t) {
         return {
-          label: t.name, value: t.points, display: UI.points(t.points),
+          label: teamText(t), value: t.points, display: UI.points(t.points),
           href: '#/team/' + t.id,
-          title: t.name + ': ' + plural(UI.points(t.points), 'point') + ', ' + record(t),
+          title: teamText(t) + ': ' + plural(UI.points(t.points), 'point') + ', ' + record(t),
         };
       });
     var standingsCard = [cardBody(Charts.bars({ rows: standings, wideLabel: true }))];
@@ -305,8 +340,9 @@
           render: function (r) { return UI.num(r[1].value); } },
         { key: 'who', label: 'Held by', className: 'col-tight', sortable: false,
           render: function (r) {
-            var holder = r[2] ? r[1].team : r[1].player;
-            return el('a', { href: (r[2] ? '#/team/' : '#/player/') + holder.id, text: holder.name });
+            if (r[2]) return teamLink(r[1].team);
+            var holder = r[1].player;
+            return el('a', { href: '#/player/' + holder.id, text: holder.name });
           } },
         { key: 'week', label: 'Wk', className: 'muted', sortable: false,
           render: function (r) { return String(r[1].week); } },
@@ -358,7 +394,7 @@
                 label: 'League position of every team by week',
                 series: model.teams.map(function (t) {
                   return {
-                    name: t.name,
+                    name: teamText(t),
                     caption: plural(UI.points(t.points), 'point'),
                     values: t.trend.map(function (x) {
                       return { week: x.week, rank: x.rank };
@@ -504,13 +540,11 @@
           render: function (r) { return UI.num(r.margin) + ' pins'; } },
         { key: 'winner', label: 'Winner', className: 'col-name link-cell', sortable: false,
           render: function (r) {
-            var win = r.homePoints >= r.awayPoints ? r.home : r.away;
-            return el('a', { href: '#/team/' + win.id, text: win.name });
+            return teamLink(r.homePoints >= r.awayPoints ? r.home : r.away);
           } },
         { key: 'loser', label: 'Opponent', className: 'col-tight', sortable: false,
           render: function (r) {
-            var lose = r.homePoints >= r.awayPoints ? r.away : r.home;
-            return el('a', { href: '#/team/' + lose.id, text: lose.name });
+            return teamLink(r.homePoints >= r.awayPoints ? r.away : r.home);
           } },
         { key: 'week', label: 'Wk', className: 'muted', optional: true, sortable: false,
           render: function (r) { return String(r.week); } },
@@ -613,7 +647,7 @@
         return el('option', {
           value: p.id,
           selected: p.id === selected.id,
-        }, p.name + ' · ' + p.teamName);
+        }, p.name + ' · ' + (p.teamNumber != null ? p.teamNumber + ' \u2013 ' : '') + p.teamName);
       }));
 
       return el('div', { class: 'control-field' }, [
@@ -724,7 +758,8 @@
       Avatars.player(person.name),
       el('span', { class: 'compare-name' }, [
         el('strong', { text: person.name }),
-        el('small', { text: person.teamName }),
+        el('small', null, person.synthetic ? person.teamName
+                           : [teamBadge(person.teamNumber), person.teamName]),
         el('span', { class: 'pill', text: wins + ' ahead' }),
       ]),
     ];
@@ -748,7 +783,7 @@
         { key: 'name', label: 'Bowler', className: 'col-name', defaultDir: 'asc',
           value: function (r) { return r.name; },
           render: function (r) {
-            return bowlerCell(r, [teamChip(r.teamName), r.teamName]);
+            return bowlerCell(r, teamSub(r.teamName, r.teamNumber));
           } },
         { key: 'average', label: 'Avg', className: 'num-strong',
           value: function (r) { return r.average; },
@@ -885,7 +920,7 @@
           { key: 'team', label: 'Team', className: 'col-name', sortable: false,
             render: function (r) {
               return [
-                el('a', { href: '#/team/' + r.team.id, text: r.team.name }),
+                teamLink(r.team),
                 r.qualifies
                   ? el('span', { class: 'seat', title: 'In a roll-off place' }, 'in')
                   : null,
@@ -1037,7 +1072,7 @@
           lines.push({
             id: l.playerId, name: l.name, role: l.role,
             placeholder: l.placeholder, blind: l.blind,
-            teamId: t.id, teamName: t.name, handicap: l.handicap,
+            teamId: t.id, teamName: t.name, teamNumber: t.number, handicap: l.handicap,
             games: l.games, series: l.series,
             average: l.series / l.games.length, hdcpSeries: l.hdcpSeries,
           });
@@ -1073,7 +1108,7 @@
             /* Lanes are the first column to go on a phone, so the second row
                of each pair says who it is playing. */
             return [r.first ? null : el('span', { class: 'vs-mark', text: 'vs' })]
-              .concat(nameCell('#/team/' + r.id, r.name));
+              .concat(teamLink(r.team));
           } },
       ];
 
@@ -1132,7 +1167,7 @@
         { key: 'name', label: 'Bowler', className: 'col-name', defaultDir: 'asc',
           value: function (r) { return r.name; },
           render: function (r) {
-            return bowlerCell(r, [teamChip(r.teamName), r.teamName]);
+            return bowlerCell(r, teamSub(r.teamName, r.teamNumber));
           } },
       ];
 
@@ -1211,7 +1246,7 @@
   /* One side of a match, carrying the other side so a won game can be marked. */
   function side(match, team, weekEntry, first, pair) {
     return {
-      id: team.id, name: team.name, week: weekEntry, first: first, pair: pair,
+      id: team.id, name: team.name, team: team, week: weekEntry, first: first, pair: pair,
       lanes: match.lanes,
       opponent: first ? match.awayWeek : match.homeWeek,
     };
@@ -1284,6 +1319,7 @@
         : splits.filter(function (h) { return String(h.number) === scope; })[0];
 
       var rows = model.teams.filter(function (t) {
+        if (/^\d+$/.test(query.trim())) return t.number === Number(query.trim());
         return !query || t.name.toLowerCase().indexOf(query) > -1;
       });
 
@@ -1303,13 +1339,13 @@
       var columns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
           render: function (row, i) { return rankMark(i); } },
-        { key: 'name', label: 'Team', className: 'col-name', defaultDir: 'asc',
+        { key: 'name', label: 'Team', className: 'col-name col-team', defaultDir: 'asc',
           value: function (r) { return r.name; },
           render: function (r) {
             /* The W-L column is hidden on phones, so carry the record here. */
             var sub = r.weeks.length ? record(r) + ' · ' : '';
             return [teamChip(r.name)].concat(
-              nameCell('#/team/' + r.id, r.name, sub + plural(r.players.length, 'bowler')));
+              [teamLink(r), el('span', { class: 'sub' }, sub + plural(r.players.length, 'bowler'))]);
           } },
         { key: 'points', label: 'Pts', className: 'num-strong',
           value: function (r) { return r.points; },
@@ -1373,7 +1409,7 @@
     var team = model.teamsById[teamId];
     if (!team) return notFound('That team is not in the league.');
 
-    document.title = team.name + ' · ' + APP_NAME;
+    document.title = teamText(team) + ' · ' + APP_NAME;
 
     var games = gameCount();
 
@@ -1418,7 +1454,7 @@
           axis: String(w.number),
           value: w.hdcpSeries,
           caption: UI.num(w.series) + ' scratch' +
-                   (w.opponentName ? ' vs ' + w.opponentName : '') +
+                   (w.opponentId ? ' vs ' + teamText(model.teamsById[w.opponentId]) : '') +
                    (w.points != null ? ' · ' + UI.points(w.points) + ' pts' : ''),
         };
       }),
@@ -1502,10 +1538,10 @@
           return r.lanes || el('span', { class: 'muted', text: '—' });
         } },
       { key: 'opponent', label: 'Opponent', className: 'col-name', defaultDir: 'asc',
-        value: function (r) { return r.opponentName; },
+        value: function (r) { return r.opponentId ? model.teamsById[r.opponentId].number : null; },
         render: function (r) {
-          if (!r.opponentName) return el('span', { class: 'muted', text: '—' });
-          return el('a', { href: '#/team/' + r.opponentId, text: r.opponentName });
+          if (!r.opponentId) return el('span', { class: 'muted', text: '—' });
+          return teamLink(model.teamsById[r.opponentId]);
         } },
     ];
 
@@ -1672,7 +1708,7 @@
         el('span', { class: 'pill', text: UI.num(week.series) + ' scratch' }),
         ' ',
         el('span', { class: 'pill', text: UI.num(week.hdcpSeries) + ' with handicap' }),
-        week.opponentName ? ' vs ' + week.opponentName : '',
+        week.opponentId ? ' vs ' + teamText(model.teamsById[week.opponentId]) : '',
         week.points != null ? ' · ' + UI.points(week.points) + '–' + UI.points(week.opponentPoints) + ' points' : '',
         week.margin != null
           ? ' · ' + (week.margin >= 0 ? 'ahead by ' : 'short by ') +
@@ -1689,7 +1725,7 @@
       el('section', { class: 'banner' }, [
         Avatars.banner(team.name),
         el('div', { class: 'banner-text' }, [
-          el('h1', { text: team.name }),
+          el('h1', null, numbered(team.number, team.name)),
           el('p', { text: describeTeam(team, standing) }),
         ]),
       ]),
@@ -1728,9 +1764,7 @@
     return UI.table({
       columns: [
         { key: 'name', label: 'Opponent', className: 'col-name link-cell', sortable: false,
-          render: function (r) {
-            return el('a', { href: '#/team/' + r.opponentId, text: r.name });
-          } },
+          render: function (r) { return teamLink(model.teamsById[r.opponentId]); } },
         { key: 'played', label: 'Met', className: 'muted', sortable: false,
           render: function (r) { return UI.num(r.played); } },
         { key: 'record', label: 'W-L', className: 'num-strong', sortable: false,
@@ -1831,8 +1865,7 @@
       columns.push({ key: 'for', label: 'For', className: 'col-tight', sortable: false,
         render: function (r) {
           var t = r.forTeam || model.teamsById[player.teamId];
-          return t ? el('a', { href: '#/team/' + t.id, text: t.name })
-                   : el('span', { class: 'muted', text: '\u2014' });
+          return teamLink(t);
         } });
     }
     for (var i = 0; i < games; i++) {
@@ -1930,7 +1963,7 @@
           el('p', { text: subtitle.join(' · ') }),
           el('p', { class: 'muted' }, player.teamId ? [
             'Bowls for ',
-            el('a', { href: '#/team/' + player.teamId, text: player.teamName }),
+            teamLink(model.teamsById[player.teamId]),
             player.substitute ? ' · substitute' : '',
           ] : ['League substitute \u2014 bowls for whichever team is short']),
         ]),
