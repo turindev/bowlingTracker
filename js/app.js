@@ -1079,15 +1079,17 @@
 
       for (var g = 0; g < games; g++) {
         (function (idx) {
-          boardColumns.push({ key: 'g' + idx, label: 'G' + (idx + 1),
+          /* Each game with handicap added, like the printed sheet's "HDCP -1-"
+             columns. Game points are decided on these, so the highlighted
+             winner is always the bigger number — with scratch here a lower
+             score could be marked the winner, which read as a mistake. */
+          boardColumns.push({ key: 'g' + idx, label: 'Hdcp G' + (idx + 1),
             optional: true, sortable: false,
             render: function (r) {
-              var value = r.week.gameTotals[idx];
-              if (value == null) return el('span', { class: 'muted', text: '—' });
-              /* Mark the games this team actually won on handicap. */
               var mine = r.week.hdcpGameTotals[idx];
+              if (mine == null) return el('span', { class: 'muted', text: '—' });
               var theirs = r.opponent ? r.opponent.hdcpGameTotals[idx] : null;
-              return best(theirs != null && mine > theirs, UI.num(value));
+              return best(theirs != null && mine > theirs, UI.num(mine));
             } });
         })(g);
       }
@@ -1196,8 +1198,8 @@
           statWithName('Highest game', bestGame),
           statWithName('Highest series', bestSeries),
         ]),
-        UI.card('Scoreboard', 'Scratch unless marked Hdcp', scoreboard,
-                'Every match this week, two rows per match. Game columns show scratch pinfall, with a marker on the games that team won once handicap was added. Total is the handicap series the points were actually decided on.'),
+        UI.card('Scoreboard', 'Games with handicap, as points are decided', scoreboard,
+                'Every match this week, two rows per match. The game columns include handicap, because that is what each game point is decided on, and the winner of each game is highlighted. Scratch is the series before handicap, Hdcp is the handicap added over the night, and Total is the handicap series that decides the fourth point.'),
         UI.card("Every line bowled", 'Tap a column to sort', lineTable,
                 'Every score bowled this week, best series first. Tap a name for that bowler’s page, or a column to sort by it.'),
       ]);
