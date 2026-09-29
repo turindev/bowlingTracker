@@ -1208,3 +1208,6 @@ td.col-name .sub .team-no { margin-right: .35em; }
 @media (min-width: 640px) {
   td.col-team { min-width: 13.5em; }
 }
+
+/* A blind night in a bowler's game log: counted, but not thrown. */
+.blind-series { font-weight: 400; }

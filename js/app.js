@@ -130,8 +130,8 @@
       label: 'absent',
       note: 'A blind score for a bowler who missed the night: ten pins under ' +
             'their average, plus their handicap (rule 7). It counts for the ' +
-            'team, but it is not a game they bowled, so it stays out of their ' +
-            'own average.',
+            'team, and the league counts it in their average too, but it is ' +
+            'not a game they bowled, so it is never one of their highs.',
     },
     substitute: {
       label: 'sub',
@@ -1800,7 +1800,7 @@
     var standing = player.trend.length ? player.trend[player.trend.length - 1] : null;
     var tiles = [
       UI.stat('Average', UI.avg(player.average),
-              "Total pins divided by games bowled, across the whole season. This is the number the leaderboard ranks on."),
+              "Total pins divided by games, across the whole season. Like the league's own sheet, it counts any blind scores entered for missed nights. This is the number the leaderboard ranks on."),
       UI.stat('vs book', signed(player.vsBook),
               "How far the season average sits above or below the book average the handicap is set from. Early on, one good or bad night moves this a long way."),
       UI.stat('League rank', standing ? '#' + standing.rank : '—',
@@ -1810,9 +1810,9 @@
       UI.stat('High series', UI.num(player.highSeries),
               "The best three-game total this bowler has thrown in one night."),
       UI.stat('Games', UI.num(player.games),
-              "How many individual games this bowler has thrown this season."),
+              "How many games count toward this bowler's average, blind scores for missed nights included, as the league counts them."),
       UI.stat('Total pins', UI.big(player.pins),
-              "Every pin this bowler has knocked down this season."),
+              "Every pin behind this bowler's average this season, blind scores included."),
       model.scoring.useHandicap
         ? UI.stat('Handicap', UI.num(player.handicap),
               "Pins added to every game, worked out as 90% of the gap between the book average and 220. A higher book average means a smaller handicap.")
@@ -1835,7 +1835,9 @@
     /* Running average after each week, so a hot or cold streak is visible. */
     var runningPins = 0;
     var runningGames = 0;
-    var rows = player.weeks.map(function (week) {
+    var nights = player.weeks.concat(player.blinds)
+      .sort(function (a, b) { return a.number - b.number; });
+    var rows = nights.map(function (week) {
       runningPins += week.series;
       runningGames += week.games.length;
       var forTeam = week.teamId && week.teamId !== player.teamId
@@ -1843,6 +1845,8 @@
       return {
         name: 'Week ' + week.number,
         number: week.number,
+        blind: !!week.blind,
+        role: week.blind ? 'absentee' : null,
         forTeam: forTeam,
         date: week.date,
         games: week.games,
@@ -1855,7 +1859,10 @@
     var columns = [
       { key: 'week', label: 'Wk', className: 'col-rank', defaultDir: 'asc',
         value: function (r) { return r.number; },
-        render: function (r) { return String(r.number); } },
+        render: function (r) {
+          return r.blind ? el('span', null, [roleTag('absentee'), ' ', String(r.number)])
+            : String(r.number);
+        } },
       { key: 'date', label: 'Date', className: 'col-tight muted', optional: true, defaultDir: 'asc',
         value: function (r) { return r.date; },
         render: function (r) { return UI.shortDate(r.date); } },
@@ -1875,6 +1882,7 @@
           render: function (r) {
             var value = r.games[idx];
             if (value == null) return el('span', { class: 'muted', text: '—' });
+            if (r.blind) return el('span', { class: 'muted', text: UI.num(value) });
             return best(value === player.highGame, UI.num(value));
           } });
       })(i);
@@ -1882,7 +1890,10 @@
     columns.push(
       { key: 'series', label: 'Series', className: 'num-strong',
         value: function (r) { return r.series; },
-        render: function (r) { return best(r.series === player.highSeries, UI.num(r.series)); } },
+        render: function (r) {
+          if (r.blind) return el('span', { class: 'muted blind-series', text: UI.num(r.series) });
+          return best(r.series === player.highSeries, UI.num(r.series));
+        } },
       { key: 'hdcpSeries', label: 'Hdcp Ser', className: 'muted', optional: true,
         value: function (r) { return r.series + player.handicap * r.games.length; },
         render: function (r) {
@@ -1898,8 +1909,10 @@
     );
 
     var body = rows.length
-      ? UI.table({ columns: columns, rows: rows, state: state.playerWeeks,
-                   onSort: function () { playerView(playerId); } })
+      ? el('div', null, [
+          UI.table({ columns: columns, rows: rows, state: state.playerWeeks,
+                     onSort: function () { playerView(playerId); } }),
+          legendBody(rows)])
       : UI.empty('No scores recorded for ' + player.name + ' yet.');
 
     var subtitle = [];

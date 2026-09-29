@@ -108,7 +108,7 @@ and never reuse one for a different team.
 | Field | Notes |
 |---|---|
 | `teamId` | The team this line counts for, when it is not the bowler's own — a substitute, or a rostered bowler filling in for another team that night (John Hancock for Bowling Buddies, week 2). Required for a teamless substitute. |
-| `blind` | `true` for a blind score (rule 7: ten under the bowler's average). It counts toward the team total, with the bowler's handicap, but not toward the bowler's own average, highs or trend. Printed on the sheet with an `a` prefix, e.g. `a220`. |
+| `blind` | `true` for a blind score (rule 7: ten under the bowler's average). It counts toward the team total, with the bowler's handicap, and, as the league software keeps it, toward the bowler's games, pins and average (so toward the average their handicap comes off once established). It never counts as one of their highs, milestones or form. Printed on the sheet with an `a` prefix, e.g. `a220`. |
 
 ### Match fields
 
