@@ -56,7 +56,7 @@
   function handicapAt(player, weekNumber, scoring) {
     var games = 0;
     var pins = 0;
-    player.weeks.forEach(function (w) {
+    player.weeks.concat(player.blinds || []).forEach(function (w) {
       if (w.number >= weekNumber) return;
       games += w.games.length;
       pins += w.series;
@@ -82,6 +82,8 @@
            name. Substitutes bowl for real, so they keep their own flag. */
         role: p.role || (p.substitute ? 'substitute' : null),
         weeks: [],
+        /* Blind scores entered for nights this bowler missed. */
+        blinds: [],
         games: 0,
         pins: 0,
         average: null,
@@ -155,12 +157,22 @@
         if (!player) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
-        /* A blind (rule 7: ten under the bowler's average) counts for the
-           team, which pass 2 handles, but it is not a game the bowler threw,
-           so it stays out of their average, highs and trend. */
-        if (line.blind) return;
-
         var series = sum(games);
+        /* A blind (rule 7: ten under the bowler's average) is not a game the
+           bowler threw, so it stays out of their highs, form and game log.
+           The league software does count it in their average, though, so it
+           goes into games and pins, which is what handicap comes off once the
+           average is established. */
+        if (line.blind) {
+          player.blinds.push({
+            number: week.number, date: week.date, games: games, series: series,
+            average: series / games.length, blind: true,
+          });
+          player.games += games.length;
+          player.pins += series;
+          return;
+        }
+
         player.weeks.push({
           number: week.number,
           date: week.date,
@@ -249,7 +261,9 @@
       var doneGames = 0;
       var donePins = 0;
       p.handicapByWeek = {};
-      p.weeks.forEach(function (week) {
+      /* Blind nights count here too: they are part of the league's average. */
+      var nights = p.weeks.concat(p.blinds).sort(function (a, b) { return a.number - b.number; });
+      nights.forEach(function (week) {
         week.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
         p.handicapByWeek[week.number] = week.handicap;
         doneGames += week.games.length;
@@ -282,8 +296,7 @@
         if (!player || !byTeam[teamId]) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
-        /* The handicap this bowler carried that night, not today's. A blind
-           never reaches pass 1, so it is worked out from the games before. */
+        /* The handicap this bowler carried that night, not today's. */
         var hdcp = player.handicapByWeek[week.number];
         if (hdcp == null) hdcp = handicapAt(player, week.number, scoring);
         byTeam[teamId].lines.push({
