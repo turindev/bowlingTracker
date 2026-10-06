@@ -55,6 +55,14 @@ var playerIds = {};
   } else if (!teamIds[player.teamId]) {
     err('Player "' + (player.name || player.id) + '" is on unknown team "' + player.teamId + '".');
   }
+  (player.pinAdjustments || []).forEach(function (a) {
+    if (typeof a.pins !== 'number' || typeof a.afterWeek !== 'number') {
+      err('Player "' + (player.name || player.id) + '" has a pin adjustment without numeric pins and afterWeek.');
+    }
+    if (!(a.teamId || player.teamId)) {
+      err('Player "' + (player.name || player.id) + '" has a pin adjustment but no team for it to count toward.');
+    }
+  });
 });
 
 if (!Object.keys(teamIds).length) err('No teams defined.');
@@ -101,6 +109,9 @@ var weekNumbers = {};
     }
     if (line.blind && playerIds[who].placeholder) {
       err(label + ': ' + name + ' is a placeholder, so their line cannot also be a blind.');
+    }
+    if (line.inAverage != null && (line.inAverage !== false || !line.blind)) {
+      err(label + ': ' + name + ' has inAverage, which only a blind can carry, and only as false.');
     }
 
     if (!Array.isArray(line.games)) {

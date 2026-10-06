@@ -93,7 +93,8 @@ check('Team 10 with Thompson\'s blind = 850,866,838', games(10, 2) === '850,866,
 check('Nutz with the vacancy = 906,895,829', games(15, 2) === '906,895,829', games(15, 2));
 
 const lawson = live.players.find(p => p.name === 'Oliver Lawson');
-check('Lawson\'s 2019 over 9 games includes his week-2 blind, as printed', lawson.games === 9 && lawson.pins === 2019,
+// From week 4 the sheet leaves Lawson's week-2 blind out: 2044 over 9.
+check('Lawson\'s 2044 over 9 leaves out his week-2 blind, as printed', lawson.games === 9 && lawson.pins === 2044,
       lawson.games + ' games, ' + lawson.pins);
 const white = live.players.find(p => p.name === 'Aaron White');
 check('Aaron White\'s 1964 over 9 includes his week-1 blind, as printed', white.games === 9 && white.pins === 1964,
@@ -120,9 +121,34 @@ check('Week 1 with the vacancy for Jesse\'s Gym: Big Orange Bowling 4 - 0',
 // Points won after week 3, as printed.
 const WON3 = {1: 5, 2: 4, 3: 7, 4: 7, 5: 2, 6: 11, 7: 7, 8: 5, 9: 3, 10: 5, 11: 6, 12: 8.5,
   13: 5, 14: 7, 15: 6.5, 16: 7, 17: 5.5, 18: 3, 19: 9, 20: 0.5, 21: 7, 22: 9, 23: 7, 24: 7};
-const offPts = Object.keys(WON3).filter(n => team(n).points !== WON3[n]);
+const through = (n, wk) => team(n).weeks.filter(w => w.number <= wk)
+  .reduce((t, w) => t + (w.points || 0), 0);
+const offPts = Object.keys(WON3).filter(n => through(n, 3) !== WON3[n]);
 check('every team\'s points after week 3 match the sheet', !offPts.length,
-      offPts.map(n => n + ': ' + team(n).points + ' v ' + WON3[n]).join(', '));
+      offPts.map(n => n + ': ' + through(n, 3) + ' v ' + WON3[n]).join(', '));
+
+// --- week 4: points, scratch and pins + hdcp after week 4, as printed --------
+const STAND4 = {6:[12,10621,11065],22:[12,9869,10712],12:[11.5,9622,10690],16:[11,8416,10672],
+  24:[10.5,10708,10816],21:[10,9495,10989],19:[10,9285,10869],3:[10,10254,10686],4:[10,9627,10611],
+  11:[10,9232,10345],15:[9.5,9463,10447],7:[9,8638,10591],1:[8,7921,10420],23:[8,7269,10029],
+  14:[7,8999,10427],13:[6,10356,10620],10:[6,9755,10571],17:[6,8510,10463],18:[6,7011,10269],
+  8:[6,7854,10242],2:[6,8876,10169],9:[3,8641,10357],5:[3,8153,10148],20:[1.5,8226,10098]};
+const off4 = Object.keys(STAND4).filter(n => {
+  const t = team(n), s = STAND4[n];
+  return through(n, 4) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 4 match the sheet', !off4.length,
+      off4.map(n => n + ': ' + [through(n, 4), team(n).pins, team(n).hdcpPins] + ' v ' + STAND4[n]).join('; '));
+check('Old School with Spicer subbing = 906,1009,1003', games(3, 4) === '906,1009,1003', games(3, 4));
+check('NBO with two blinds = 837,909,892', games(7, 4) === '837,909,892', games(7, 4));
+check('9 Pin City with Eisel\'s blind = 804,875,783', games(5, 4) === '804,875,783', games(5, 4));
+check('Ruthless with Martin subbing = 937,857,821', games(17, 4) === '937,857,821', games(17, 4));
+const seda = live.players.find(p => p.name === 'Jason Seda-Haas');
+check('a blind the league leaves out of the average stays out: Seda-Haas 1661 over 9',
+      seda.pins === 1661 && seda.games === 9, seda.pins + '/' + seda.games);
+const woody = live.players.find(p => p.name === 'Thomas Woody');
+check('a pin adjustment counts: Woody 1892 over 12', woody.pins === 1892 && woody.games === 12,
+      woody.pins + '/' + woody.games);
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
