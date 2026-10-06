@@ -130,8 +130,8 @@
       label: 'absent',
       note: 'A blind score for a bowler who missed the night: ten pins under ' +
             'their average, plus their handicap (rule 7). It counts for the ' +
-            'team, and the league counts it in their average too, but it is ' +
-            'not a game they bowled, so it is never one of their highs.',
+            'team, and the league usually counts it in their average too, but ' +
+            'it is not a game they bowled, so it is never one of their highs.',
     },
     substitute: {
       label: 'sub',
@@ -1788,6 +1788,19 @@
     return bits.join(' · ');
   }
 
+  /* Pins the league moved on an earlier week without saying which game.
+     They are in the totals and the average, so the page says where from. */
+  function adjustmentNote(player) {
+    if (!player.adjustments.length) return null;
+    return el('div', { class: 'card-body' }, el('p', { class: 'legend' },
+      player.adjustments.map(function (a) {
+        return el('span', { class: 'legend-item' }, [
+          el('strong', { text: signed(a.pins, 0) + ' pins' }),
+          ' in the season totals that are not in any game above. ' + a.note,
+        ]);
+      })));
+  }
+
   /* ---------- player drill-down ---------- */
 
   function playerView(playerId) {
@@ -1837,15 +1850,27 @@
     var runningGames = 0;
     var nights = player.weeks.concat(player.blinds)
       .sort(function (a, b) { return a.number - b.number; });
+    var pending = player.adjustments.slice();
     var rows = nights.map(function (week) {
-      runningPins += week.series;
-      runningGames += week.games.length;
+      var counted = !week.blind || week.counted;
+      /* A league adjustment lands in the running average on the week it
+         followed. */
+      pending = pending.filter(function (a) {
+        if (a.afterWeek > week.number) return true;
+        runningPins += a.pins;
+        return false;
+      });
+      if (counted) {
+        runningPins += week.series;
+        runningGames += week.games.length;
+      }
       var forTeam = week.teamId && week.teamId !== player.teamId
         ? model.teamsById[week.teamId] : null;
       return {
         name: 'Week ' + week.number,
         number: week.number,
         blind: !!week.blind,
+        counted: counted,
         role: week.blind ? 'absentee' : null,
         forTeam: forTeam,
         date: week.date,
@@ -1912,7 +1937,8 @@
       ? el('div', null, [
           UI.table({ columns: columns, rows: rows, state: state.playerWeeks,
                      onSort: function () { playerView(playerId); } }),
-          legendBody(rows)])
+          legendBody(rows),
+          adjustmentNote(player)])
       : UI.empty('No scores recorded for ' + player.name + ' yet.');
 
     var subtitle = [];

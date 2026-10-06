@@ -62,6 +62,7 @@ and never reuse one for a different team.
 | `substitute` | `true` for a league substitute. They may have `"teamId": null` — no team of their own — in which case every score line of theirs must carry a `teamId`. Their games are real, so they keep a place on the bowler leaderboard, tagged "sub". |
 | `role` | `"vacant"` or `"absentee"` — why a `placeholder` line exists. It picks the marker shown beside the name and the sentence in the legend under the table. A `substitute` is tagged from its own flag and needs no `role`. |
 | `provisional` | `true` when the sheet prints a bare `120` with no `bk`: a new bowler with no average from last season. `entryAverage` is then `120`, which the league uses (handicap 90) until the bowler establishes one. |
+| `pinAdjustments` | Pins the league added to or took off an earlier week without the sheet saying which game: `[{ "afterWeek": 2, "pins": 20, "note": "…" }]`. They count in the bowler's pins and average (so in the handicap from the week after `afterWeek`) and in their team's season pinfall (or `teamId`'s, if given), but in no game. |
 
 ## `weeks`
 
@@ -109,6 +110,7 @@ and never reuse one for a different team.
 |---|---|
 | `teamId` | The team this line counts for, when it is not the bowler's own — a substitute, or a rostered bowler filling in for another team that night (John Hancock for Bowling Buddies, week 2). Required for a teamless substitute. |
 | `blind` | `true` for a blind score (rule 7: ten under the bowler's average). It counts toward the team total, with the bowler's handicap, and, as the league software keeps it, toward the bowler's games, pins and average (so toward the average their handicap comes off once established). It never counts as one of their highs, milestones or form. Printed on the sheet with an `a` prefix, e.g. `a220`. |
+| `inAverage` | `false` on a blind the league leaves out of the bowler's average (from week 4 the sheet stopped counting blinds, and took Oliver Lawson's week-2 one back out). Omit it for a blind the league counts. |
 
 ### Match fields
 

@@ -46,9 +46,22 @@
      behind them. Before the league establishes an average it is the book one;
      after, it is what they have bowled. */
   function handicapBase(player, games, pins, establish) {
-    if (games >= establish && games > 0) return pins / games;
+    /* Averages are kept as whole pins, dropping the fraction, as on the sheet. */
+    if (games >= establish && games > 0) return Math.floor(pins / games);
     if (player.entryAverage != null) return player.entryAverage;
     return player.average;
+  }
+
+  /* Adjusted pins on the books before a given week. */
+  function adjustedBefore(player, weekNumber) {
+    return (player.adjustments || []).reduce(function (total, a) {
+      return a.afterWeek < weekNumber ? total + a.pins : total;
+    }, 0);
+  }
+
+  /* The blind nights that are part of a bowler's average. */
+  function countedBlinds(player) {
+    return (player.blinds || []).filter(function (b) { return b.counted; });
   }
 
   /* The handicap in force for a week the bowler has no line of their own in,
@@ -56,11 +69,12 @@
   function handicapAt(player, weekNumber, scoring) {
     var games = 0;
     var pins = 0;
-    player.weeks.concat(player.blinds || []).forEach(function (w) {
+    player.weeks.concat(countedBlinds(player)).forEach(function (w) {
       if (w.number >= weekNumber) return;
       games += w.games.length;
       pins += w.series;
     });
+    pins += adjustedBefore(player, weekNumber);
     return handicapFor(handicapBase(player, games, pins, scoring.establishAfterGames), scoring);
   }
 
@@ -84,6 +98,11 @@
         weeks: [],
         /* Blind scores entered for nights this bowler missed. */
         blinds: [],
+        /* Pins the league added to or took off an earlier week without the
+           sheet saying which game: { afterWeek, pins, teamId?, note }. */
+        adjustments: (p.pinAdjustments || []).map(function (a) {
+          return { afterWeek: a.afterWeek, pins: a.pins, teamId: a.teamId || p.teamId, note: a.note || '' };
+        }),
         games: 0,
         pins: 0,
         average: null,
@@ -159,17 +178,20 @@
         if (!games.length) return;
         var series = sum(games);
         /* A blind (rule 7: ten under the bowler's average) is not a game the
-           bowler threw, so it stays out of their highs, form and game log.
-           The league software does count it in their average, though, so it
-           goes into games and pins, which is what handicap comes off once the
-           average is established. */
+           bowler threw, so it stays out of their highs and form. The league
+           software usually counts it in their average, so it goes into games
+           and pins, which is what handicap comes off once the average is
+           established, unless the line says the league left it out. */
         if (line.blind) {
+          var counted = line.inAverage !== false;
           player.blinds.push({
             number: week.number, date: week.date, games: games, series: series,
-            average: series / games.length, blind: true,
+            average: series / games.length, blind: true, counted: counted,
           });
-          player.games += games.length;
-          player.pins += series;
+          if (counted) {
+            player.games += games.length;
+            player.pins += series;
+          }
           return;
         }
 
@@ -190,6 +212,7 @@
     });
 
     players.forEach(function (p) {
+      p.adjustments.forEach(function (a) { p.pins += a.pins; });
       if (p.games > 0) p.average = p.pins / p.games;
 
       /* Average per game slot — does this bowler start hot or finish strong? */
@@ -264,13 +287,16 @@
       /* Blind nights count here too: they are part of the league's average. */
       var nights = p.weeks.concat(p.blinds).sort(function (a, b) { return a.number - b.number; });
       nights.forEach(function (week) {
-        week.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
+        var pinsSoFar = donePins + adjustedBefore(p, week.number);
+        week.handicap = handicapFor(handicapBase(p, doneGames, pinsSoFar, establish), scoring);
         p.handicapByWeek[week.number] = week.handicap;
+        if (week.blind && !week.counted) return;
         doneGames += week.games.length;
         donePins += week.series;
       });
 
       /* What the next week will be bowled on, and the number the tables show. */
+      donePins += adjustedBefore(p, Infinity);
       p.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
       p.established = doneGames >= establish;
       p.gamesToEstablish = Math.max(establish - doneGames, 0);
@@ -369,6 +395,16 @@
       });
     });
 
+    /* A pin adjustment belongs to the team the bowler bowled for that week. */
+    players.forEach(function (p) {
+      p.adjustments.forEach(function (a) {
+        var team = teamsById[a.teamId];
+        if (!team) return;
+        team.pins += a.pins;
+        team.hdcpPins += a.pins;
+      });
+    });
+
     teams.forEach(function (t) {
       t.weeks.sort(function (a, b) { return a.number - b.number; });
       if (t.games > 0) {
@@ -411,9 +447,15 @@
         if (!running[line.playerId]) return;
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
+        if (line.blind && line.inAverage === false) return;
         running[line.playerId].pins += sum(games);
         running[line.playerId].games += games.length;
-        bowledThisWeek[line.playerId] = sum(games);
+        if (!line.blind) bowledThisWeek[line.playerId] = sum(games);
+      });
+      real.forEach(function (p) {
+        p.adjustments.forEach(function (a) {
+          if (a.afterWeek === week.number) running[p.id].pins += a.pins;
+        });
       });
 
       var standing = real.filter(function (p) { return running[p.id].games > 0; });

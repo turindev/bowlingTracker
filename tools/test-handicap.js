@@ -71,17 +71,37 @@ check('a bowler who misses weeks stays on book longer',
       sp.weeks.every(w => w.handicap === 63), JSON.stringify(spWeeks));
 check('and still owes games to establish', sp.gamesToEstablish === 3, sp.gamesToEstablish);
 
-// The real league data: one week in, nobody has 12 games, so nothing moved.
+// Averages are whole pins, the fraction dropped, before the handicap is taken.
+// 2111 over 12 is 175.92: kept as 175, that is 40; unrounded it would be 39.
+const trunc = {
+  scoring: fixture.scoring,
+  teams: [{ id: 't1', name: 'T' }],
+  players: [{ id: 'p1', name: 'P', teamId: 't1', entryAverage: 200 }],
+  weeks: [1, 2, 3, 4].map(n => ({ number: n, date: '2026-09-0' + n, matches: [],
+    scores: [{ playerId: 'p1', games: n === 4 ? [176, 176, 175] : [176, 176, 176] }] })),
+};
+const tp = build(trunc).players[0];
+check('an established average drops its fraction: 2111/12 gives handicap 40',
+      tp.handicap === 40, tp.handicap);
+
+// The real league data, against the week-4 sheet: bowlers with 12 games are
+// on what they have bowled, everyone else is still on book.
 const real = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'league.js'), 'utf8');
 const rctx = { window: {} };
 vm.createContext(rctx);
 vm.runInContext(real, rctx);
 const live = build(rctx.window.LEAGUE_DATA);
-check('real league: nobody is established yet',
-      live.players.every(x => !x.established), 'someone established on 1 week');
-check('real league: every handicap still off the book average',
-      live.players.every(x => x.handicap === handicapFor(x.entryAverage, live.scoring)),
-      'a handicap drifted');
+const who = n => live.players.find(x => x.name === n);
+check('real league: under 12 games is still on book',
+      live.players.filter(x => x.games < 12)
+        .every(x => x.handicap === handicapFor(x.entryAverage, live.scoring)),
+      'a handicap drifted before 12 games');
+for (const [n, h] of [['Marty Tate', 46], ['Jon Boxwell', 37], ['Spencer Foutz', 0],
+                      ['Aaron Jones', 72], ['Butch Finkbeiner', 80], ['Thomas Woody', 56],
+                      ['Kamus Thompson', 22], ['Oliver Lawson', 0]]) {
+  check('real league: ' + n + ' carries ' + h + ' into week 5, as printed',
+        who(n).handicap === h, who(n).handicap);
+}
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
