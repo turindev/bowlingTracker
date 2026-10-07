@@ -1946,7 +1946,7 @@
     subtitle.push(UI.avg(player.average) + ' average');
 
     /* Every game in season order, measured against the bowler's own average. */
-    var gameChart = Charts.line({
+    var gameChart = Charts.columns({
       points: player.weeks.reduce(function (acc, week) {
         week.games.forEach(function (score, i) {
           acc.push({

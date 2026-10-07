@@ -1,5 +1,5 @@
 /*
- * Two chart forms, both single-series, both plain DOM/SVG.
+ * Chart forms, all single-series, all plain DOM/SVG.
  *
  * Single series means one colour and no legend — the card title names what is
  * being plotted. Bars carry magnitude from a zero baseline; the line chart
@@ -101,6 +101,139 @@
     return responsive(function (width, tip) {
       return draw(width, points, options, tip);
     });
+  }
+
+  /* ---- columns ---------------------------------------------------------
+     points: { label, axis, value, caption } — one bar per point, in order,
+     rising from a zero baseline with a rounded data-end. An optional
+     reference { value, label } is a dotted rule across the bars, so each
+     one reads as above or below it by where it ends.
+     -------------------------------------------------------------------- */
+  function columns(options) {
+    var points = (options.points || []).filter(function (p) {
+      return p.value != null && isFinite(p.value);
+    });
+    if (!points.length) {
+      return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
+    }
+    return responsive(function (width, tip) {
+      return drawColumns(width, points, options, tip);
+    });
+  }
+
+  function drawColumns(width, points, options, tip) {
+    var height = options.height || 190;
+    var pad = { top: 14, right: 14, bottom: 26, left: 44 };
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var plotH = height - pad.top - pad.bottom;
+    var format = options.format || function (v) { return UI.num(v); };
+    var ref = options.reference || null;
+
+    var top = points.reduce(function (max, p) { return Math.max(max, p.value); }, ref ? ref.value : 0);
+    var domain = [0, niceDomain(0, top || 1)[1]];
+    function y(value) { return pad.top + plotH - (value / (domain[1] || 1)) * plotH; }
+
+    var svg = node('svg', {
+      width: width, height: height, viewBox: '0 0 ' + width + ' ' + height,
+      role: 'img', 'aria-label': options.label || 'Chart',
+    });
+
+    ticks(domain, true).forEach(function (value) {
+      var ty = y(value);
+      svg.appendChild(node('line', {
+        class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: ty, y2: ty,
+      }));
+      var text = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: ty + 4, 'text-anchor': 'end' });
+      text.textContent = UI.num(value);
+      svg.appendChild(text);
+    });
+
+    /* Equal slots, a surface gap between bars that narrows as they crowd. */
+    var slot = plotW / points.length;
+    var gap = slot >= 10 ? 2 : 1;
+    var barW = Math.max(1.5, slot - gap);
+    function left(i) { return pad.left + i * slot + (slot - barW) / 2; }
+    var baseline = y(0);
+
+    var labelled = [];
+    points.forEach(function (point, i) {
+      var text = point.axis != null ? point.axis : point.label;
+      if (text !== '' && text != null) labelled.push({ index: i, text: text });
+    });
+    var step = Math.ceil(labelled.length / Math.max(1, Math.floor(plotW / 46)));
+    var shown = labelled.filter(function (entry, n) { return n % step === 0; });
+    /* The latest week is always labelled; it takes the place of a neighbour
+       that would sit on top of it. */
+    var latest = labelled[labelled.length - 1];
+    if (shown[shown.length - 1] !== latest) {
+      var prev = shown[shown.length - 1];
+      if (prev && (latest.index - prev.index) * slot < 40) shown.pop();
+      shown.push(latest);
+    }
+    shown.forEach(function (entry) {
+      var text = node('text', {
+        class: 'chart-axis-label', x: left(entry.index) + barW / 2, y: height - 8, 'text-anchor': 'middle',
+      });
+      text.textContent = entry.text;
+      svg.appendChild(text);
+    });
+
+    var bars = points.map(function (point, i) {
+      var h = Math.max(1, baseline - y(point.value));
+      /* Rounded at the data-end only: the bar is square where it meets the axis. */
+      var r = Math.min(3, barW / 2, h);
+      var x0 = left(i), x1 = x0 + barW, top = baseline - h;
+      var bar = node('path', {
+        class: 'chart-col',
+        d: 'M' + x0 + ',' + baseline + 'V' + (top + r) + 'Q' + x0 + ',' + top + ' ' + (x0 + r) + ',' + top +
+           'H' + (x1 - r) + 'Q' + x1 + ',' + top + ' ' + x1 + ',' + (top + r) + 'V' + baseline + 'Z',
+      });
+      svg.appendChild(bar);
+      return bar;
+    });
+
+    /* The dotted average goes over the bars so it is never hidden by one. */
+    if (ref) {
+      var ry = y(ref.value);
+      svg.appendChild(node('line', {
+        class: 'chart-avg', x1: pad.left, x2: pad.left + plotW, y1: ry, y2: ry,
+      }));
+      var refText = node('text', {
+        class: 'chart-avg-label', x: pad.left + plotW, y: ry - 7, 'text-anchor': 'end',
+      });
+      refText.textContent = ref.label;
+      svg.appendChild(refText);
+    }
+
+    points.forEach(function (point, i) {
+      var hit = node('rect', {
+        class: 'chart-hit', x: pad.left + i * slot, y: pad.top, width: slot, height: plotH,
+      });
+      hit.addEventListener('mouseenter', function () {
+        bars[i].classList.add('is-on');
+        tip.textContent = '';
+        tip.appendChild(el('strong', { text: point.label }));
+        tip.appendChild(el('span', { text: format(point.value) }));
+        var caption = point.caption || '';
+        if (ref) {
+          var diff = point.value - ref.value;
+          caption = (diff === 0 ? 'on average' : Math.abs(Math.round(diff * 10) / 10) +
+            (diff > 0 ? ' above' : ' below') + ' average') + (caption ? ' · ' + caption : '');
+        }
+        if (caption) tip.appendChild(el('small', { text: caption }));
+        tip.classList.add('is-on');
+        var w = tip.offsetWidth;
+        tip.style.left = Math.max(2, Math.min(width - w - 2, left(i) + barW / 2 - w / 2)) + 'px';
+        tip.style.top = Math.max(0, y(point.value) - tip.offsetHeight - 8) + 'px';
+      });
+      hit.addEventListener('mouseleave', function () {
+        bars[i].classList.remove('is-on');
+        tip.classList.remove('is-on');
+      });
+      svg.appendChild(hit);
+    });
+
+    return svg;
   }
 
   /* Charts are drawn at the container's real pixel width, so labels stay
@@ -374,5 +507,5 @@
     return out;
   }
 
-  window.Charts = { bars: bars, diverging: diverging, line: line, race: race };
+  window.Charts = { bars: bars, diverging: diverging, line: line, columns: columns, race: race };
 })();
