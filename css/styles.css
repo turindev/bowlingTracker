@@ -598,6 +598,27 @@ main { padding: 20px 16px 48px; }
 
 .chart-hit { fill: transparent; }
 
+/* Column chart: bars in the accent, the average a dotted ink rule over them. */
+.chart-col { fill: var(--accent); }
+.chart-col.is-on { fill: var(--text); }
+.chart-avg {
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 5;
+  pointer-events: none;
+}
+.chart-avg-label {
+  fill: var(--text);
+  font-size: 10.5px;
+  font-family: inherit;
+  font-weight: 600;
+  /* A halo of surface keeps the label readable where it crosses a bar. */
+  stroke: var(--surface);
+  stroke-width: 3px;
+  paint-order: stroke;
+}
+
 .chart-tip {
   position: absolute;
   z-index: 2;
