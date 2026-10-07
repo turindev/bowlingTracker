@@ -600,7 +600,22 @@ main { padding: 20px 16px 48px; }
 
 /* Column chart: bars in the accent, the average a dotted ink rule over them. */
 .chart-col { fill: var(--accent); }
-.chart-col.is-on { fill: var(--text); }
+.chart-col.is-above { fill: var(--div-pos); }
+.chart-col.is-below { fill: var(--div-neg); }
+.chart-col.is-on { stroke: var(--text); stroke-width: 1.5; }
+
+.chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.chart-key-item { display: inline-flex; align-items: center; gap: 6px; }
+.chart-key-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.chart-key-swatch.is-above { background: var(--div-pos); }
+.chart-key-swatch.is-below { background: var(--div-neg); }
 .chart-avg {
   stroke: var(--text);
   stroke-width: 2;

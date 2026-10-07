@@ -1945,7 +1945,8 @@
     if (standing) subtitle.push('#' + standing.rank + ' of ' + plural(standing.of, 'bowler'));
     subtitle.push(UI.avg(player.average) + ' average');
 
-    /* Every game in season order, measured against the bowler's own average. */
+    /* Every game in season order, coloured by which side of the bowler's own
+       average it finished on. */
     var gameChart = Charts.columns({
       points: player.weeks.reduce(function (acc, week) {
         week.games.forEach(function (score, i) {
