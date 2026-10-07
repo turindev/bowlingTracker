@@ -106,8 +106,11 @@
   /* ---- columns ---------------------------------------------------------
      points: { label, axis, value, caption } — one bar per point, in order,
      rising from a zero baseline with a rounded data-end. An optional
-     reference { value, label } is a dotted rule across the bars, so each
-     one reads as above or below it by where it ends.
+     reference { value, label } is a dotted rule across the bars, and
+     colours them by which side of it they finish on: the diverging blue
+     for at or above, the diverging red for below. Where a bar ends against
+     the rule says the same thing, so colour is never the only signal, and a
+     small legend names the two.
      -------------------------------------------------------------------- */
   function columns(options) {
     var points = (options.points || []).filter(function (p) {
@@ -116,9 +119,17 @@
     if (!points.length) {
       return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
     }
-    return responsive(function (width, tip) {
+    var chart = responsive(function (width, tip) {
       return drawColumns(width, points, options, tip);
     });
+    if (!options.reference) return chart;
+    return el('div', null, [
+      el('p', { class: 'chart-key' }, [
+        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-above' }), 'Above average']),
+        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-below' }), 'Below average']),
+      ]),
+      chart,
+    ]);
   }
 
   function drawColumns(width, points, options, tip) {
@@ -184,7 +195,7 @@
       var r = Math.min(3, barW / 2, h);
       var x0 = left(i), x1 = x0 + barW, top = baseline - h;
       var bar = node('path', {
-        class: 'chart-col',
+        class: 'chart-col' + (ref ? (point.value >= ref.value ? ' is-above' : ' is-below') : ''),
         d: 'M' + x0 + ',' + baseline + 'V' + (top + r) + 'Q' + x0 + ',' + top + ' ' + (x0 + r) + ',' + top +
            'H' + (x1 - r) + 'Q' + x1 + ',' + top + ' ' + x1 + ',' + (top + r) + 'V' + baseline + 'Z',
       });
