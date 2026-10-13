@@ -90,7 +90,9 @@ const real = fs.readFileSync(require('path').join(__dirname, '..', 'data', 'leag
 const rctx = { window: {} };
 vm.createContext(rctx);
 vm.runInContext(real, rctx);
-const live = build(rctx.window.LEAGUE_DATA);
+const raw = rctx.window.LEAGUE_DATA;
+const upTo = n => build(Object.assign({}, raw, { weeks: raw.weeks.filter(w => w.number <= n) }));
+let live = upTo(4);
 const who = n => live.players.find(x => x.name === n);
 check('real league: under 12 games is still on book',
       live.players.filter(x => x.games < 12)
@@ -100,6 +102,21 @@ for (const [n, h] of [['Marty Tate', 46], ['Jon Boxwell', 37], ['Spencer Foutz',
                       ['Aaron Jones', 72], ['Butch Finkbeiner', 80], ['Thomas Woody', 56],
                       ['Kamus Thompson', 22], ['Oliver Lawson', 0]]) {
   check('real league: ' + n + ' carries ' + h + ' into week 5, as printed',
+        who(n).handicap === h, who(n).handicap);
+}
+
+// And against the week-5 sheet, for the handicaps bowled on in week 6. Kamus
+// Thompson's 16 comes off 2434 over 12, an average of 202.
+live = upTo(5);
+check('real league, week 5: under 12 games is still on book',
+      live.players.filter(x => x.games < 12)
+        .every(x => x.handicap === handicapFor(x.entryAverage, live.scoring)),
+      'a handicap drifted before 12 games');
+for (const [n, h] of [['Marty Tate', 46], ['Jon Boxwell', 34], ['Aaron Jones', 67],
+                      ['Butch Finkbeiner', 77], ['Kamus Thompson', 16], ['Matt Rayfield', 82],
+                      ['Michael Eisel', 24], ['Don Speer', 59], ['Michael Kimble', 1],
+                      ['Jaydon Phan', 20], ['Mike Davis', 74], ['Steve Smith', 20]]) {
+  check('real league: ' + n + ' carries ' + h + ' into week 6, as printed',
         who(n).handicap === h, who(n).handicap);
 }
 

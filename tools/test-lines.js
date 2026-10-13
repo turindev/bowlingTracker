@@ -79,7 +79,11 @@ check('the note travels with both sides',
 const rctx = { window: {} };
 vm.createContext(rctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'data', 'league.js'), 'utf8'), rctx);
-const live = build(rctx.window.LEAGUE_DATA);
+// The season as it stood after a given week, so older assertions keep
+// describing the sheet they were written from as new weeks are added.
+const raw = rctx.window.LEAGUE_DATA;
+const at = n => build(Object.assign({}, raw, { weeks: raw.weeks.filter(w => w.number <= n) }));
+let live = at(4);
 const team = n => live.teams.find(t => t.id === 't' + n);
 const night = (n, wk) => team(n).weeks.find(w => w.number === wk);
 const games = (n, wk) => night(n, wk).hdcpGameTotals.join(',');
@@ -149,6 +153,37 @@ check('a blind the league leaves out of the average stays out: Seda-Haas 1661 ov
 const woody = live.players.find(p => p.name === 'Thomas Woody');
 check('a pin adjustment counts: Woody 1892 over 12', woody.pins === 1892 && woody.games === 12,
       woody.pins + '/' + woody.games);
+
+// --- week 5: the same checks against the week-5 sheet ----------------------
+live = at(5);
+const STAND5 = {6:[15,13314,13830],12:[14.5,12129,13407],4:[14,12210,13449],16:[14,10587,13323],
+  3:[13,12843,13380],11:[13,11563,12997],19:[12,11306,13349],22:[12,12376,13333],
+  24:[11.5,13405,13513],21:[11,11739,13605],7:[11,10747,13099],1:[11,9932,13076],
+  10:[10,12253,13294],15:[9.5,11953,13072],18:[9,8857,12892],2:[9,11219,12818],
+  23:[9,9178,12679],14:[8,11213,12998],13:[7,12798,13125],17:[7,10613,13004],
+  8:[7,9870,12864],5:[6,10244,12803],9:[4,10953,13104],20:[2.5,10417,12742]};
+const off5 = Object.keys(STAND5).filter(n => {
+  const t = team(n), s = STAND5[n];
+  return through(n, 5) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 5 match the sheet', !off5.length,
+      off5.map(n => n + ': ' + [through(n, 5), team(n).pins, team(n).hdcpPins] + ' v ' + STAND5[n]).join('; '));
+check('Warriors bowling four, no blind = 819,945,885', games(2, 5) === '819,945,885', games(2, 5));
+check('We The People with Chad Clark subbing = 859,903,890', games(11, 5) === '859,903,890', games(11, 5));
+check('Bowling Buddies with Kimble and Spicer = 845,889,887', games(22, 5) === '845,889,887', games(22, 5));
+check('Nutz with Phan subbing = 825,933,867', games(15, 5) === '825,933,867', games(15, 5));
+check('Ruthless with Martin subbing = 945,802,794', games(17, 5) === '945,802,794', games(17, 5));
+check('Big Orange with Speer back on the roster = 813,835,832', games(19, 5) === '813,835,832', games(19, 5));
+check('Bowlers Anonymous = 855,904,863', games(8, 5) === '855,904,863', games(8, 5));
+const eisel = live.players.find(p => p.name === 'Michael Eisel');
+check('Eisel\'s week-4 blind is the one in his average: 1171 over 6',
+      eisel.pins === 1171 && eisel.games === 6, eisel.pins + '/' + eisel.games);
+const speer = live.players.find(p => p.name === 'Don Speer');
+check('Speer\'s two sheet records are one player: 921 over 6, on Big Orange',
+      speer.pins === 921 && speer.games === 6 && speer.teamId === 't19', speer.pins + '/' + speer.games);
+const lawson5 = live.players.find(p => p.name === 'Oliver Lawson');
+check('Lawson 2723 over 12 with no blinds in it', lawson5.pins === 2723 && lawson5.games === 12,
+      lawson5.pins + '/' + lawson5.games);
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
