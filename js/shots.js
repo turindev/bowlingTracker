@@ -9,7 +9,8 @@
  *
  *   game = {
  *     id, date, location, pattern, event, lane, notes,
- *     ball, spareBall,          // ball ids; a shot carries the one used
+ *     ball, spareBall,          // ball ids at the start; each shot carries the one it used,
+ *                               // so a ball change mid-game is recorded shot by shot
  *     status: 'open' | 'done',
  *     frames: [{ shots: [{ standing: [..], hit?, miss?, ball? }] }],
  *     createdAt, updatedAt, deleted?
@@ -283,6 +284,58 @@
     };
   }
 
+  /* ---------- balls within a game ---------- */
+
+  /* The balls used, in the order they first appeared. */
+  function ballsInGame(game) {
+    var seen = [];
+    walk(game).forEach(function (c) {
+      if (c.ball && seen.indexOf(c.ball) === -1) seen.push(c.ball);
+    });
+    if (!seen.length && game && game.ball) seen.push(game.ball);
+    return seen;
+  }
+
+  /* The ball a game counts toward: the one thrown for most first balls, and on
+     a tie the one the game started with. A game bowled all the way with one
+     ball is simply that ball. */
+  function primaryBall(game) {
+    var count = {};
+    var best = null;
+    walk(game).forEach(function (c) {
+      if (c.fresh && c.ball) count[c.ball] = (count[c.ball] || 0) + 1;
+    });
+    Object.keys(count).forEach(function (id) {
+      if (best == null || count[id] > count[best] ||
+          (count[id] === count[best] && id === game.ball)) best = id;
+    });
+    return best || (game && game.ball) || null;
+  }
+
+  /* Each time the ball changed: the frame it happened in (1-based), what it
+     changed from and to, and whether it was the strike ball or the spare ball. */
+  function switches(game) {
+    var out = [];
+    var last = { strike: null, spare: null };
+    walk(game).forEach(function (c) {
+      if (!c.ball) return;
+      var role = c.fresh ? 'strike' : 'spare';
+      if (last[role] && last[role] !== c.ball) {
+        out.push({ frame: c.f + 1, shot: c.s + 1, from: last[role], to: c.ball, role: role });
+      }
+      last[role] = c.ball;
+    });
+    return out;
+  }
+
+  /* The balls a game would carry on with: what the last first ball used (or
+     the ball it started with), and the spare ball if there is a different one. */
+  function currentBalls(game) {
+    var strike = (game && game.ball) || null;
+    walk(game).forEach(function (c) { if (c.fresh && c.ball) strike = c.ball; });
+    return { strike: strike, spare: (game && game.spareBall) || strike };
+  }
+
   /* ---------- statistics ---------- */
 
   function ratio(n, d) { return d ? n / d : null; }
@@ -325,7 +378,7 @@
     var totals = [];
     var out = {
       games: 0, average: null, high: null, low: null, sd: null,
-      over200: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null,
+      over200: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null, switched: 0,
       racks: 0, strikes: 0, strikePct: null, strikesPerGame: null,
       attempts: 0, spares: 0, sparePct: null,
       firstBallAvg: null,
@@ -345,7 +398,7 @@
     done.forEach(function (game) {
       var ctx = walk(game);
       var mine = ballId ? ctx.filter(function (c) { return c.ball === ballId; }) : ctx;
-      var gameIsMine = !ballId || game.ball === ballId;
+      var gameIsMine = !ballId || primaryBall(game) === ballId;
       var opensThisGame = 0;
 
       mine.forEach(function (c) {
@@ -404,6 +457,7 @@
       if (gameIsMine) {
         var total = score(game).total;
         totals.push(total);
+        if (switches(game).length) out.switched++;
         if (opensThisGame === 0) out.clean++;
 
         /* Strike streaks run across frames and into the fill balls. */
@@ -556,6 +610,7 @@
     addShot: addShot, undo: undo, truncate: truncate, newGame: newGame,
     score: score, analyze: analyze, compare: compare, filter: filter,
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
+    ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;

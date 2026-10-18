@@ -202,6 +202,48 @@ check('a shot is described in words',
       S.describeShot({ fresh: true, before: S.ALL }, []) === 'Strike' &&
       S.describeShot({ fresh: false, before: [10] }, []) === 'Spare', S.describeShot({ fresh: true, before: S.ALL }, [10]));
 
+// --- switching balls inside a game -------------------------------------------------
+/* Strikes in every frame; `balls[i]` is the ball for the i-th first ball. */
+function strikesWith(balls, extra) {
+  let g = S.newGame(Object.assign({ ball: balls[0] }, extra));
+  balls.forEach(b => { g = S.addShot(g, { standing: [], hit: 'pocket', ball: b }); });
+  g.status = 'done';
+  return g;
+}
+const A6B6 = ['A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B']; // 6 first balls with A, 6 with B
+const sw = strikesWith(['A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B', 'B', 'B']);
+check('a game with a switch used both balls, in order', S.ballsInGame(sw).join() === 'A,B', S.ballsInGame(sw).join());
+check('the switch is found: frame 5, A to B, the strike ball',
+      JSON.stringify(S.switches(sw).map(x => [x.frame, x.from, x.to, x.role])) === '[[5,"A","B","strike"]]', JSON.stringify(S.switches(sw)));
+check('the game counts toward the ball used for most first balls', S.primaryBall(sw) === 'B', S.primaryBall(sw));
+check('a tie goes to the ball the game started with',
+      S.primaryBall(strikesWith(A6B6, { ball: 'A' })) === 'A' && S.primaryBall(strikesWith(A6B6, { ball: 'B' })) === 'B', '');
+check('a game with one ball has no switches', S.switches(game1).length === 0 && S.primaryBall(game1) === 'A', '');
+const gameStats = S.analyze([sw], { ball: 'B' });
+check('ball B: the game and 8 of its 12 first balls', gameStats.games === 1 && gameStats.racks === 8 && gameStats.strikes === 8, JSON.stringify([gameStats.games, gameStats.racks]));
+const aStats = S.analyze([sw], { ball: 'A' });
+check('ball A: no game, but its 4 first balls still count', aStats.games === 0 && aStats.racks === 4 && aStats.strikes === 4, JSON.stringify([aStats.games, aStats.racks]));
+check('games with a ball change are counted', S.analyze([sw]).switched === 1 && S.analyze([game1]).switched === 0, S.analyze([sw]).switched);
+check('a switched game is attributed to one ball only, never both',
+      S.analyze([sw], { ball: 'A' }).games + S.analyze([sw], { ball: 'B' }).games === 1, '');
+
+// the spare ball changing is its own switch
+let sp = S.newGame({ ball: 'A', spareBall: 'S' });
+sp = S.addShot(sp, { standing: [10], hit: 'pocket', ball: 'A' });
+sp = S.addShot(sp, { standing: [], ball: 'S' });
+sp = S.addShot(sp, { standing: [7], hit: 'pocket', ball: 'A' });
+sp = S.addShot(sp, { standing: [], ball: 'A' });
+check('a change of spare ball is a spare switch, on frame 3',
+      JSON.stringify(S.switches(sp).map(x => [x.frame, x.from, x.to, x.role])) === '[[2,"S","A","spare"]]', JSON.stringify(S.switches(sp)));
+check('and does not count as a strike-ball switch', S.switches(sp).every(x => x.role === 'spare'), '');
+
+// what to carry on with
+check('after a switch the next first ball keeps the new ball', S.currentBalls(sw).strike === 'B', JSON.stringify(S.currentBalls(sw)));
+check('with no separate spare ball, spares follow the strike ball', S.currentBalls(sw).spare === 'B', JSON.stringify(S.currentBalls(sw)));
+check('a separate spare ball stays put when the strike ball changes',
+      S.currentBalls(Object.assign({}, sw, { spareBall: 'S' })).spare === 'S', '');
+check('a game with no shots starts on its own ball', S.currentBalls(S.newGame({ ball: 'Z' })).strike === 'Z', '');
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');
