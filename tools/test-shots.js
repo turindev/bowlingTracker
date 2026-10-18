@@ -100,149 +100,102 @@ check('10th X then 7-10: the third shot is a spare try at 7-10',
 
 // --- validation and editing -----------------------------------------------------
 const throws = fn => { try { fn(); return null; } catch (e) { return e.message; } };
-check('a first ball needs a hit', !!throws(() => S.addShot(S.newGame({}), { standing: [] })), '');
-check('a missed spare needs a side',
-      !!throws(() => S.addShot(shoot(S.newGame({}), [10], { hit: 'pocket' }), { standing: [10] })), '');
-check('a pin that was already down cannot be left standing',
-      !!throws(() => S.addShot(shoot(S.newGame({}), [10], { hit: 'pocket' }), { standing: [9], miss: 'left' })), '');
-check('an unknown hit is refused', !!throws(() => S.addShot(S.newGame({}), { standing: [], hit: 'flush' })), '');
-check('nothing can be added to a complete game', !!throws(() => S.addShot(perfect, { standing: [], hit: 'pocket' })), '');
+check('how a first ball hit is optional', !throws(() => S.addShot(S.newGame({}), { standing: [] })), '');
+check('a first ball saved with no hit has none recorded', S.walk(S.addShot(S.newGame({}), { standing: [] }))[0].shot.hit === undefined, '');
+check('which way a spare was missed is optional',
+      !throws(() => S.addShot(shoot(S.newGame({}), [10], { hit: 'pocket' }), { standing: [10] })), '');
+check('but a side that is given has to be left or right',
+      !!throws(() => S.addShot(shoot(S.newGame({}), [10], { hit: 'pocket' }), { standing: [10], miss: 'middle' })), '');
+const noSide = S.addShot(shoot(S.newGame({}), [10], { hit: 'pocket' }), { standing: [10] });
+check('a miss with no side is saved without one', S.walk(noSide)[1].shot.miss === undefined && S.position(noSide).frame === 1, '');
+check('a miss with no side still counts as an open frame, with no left or right',
+      (() => {
+        let g = S.newGame({ ball: 'A' });
+        g = S.addShot(g, { standing: [10], hit: 'light', ball: 'A' });
+        g = S.addShot(g, { standing: [10], ball: 'A' });
+        for (let f = 1; f < 9; f++) g = S.addShot(g, { standing: [], hit: 'pocket', ball: 'A' });
+        for (let k = 0; k < 3; k++) g = S.addShot(g, { standing: [], hit: 'pocket', ball: 'A' });
+        g.status = 'done';
+        const a = S.analyze([g]);
+        return a.opens === 1 && a.misses.total === 0 && a.single.unrecorded === 1 && a.single.attempts === 1;
+      })(), '');
+// Hit types are optional, so the figures count only the first balls that have one.
+const half = fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']);
+half.frames.forEach((fr, i) => { if (i % 2) delete fr.shots[0].hit; });
+const halfStats = S.analyze([half]);
+check('first balls with no hit are left out of the hit figures', halfStats.hitsRecorded === 7 && halfStats.racks === 12 && halfStats.hits.pocket.n === 7, halfStats.hitsRecorded + '/' + halfStats.racks);
+check('but they still count as strikes and first balls', halfStats.strikes === 12 && halfStats.strikePct === 1, '');
+check('hit shares are of the recorded ones', halfStats.hits.pocket.pct === 1, halfStats.hits.pocket.pct);
 
-const undone = S.undo(worked);
-check('undo takes back the last shot', S.walk(undone).length === S.walk(worked).length - 1, '');
-check('and the game is playable again', !S.isComplete(undone) && S.position(undone).frame === 9, JSON.stringify(S.position(undone)));
-check('undo on an empty game is harmless', S.undo(S.newGame({})).frames.length === 0, '');
-const cut = S.truncate(worked, 4);
-check('truncate keeps the frames before the one you re-bowl', cut.frames.length === 4 && S.position(cut).frame === 4, '');
-check('and the original is untouched', worked.frames.length === 10, '');
+// --- editing one frame in place ---------------------------------------------------------
+const fix = (g, index, shots) => S.replaceFrame(g, index, shots);
+const strikeShot = { standing: [], hit: 'pocket', ball: 'A' };
+// frame 3 of the worked game was 9-: make it a strike instead. Everything after it recalculates.
+const edited = fix(worked, 2, [strikeShot]);
+check('redoing a frame keeps every frame after it', edited.frames.length === 10 && edited.frames[3].shots.length === 1, '');
+check('and the card recalculates: frame 2 gains a bonus (7/ then X = 20, total 40)',
+      S.score(edited).frames[1].total === 40, JSON.stringify(S.score(edited).frames[1]));
+check('and frame 3 is a strike worth 10 + 10 + 0, total 60',
+      S.score(edited).frames[2].marks.map(m => m.text).join('') === 'X' && S.score(edited).frames[2].total === 60, JSON.stringify(S.score(edited).frames[2]));
+check('the game total moves with it, from 168 to 180', total(edited) === 180, total(edited));
+check('and the original game is untouched', total(worked) === 168 && worked.frames[2].shots.length === 2, '');
+// a frame can change shape: strike (1 shot) to open (2 shots)
+const opened = fix(perfect, 4, [{ standing: [1, 2], hit: 'high', ball: 'A' }, { standing: [2], miss: 'left', ball: 'A' }]);
+check('a frame can change from one shot to two', opened.frames[4].shots.length === 2 && S.isComplete(opened), '');
+check('the 10th frame can be redone, to a different length',
+      S.isComplete(fix(perfect, 9, [{ standing: [3], hit: 'light', ball: 'A' }, { standing: [3], miss: 'right', ball: 'A' }])) &&
+      S.walk(fix(perfect, 9, [{ standing: [3], hit: 'light', ball: 'A' }, { standing: [3], miss: 'right', ball: 'A' }])).length === 11, '');
+check('and a 10th with a strike and fills is accepted',
+      total(fix(worked, 9, [strikeShot, strikeShot, strikeShot])) === 180, total(fix(worked, 9, [strikeShot, strikeShot, strikeShot])));
+check('a frame that is not finished is refused',
+      !!throws(() => fix(worked, 2, [{ standing: [10], hit: 'light', ball: 'A' }])), '');
+check('a frame with too many shots is refused', !!throws(() => fix(worked, 2, [strikeShot, strikeShot])), '');
+check('an impossible shot is refused', !!throws(() => fix(worked, 2, [{ standing: [10], hit: 'light' }, { standing: [9], miss: 'left' }])), '');
+check('a frame that does not exist is refused', !!throws(() => fix(worked, 12, [strikeShot])), '');
+check('a corrected first ball needs no hit', !throws(() => fix(worked, 2, [{ standing: [] }])), '');
 
-// --- leaves ----------------------------------------------------------------------
-const type = pins => S.leaveType(pins);
-check('7-10 is a split', type([7, 10]) === 'split' && S.isSplit([7, 10]), '');
-check('4-6 is a split', S.isSplit([4, 6]), '');
-check('2-7 and 3-10 are baby splits', S.isSplit([2, 7]) && S.isSplit([3, 10]), '');
-check('5-7 is a split', S.isSplit([5, 7]), '');
-check('2-4 is not a split: the pins touch', !S.isSplit([2, 4]) && type([2, 4]) === 'cluster', '');
-check('a bucket, 2-4-5-8, is not a split', !S.isSplit([2, 4, 5, 8]), '');
-check('a leave with the headpin standing is never a split', !S.isSplit([1, 7, 10]), '');
-check('a single pin is single', type([10]) === 'single' && !S.isSplit([10]), '');
-check('the Greek church is a split', S.isSplit([4, 6, 7, 9, 10]), '');
-check('leaves are named', S.leaveLabel([10]) === '10 pin' && S.leaveLabel([7, 10]) === '7-10 (Bedposts)' &&
-      S.leaveLabel([2, 4, 5, 8]) === '2-4-5-8' && S.leaveLabel([4, 6]) === '4-6 split', S.leaveLabel([7, 10]));
-check('the key ignores order and duplicates', S.leaveKey([10, 7, 7]) === '7-10', '');
+// --- sets: games bowled together ------------------------------------------------------------
+const inSet = (g, setId, no, extra) => Object.assign(g, { setId: setId, gameNo: no, setSize: 3 }, extra || {});
+const g1 = inSet(fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']), 'S1', 1, { date: '2026-10-18' });   // 300
+const g2 = inSet(fromCard(['5/', '5/', '5/', '5/', '5/', '5/', '5/', '5/', '5/', '5/5']), 'S1', 2, { date: '2026-10-18' }); // 150
+const g3 = inSet(fromCard(['--', '--', '--', '--', '--', '--', '--', '--', '--', '--']), 'S1', 3, { date: '2026-10-18' });   // 0
+const setA = S.setsOf([g3, g1, g2])[0];
+check('games are grouped by set and put in order', setA.games.map(g => g.gameNo).join() === '1,2,3', '');
+check('a set has its totals, series and average', setA.totals.join() === '300,150,0' && setA.total === 450 && setA.average === 150, JSON.stringify(setA.totals));
+check('a set with every game bowled is complete', setA.complete && setA.size === 3, '');
+const partial = S.setsOf([g1, g2])[0];
+check('a set short of its games is not complete', !partial.complete && partial.finished === 2, '');
+const openGame = inSet(S.addShot(S.newGame({ ball: 'A' }), { standing: [], hit: 'pocket', ball: 'A' }), 'S2', 1);
+check('an unfinished game never counts toward a set in statistics', S.setsOf([g1, g2, g3, openGame]).length === 1, '');
+check('but the list can show everything, a lone game by itself',
+      S.setsOf([g1, g2, g3, openGame, perfect], { all: true }).length === 3 && S.setsOf([perfect], { all: true })[0].standalone === true, '');
+check('a game with no set has no series', S.setsOf([perfect]).length === 0, '');
 
-// --- statistics, on two games worked by hand --------------------------------------------
-const game1 = fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX'], { ball: 'A' });
-// Nine pins down then the 10 pin missed right, every frame: ten opens, 90.
-let game2 = S.newGame({ date: '2026-10-19', ball: 'B', pattern: 'Sport', location: 'Other', event: 'league', lane: '12' });
-for (let f = 0; f < 10; f++) {
-  game2 = S.addShot(game2, { standing: [10], hit: 'light', ball: 'B' });
-  game2 = S.addShot(game2, { standing: [10], miss: 'right', ball: 'B' });
-}
-game2.status = 'done';
-check('the miss-every-frame game is 90', total(game2) === 90, total(game2));
+const ser = S.seriesStats(S.setsOf([g1, g2, g3]));
+check('one complete series, average 450, high 450', ser.count === 1 && ser.average === 450 && ser.high === 450 && ser.low === 450, JSON.stringify([ser.count, ser.average]));
+check('a series of 450 is not a 600', ser.over600 === 0 && ser.over700 === 0, '');
+check('per game it averaged 150', ser.perGame === 150, ser.perGame);
+check('the spread within the set is 300, and it faded by 300 from game 1 to 3', ser.spread === 300 && ser.fade === -300, ser.spread + '/' + ser.fade);
+check('each place in the set has its own average: 300, 150, 0',
+      ser.slots.map(x => x.average).join() === '300,150,0' && ser.slots.map(x => x.slot).join() === '1,2,3', JSON.stringify(ser.slots.map(x => x.average)));
+check('a half-finished set does not count as a series', S.seriesStats(S.setsOf([g1, g2])).count === 0, '');
+check('but its games still count in the place-in-set averages', S.seriesStats(S.setsOf([g1, g2])).slots.length === 2, '');
+const big = [1, 2, 3].map(n => inSet(fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']), 'S3', n));
+check('three 300s is a 900, counted as 600+ and 700+', (() => { const x = S.seriesStats(S.setsOf(big)); return x.high === 900 && x.over600 === 1 && x.over700 === 1; })(), '');
+const twoSets = S.seriesStats(S.setsOf([g1, g2, g3, ...big]));
+check('two series average 675', twoSets.count === 2 && twoSets.average === 675, twoSets.average);
+const fiveGame = [1, 2].map(n => inSet(fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']), 'S5', n, { setSize: 2 }));
+check('a set of another length is complete at its own length and scales 600+ to it',
+      (() => { const x = S.seriesStats(S.setsOf(fiveGame)); return x.count === 1 && x.over600 === 1 && x.high === 600; })(), '');
 
-const all = S.analyze([game1, game2]);
-check('2 games, average 195', all.games === 2 && all.average === 195, all.games + '/' + all.average);
-check('high 300, low 90', all.high === 300 && all.low === 90, '');
-check('22 racks, 12 strikes', all.racks === 22 && all.strikes === 12, all.racks + '/' + all.strikes);
-check('strike % is 12 of 22', Math.abs(all.strikePct - 12 / 22) < 1e-9, all.strikePct);
-check('10 spare tries, none made', all.attempts === 10 && all.spares === 0 && all.sparePct === 0, '');
-check('all ten were single-pin tries',
-      all.single.attempts === 10 && all.single.made === 0 && all.cluster.attempts === 0, JSON.stringify(all.single));
-check('every miss went right', all.single.right === 10 && all.misses.right === 10 && all.misses.rightPct === 1, '');
-check('pocket: 12 shots, all strikes',
-      all.hits.pocket.n === 12 && all.hits.pocket.strikePct === 1, JSON.stringify(all.hits.pocket));
-check('light: 10 shots, no strikes, 9 pins a ball',
-      all.hits.light.n === 10 && all.hits.light.strikePct === 0 && all.hits.light.avgPins === 9, JSON.stringify(all.hits.light));
-check('pocket was 12 of 22 hits', Math.abs(all.hits.pocket.pct - 12 / 22) < 1e-9, all.hits.pocket.pct);
-check('first-ball average: (120 + 90) / 22', Math.abs(all.firstBallAvg - 210 / 22) < 1e-9, all.firstBallAvg);
-check('five opens a game; one clean game', all.opensPerGame === 5 && all.clean === 1, all.opensPerGame + '/' + all.clean);
-check('one 200+ game, none over 250 apart from the 300', all.over200 === 1 && all.over250 === 1, '');
-check('best streak is 12, one run of three or more', all.bestStreak === 12 && all.streaks3 === 1, all.bestStreak + '/' + all.streaks3);
-check('frame 1: one strike in two', all.byFrame[0].racks === 2 && all.byFrame[0].pct === 0.5, JSON.stringify(all.byFrame[0]));
-check('frame 10: three strikes in four fresh racks', all.byFrame[9].racks === 4 && all.byFrame[9].pct === 0.75, JSON.stringify(all.byFrame[9]));
-check('the 10 pin leave was seen 10 times, tried 10, made none',
-      all.leaves.length === 1 && all.leaves[0].label === '10 pin' && all.leaves[0].seen === 10 &&
-      all.leaves[0].attempts === 10 && all.leaves[0].made === 0 && all.leaves[0].right === 10, JSON.stringify(all.leaves));
-
-const onlyB = S.analyze([game1, game2], { ball: 'B' });
-check('ball B: one game, 90, no strikes', onlyB.games === 1 && onlyB.average === 90 && onlyB.strikes === 0, JSON.stringify([onlyB.games, onlyB.average]));
-check('ball A: one game, 300, no spare tries', S.analyze([game1, game2], { ball: 'A' }).attempts === 0, '');
-
-// Spare ball: first balls on A, spare tries on B
-let split = S.newGame({ ball: 'A', spareBall: 'B' });
-split = S.addShot(split, { standing: [10], hit: 'pocket', ball: 'A' });
-split = S.addShot(split, { standing: [], ball: 'B' });
-for (let f = 1; f < 10; f++) split = S.addShot(split, { standing: [], hit: 'pocket', ball: 'A' });
-split = S.addShot(split, { standing: [], hit: 'pocket', ball: 'A' });
-split = S.addShot(split, { standing: [], hit: 'pocket', ball: 'A' });
-split.status = 'done';
-check('a spare shot counts for the spare ball, not the strike ball',
-      S.analyze([split], { ball: 'B' }).spares === 1 && S.analyze([split], { ball: 'A' }).attempts === 0, '');
-
-// Unfinished and deleted games are ignored
-const open = S.addShot(S.newGame({ ball: 'A' }), { standing: [], hit: 'pocket', ball: 'A' });
-const gone = Object.assign({}, game1, { deleted: true });
-check('open and deleted games are left out', S.analyze([open, gone, game2]).games === 1, '');
-check('an empty set has no average', S.analyze([]).average === null && S.analyze([]).strikePct === null, '');
-
-// Grouping
-const rows = S.compare([game1, game2], 'pattern');
-check('compare by pattern gives one row each', rows.length === 2 && rows.map(r => r.label).sort().join() === 'House,Sport', '');
-check('compare by ball gives A and B', S.compare([game1, game2], 'ball', id => 'Ball ' + id).map(r => r.label).sort().join() === 'Ball A,Ball B', '');
-check('filter narrows by pattern and date',
-      S.filter([game1, game2], { pattern: 'Sport' }).length === 1 &&
-      S.filter([game1, game2], { from: '2026-10-19' }).length === 1 &&
-      S.filter([game1, game2], { to: '2026-10-18' }).length === 1, '');
-check('distinct lists what was recorded', S.distinct([game1, game2], 'lane').join() === '12', S.distinct([game1, game2], 'lane').join());
-
-check('a shot is described in words',
-      S.describeShot({ fresh: true, before: S.ALL }, [10]) === '9 pins · 10 pin' &&
-      S.describeShot({ fresh: true, before: S.ALL }, []) === 'Strike' &&
-      S.describeShot({ fresh: false, before: [10] }, []) === 'Spare', S.describeShot({ fresh: true, before: S.ALL }, [10]));
-
-// --- switching balls inside a game -------------------------------------------------
-/* Strikes in every frame; `balls[i]` is the ball for the i-th first ball. */
-function strikesWith(balls, extra) {
-  let g = S.newGame(Object.assign({ ball: balls[0] }, extra));
-  balls.forEach(b => { g = S.addShot(g, { standing: [], hit: 'pocket', ball: b }); });
-  g.status = 'done';
-  return g;
-}
-const A6B6 = ['A', 'A', 'A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B']; // 6 first balls with A, 6 with B
-const sw = strikesWith(['A', 'A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B', 'B', 'B']);
-check('a game with a switch used both balls, in order', S.ballsInGame(sw).join() === 'A,B', S.ballsInGame(sw).join());
-check('the switch is found: frame 5, A to B, the strike ball',
-      JSON.stringify(S.switches(sw).map(x => [x.frame, x.from, x.to, x.role])) === '[[5,"A","B","strike"]]', JSON.stringify(S.switches(sw)));
-check('the game counts toward the ball used for most first balls', S.primaryBall(sw) === 'B', S.primaryBall(sw));
-check('a tie goes to the ball the game started with',
-      S.primaryBall(strikesWith(A6B6, { ball: 'A' })) === 'A' && S.primaryBall(strikesWith(A6B6, { ball: 'B' })) === 'B', '');
-check('a game with one ball has no switches', S.switches(game1).length === 0 && S.primaryBall(game1) === 'A', '');
-const gameStats = S.analyze([sw], { ball: 'B' });
-check('ball B: the game and 8 of its 12 first balls', gameStats.games === 1 && gameStats.racks === 8 && gameStats.strikes === 8, JSON.stringify([gameStats.games, gameStats.racks]));
-const aStats = S.analyze([sw], { ball: 'A' });
-check('ball A: no game, but its 4 first balls still count', aStats.games === 0 && aStats.racks === 4 && aStats.strikes === 4, JSON.stringify([aStats.games, aStats.racks]));
-check('games with a ball change are counted', S.analyze([sw]).switched === 1 && S.analyze([game1]).switched === 0, S.analyze([sw]).switched);
-check('a switched game is attributed to one ball only, never both',
-      S.analyze([sw], { ball: 'A' }).games + S.analyze([sw], { ball: 'B' }).games === 1, '');
-
-// the spare ball changing is its own switch
-let sp = S.newGame({ ball: 'A', spareBall: 'S' });
-sp = S.addShot(sp, { standing: [10], hit: 'pocket', ball: 'A' });
-sp = S.addShot(sp, { standing: [], ball: 'S' });
-sp = S.addShot(sp, { standing: [7], hit: 'pocket', ball: 'A' });
-sp = S.addShot(sp, { standing: [], ball: 'A' });
-check('a change of spare ball is a spare switch, on frame 3',
-      JSON.stringify(S.switches(sp).map(x => [x.frame, x.from, x.to, x.role])) === '[[2,"S","A","spare"]]', JSON.stringify(S.switches(sp)));
-check('and does not count as a strike-ball switch', S.switches(sp).every(x => x.role === 'spare'), '');
-
-// what to carry on with
-check('after a switch the next first ball keeps the new ball', S.currentBalls(sw).strike === 'B', JSON.stringify(S.currentBalls(sw)));
-check('with no separate spare ball, spares follow the strike ball', S.currentBalls(sw).spare === 'B', JSON.stringify(S.currentBalls(sw)));
-check('a separate spare ball stays put when the strike ball changes',
-      S.currentBalls(Object.assign({}, sw, { spareBall: 'S' })).spare === 'S', '');
-check('a game with no shots starts on its own ball', S.currentBalls(S.newGame({ ball: 'Z' })).strike === 'Z', '');
+const byPat = S.compare([g1, g2, g3, ...big.map(g => Object.assign(g, { pattern: 'Sport' }))], 'pattern');
+const house = byPat.filter(r => r.key === 'House')[0], sport = byPat.filter(r => r.key === 'Sport')[0];
+check('compare gives each pattern its own series figures', house.series.count === 1 && house.series.average === 450 && sport.series.average === 900, JSON.stringify([house.series.average, sport.series.average]));
+check('the lane comparison has no series, since lanes change each game', S.compare([g1, g2, g3], 'lane').every(r => r.series === null), '');
+const ballSeries = S.compare([g1, g2, g3], 'ball', id => id)[0];
+check('the ball comparison credits a series to the ball that threw most of its first balls', ballSeries.series.count === 1 && ballSeries.key === 'A', '');
+check('a new set game records its place and length', (() => { const n = S.newGame({ setId: 'X', gameNo: 2, setSize: 3 }); return n.setId === 'X' && n.gameNo === 2 && n.setSize === 3; })() &&
+      S.newGame({}).setId === null, '');
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')

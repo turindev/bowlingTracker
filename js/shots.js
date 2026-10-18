@@ -9,6 +9,7 @@
  *
  *   game = {
  *     id, date, location, pattern, event, lane, notes,
+ *     setId, gameNo, setSize,   // games bowled together (a 3-game set): shared id, 1-based place, length
  *     ball, spareBall,          // ball ids at the start; each shot carries the one it used,
  *                               // so a ball change mid-game is recorded shot by shot
  *     status: 'open' | 'done',
@@ -191,10 +192,14 @@
 
     var shot = { standing: standing };
     if (pos.fresh) {
-      if (HITS.indexOf(input.hit) === -1) throw new Error('Say how the first ball hit.');
-      shot.hit = input.hit;
-    } else if (standing.length) {
-      if (MISSES.indexOf(input.miss) === -1) throw new Error('Say which way the spare was missed.');
+      /* How a first ball hit is worth knowing, never required. */
+      if (input.hit) {
+        if (HITS.indexOf(input.hit) === -1) throw new Error('A hit is pocket, high, light, Brooklyn or other.');
+        shot.hit = input.hit;
+      }
+    } else if (standing.length && input.miss) {
+      /* Which way a spare was missed is worth knowing, never required. */
+      if (MISSES.indexOf(input.miss) === -1) throw new Error('A miss is left or right.');
       shot.miss = input.miss;
     }
     if (input.ball) shot.ball = input.ball;
@@ -205,6 +210,27 @@
       next.frames.push({ shots: [] });
     }
     next.frames[next.frames.length - 1].shots.push(shot);
+    return next;
+  }
+
+  /* Redoes one frame in place. Every frame starts on a fresh rack, so the frames
+     after it stay as they were and the scorecard recalculates. The new shots
+     are checked as if they were bowled in that frame, 10th included. */
+  function replaceFrame(game, index, shots) {
+    var frames = (game && game.frames) || [];
+    if (!(index >= 0 && index < frames.length)) throw new Error('There is no such frame.');
+    var probe = { frames: [] };
+    for (var i = 0; i < index; i++) probe.frames.push({ shots: [{ standing: [] }] });
+    (shots || []).forEach(function (shot) {
+      probe = addShot(probe, {
+        standing: shot.standing, hit: shot.hit, miss: shot.miss, ball: shot.ball,
+      });
+    });
+    var built = probe.frames[index];
+    if (!built || !frameDone(index, built.shots)) throw new Error('That frame is not finished.');
+    if (probe.frames.length > index + 1) throw new Error('That is more shots than one frame takes.');
+    var next = copy(game);
+    next.frames[index] = built;
     return next;
   }
 
@@ -566,9 +592,106 @@
         };
       });
     }
+    /* Series by the same grouping. A lane changes game to game, so it has none. */
+    var sets = setsOf(done);
+    rows.forEach(function (row) {
+      if (dimension === 'lane') { row.series = null; return; }
+      row.series = seriesStats(sets.filter(function (x) {
+        return dimension === 'ball'
+          ? setBall(x) === row.key
+          : String(x.games[0][dimension] == null ? '' : x.games[0][dimension]) === row.key;
+      }));
+    });
     return rows.sort(function (a, b) {
       return b.stats.games - a.stats.games || String(a.label).localeCompare(String(b.label));
     });
+  }
+
+  /* ---------- sets (a series bowled together) ---------- */
+
+  function setBall(set) {
+    var count = {};
+    var best = null;
+    set.games.forEach(function (g) {
+      walk(g).forEach(function (c) { if (c.fresh && c.ball) count[c.ball] = (count[c.ball] || 0) + 1; });
+    });
+    Object.keys(count).forEach(function (id) {
+      if (best == null || count[id] > count[best] ||
+          (count[id] === count[best] && id === set.games[0].ball)) best = id;
+    });
+    return best || set.games[0].ball || null;
+  }
+
+  /* Games bowled together, in order. For statistics only finished games count
+     and a game with no set is left out; with { all: true } (for the list)
+     everything appears, a game with no set standing alone. */
+  function setsOf(games, opts) {
+    var all = !!(opts && opts.all);
+    var pool = all ? (games || []).filter(function (g) { return !g.deleted; }) : finished(games);
+    var by = {};
+    var order = [];
+    pool.forEach(function (g) {
+      var id = g.setId || (all ? g.id : null);
+      if (!id) return;
+      if (!by[id]) { by[id] = []; order.push(id); }
+      by[id].push(g);
+    });
+    var sets = order.map(function (id) {
+      var gs = by[id].sort(function (a, b) {
+        return (a.gameNo || 0) - (b.gameNo || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+      var done = gs.filter(function (g) { return g.status === 'done' && isComplete(g); });
+      var totals = done.map(function (g) { return score(g).total; });
+      var total = totals.reduce(function (a, b) { return a + b; }, 0);
+      var standalone = !gs[0].setId;
+      var size = standalone ? 1 : Math.max(1, Number(gs[0].setSize) || 3);
+      return {
+        id: id, standalone: standalone, date: gs[0].date, games: gs, size: size,
+        totals: totals, total: total, average: totals.length ? total / totals.length : null,
+        finished: done.length, complete: done.length >= size && done.length === gs.length,
+        pattern: gs[0].pattern, location: gs[0].location, event: gs[0].event,
+      };
+    });
+    return sets.sort(function (a, b) {
+      return String(a.date || '').localeCompare(String(b.date || '')) ||
+        String(a.games[0].createdAt || '').localeCompare(String(b.games[0].createdAt || ''));
+    });
+  }
+
+  /* Series figures over finished sets. A series is only counted once every game
+     in it is bowled, so a half-finished night never drags an average down. */
+  function seriesStats(sets) {
+    var done = (sets || []).filter(function (x) { return !x.standalone && x.complete; });
+    var out = {
+      count: done.length, average: null, perGame: null, high: null, low: null,
+      over600: 0, over700: 0, spread: null, slots: [], fade: null, sets: done,
+    };
+    var slotGames = {};
+    (sets || []).filter(function (x) { return !x.standalone; }).forEach(function (x) {
+      x.games.forEach(function (g, i) {
+        if (g.status === 'done' && isComplete(g)) (slotGames[i + 1] = slotGames[i + 1] || []).push(g);
+      });
+    });
+    out.slots = Object.keys(slotGames).map(Number).sort(function (a, b) { return a - b; }).map(function (n) {
+      var a = analyze(slotGames[n]);
+      return { slot: n, games: a.games, average: a.average, high: a.high, strikePct: a.strikePct, sparePct: a.sparePct };
+    });
+    if (!done.length) return out;
+    var totals = done.map(function (x) { return x.total; });
+    out.average = totals.reduce(function (a, b) { return a + b; }, 0) / totals.length;
+    out.high = Math.max.apply(null, totals);
+    out.low = Math.min.apply(null, totals);
+    var gamesTotal = done.reduce(function (a, x) { return a + x.totals.length; }, 0);
+    out.perGame = done.reduce(function (a, x) { return a + x.total; }, 0) / gamesTotal;
+    /* Scaled to the set's length, so 600 and 700 mean 200 and 233 a game. */
+    out.over600 = done.filter(function (x) { return x.total >= x.size * 200; }).length;
+    out.over700 = done.filter(function (x) { return x.total >= Math.ceil(x.size * 700 / 3); }).length;
+    out.spread = done.reduce(function (a, x) {
+      return a + (Math.max.apply(null, x.totals) - Math.min.apply(null, x.totals));
+    }, 0) / done.length;
+    /* Last game of the set against the first: positive means you finish stronger. */
+    out.fade = done.reduce(function (a, x) { return a + (x.totals[x.totals.length - 1] - x.totals[0]); }, 0) / done.length;
+    return out;
   }
 
   /* ---------- small helpers ---------- */
@@ -583,6 +706,9 @@
       pattern: meta.pattern || '',
       event: EVENTS.indexOf(meta.event) === -1 ? 'practice' : meta.event,
       lane: meta.lane == null ? '' : String(meta.lane),
+      setId: meta.setId || null,
+      gameNo: meta.setId ? (Number(meta.gameNo) || 1) : null,
+      setSize: meta.setId ? (Number(meta.setSize) || 3) : null,
       ball: meta.ball || null,
       spareBall: meta.spareBall || null,
       notes: meta.notes || '',
@@ -607,10 +733,11 @@
     cleanPins: cleanPins, leaveKey: leaveKey, leaveLabel: leaveLabel, leaveType: leaveType,
     isSplit: isSplit,
     walk: walk, position: position, isComplete: isComplete, frameDone: frameDone,
-    addShot: addShot, undo: undo, truncate: truncate, newGame: newGame,
+    addShot: addShot, undo: undo, truncate: truncate, replaceFrame: replaceFrame, newGame: newGame,
     score: score, analyze: analyze, compare: compare, filter: filter,
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
+    setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;
