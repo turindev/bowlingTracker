@@ -2196,6 +2196,52 @@
     });
   }
 
+  /* ---------- the way into the private shot tracker ---------- */
+
+  /* Two ways in, neither marked. The tracker asks for a passphrase anyway, so
+     this is only about not putting a door in front of everyone.
+       1. The ten dots under the footer are a pin deck. Pick up the 7-10 split:
+          tap the 7, then the 10.
+       2. A perfect game is twelve strikes: tap the logo twelve times, each
+          within a moment of the last. */
+  function initSecrets() {
+    function enter() {
+      try { if (navigator.vibrate) navigator.vibrate([25, 45, 25]); } catch (e) { /* no haptics */ }
+      location.hash = '#/shots';
+    }
+
+    var deck = document.getElementById('footer-deck');
+    if (deck) {
+      [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]].forEach(function (row) {
+        deck.appendChild(el('span', { class: 'deck-row' }, row.map(function (n) {
+          return el('span', { class: 'deck-pin', 'data-pin': String(n) });
+        })));
+      });
+      var armed = 0;
+      deck.addEventListener('click', function (e) {
+        var pin = Number(e.target && e.target.getAttribute && e.target.getAttribute('data-pin'));
+        if (!pin) return;
+        var t = Date.now();
+        if (pin === 7) armed = t;
+        else if (pin === 10 && armed && t - armed < 4000) { armed = 0; enter(); }
+        else armed = 0;
+      });
+    }
+
+    var brand = document.querySelector('.brand');
+    if (brand) {
+      var taps = 0;
+      var last = 0;
+      brand.addEventListener('click', function (e) {
+        var t = Date.now();
+        taps = t - last < 1500 ? taps + 1 : 1;
+        last = t;
+        /* The logo is a link home; stop that from undoing the way in. */
+        if (taps >= 12) { taps = 0; e.preventDefault(); enter(); }
+      });
+    }
+  }
+
   /* ---------- boot ---------- */
 
   function start() {
@@ -2235,6 +2281,7 @@
     document.getElementById('footer-note').textContent = footer.join(' ');
 
     window.addEventListener('hashchange', navigated);
+    initSecrets();
     route();
   }
 
