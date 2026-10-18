@@ -14,7 +14,7 @@
 
   var ui = {
     root: null, parts: [], token: 0,
-    draft: null, picks: {},
+    draft: null,
     filters: { pattern: '', location: '', event: '', ball: '', period: 'all' },
     compareBy: 'ball', compareState: { key: 'games', dir: 'desc' },
     gamesState: { key: 'date', dir: 'desc' },
@@ -52,6 +52,12 @@
     var b = library().balls.filter(function (x) { return x.id === id; })[0];
     return b ? b.name : (id ? 'Unknown ball' : '—');
   }
+  /* "Hammer \u2192 Storm" when the ball changed during the game. */
+  function ballNames(game) {
+    var ids = S.ballsInGame(game);
+    return ids.length ? ids.map(ballName).join(' \u2192 ') : '\u2014';
+  }
+
   function gameById(id) { return allGames().filter(function (g) { return g.id === id; })[0] || null; }
 
   /* A ball's photo, or a plain disc with its initial until it has one. */
@@ -379,8 +385,8 @@
         render: function (r) { return String(r.total); } },
       { key: 'x', label: 'X', value: function (r) { return r.stats.strikes; }, render: function (r) { return String(r.stats.strikes); } },
       { key: 'sp', label: '/', value: function (r) { return r.stats.spares; }, render: function (r) { return String(r.stats.spares); } },
-      { key: 'ball', label: 'Ball', optional: true, value: function (r) { return ballName(r.game.ball); },
-        render: function (r) { return ballName(r.game.ball); } },
+      { key: 'ball', label: 'Ball', optional: true, value: function (r) { return ballNames(r.game); },
+        render: function (r) { return ballNames(r.game); } },
       { key: 'pattern', label: 'Pattern', optional: true, value: function (r) { return r.game.pattern || ''; },
         render: function (r) { return r.game.pattern || '—'; } },
       { key: 'location', label: 'Location', optional: true, value: function (r) { return r.game.location || ''; },
@@ -429,6 +435,7 @@
     var games = allGames().slice().sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
     var last = games[0] || {};
 
+    var carry = last.id ? S.currentBalls(last) : {};
     var date = el('input', { type: 'date', value: today(), required: true });
     var where = el('input', { type: 'text', list: 'sh-locations', value: last.location || '', autocapitalize: 'words', placeholder: 'e.g. Leisure Time Bowling' });
     var pattern = el('input', { type: 'text', list: 'sh-patterns', value: last.pattern || '', autocapitalize: 'words', placeholder: 'e.g. Kegel Flagship, house shot' });
@@ -436,7 +443,7 @@
       return el('option', { value: e, selected: e === (last.event || 'league') }, e.charAt(0).toUpperCase() + e.slice(1));
     }));
     var lane = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 23', value: '' });
-    var strike = ballPicker('Ball', null, last.ball);
+    var strike = ballPicker('Ball', null, carry.strike);
     var spare = ballPicker('Spare ball (if different)', 'Same ball', last.spareBall);
     var err = errorLine();
 
@@ -501,6 +508,8 @@
 
   function scorecard(game, pos) {
     var sc = S.score(game);
+    var changed = {};
+    S.switches(game).forEach(function (x) { changed[x.frame - 1] = true; });
     var cells = [];
     for (var f = 0; f < 10; f++) {
       var frame = sc.frames[f] || { marks: [], total: null };
@@ -517,7 +526,10 @@
           text: m ? m.text : '',
         }));
       }
-      cells.push(el('div', { class: 'sh-frame' + (f === 9 ? ' is-tenth' : '') + (pos && pos.frame === f ? ' is-current' : '') }, [
+      cells.push(el('div', {
+        class: 'sh-frame' + (f === 9 ? ' is-tenth' : '') + (pos && pos.frame === f ? ' is-current' : '') + (changed[f] ? ' has-switch' : ''),
+        title: changed[f] ? 'Ball changed in this frame' : null,
+      }, [
         el('span', { class: 'sh-fno', text: String(f + 1) }),
         el('div', { class: 'sh-marks' }, marks),
         el('span', { class: 'sh-total', text: frame.total == null ? '' : String(frame.total) }),
@@ -569,10 +581,14 @@
 
   function shotCount(game) { return S.walk(game).length; }
 
+  /* The ball in hand is whatever the game last used, so a switch carries on
+     into the next shot, and survives leaving the game and coming back. */
   function freshDraft(game, pos) {
-    var picks = ui.picks[game.id] || {};
-    var ball = pos.fresh ? (picks.strike || game.ball) : (picks.spare || game.spareBall || game.ball);
-    ui.draft = { id: game.id, shots: shotCount(game), standing: [], hit: null, miss: null, ball: ball };
+    var carrying = S.currentBalls(game);
+    ui.draft = {
+      id: game.id, shots: shotCount(game), standing: [], hit: null, miss: null,
+      ball: pos.fresh ? carrying.strike : carrying.spare,
+    };
   }
 
   function entryPage(game) {
@@ -657,22 +673,33 @@
       ]));
     }
 
-    var balls = activeBalls();
-    if (balls.length > 1) {
-      var pic = thumb(d.ball, 'md');
-      var select = el('select', {
-        onchange: function () {
-          d.ball = select.value;
-          var picks = ui.picks[game.id] = ui.picks[game.id] || {};
-          picks[pos.fresh ? 'strike' : 'spare'] = d.ball;
-          var next = thumb(d.ball, 'md');
-          pic.replaceWith(next);
-          pic = next;
-        },
-      }, balls.map(function (b) { return el('option', { value: b.id, selected: b.id === d.ball }, b.name); }));
-      body.push(el('div', { class: 'sh-ballrow' }, [pic, field('Ball', select)]));
+    /* Which ball for this shot, and every one after it. */
+    var carrying = S.currentBalls(game);
+    var inHand = pos.fresh ? carrying.strike : carrying.spare;
+    var ids = activeBalls().map(function (b) { return b.id; });
+    [inHand, d.ball].forEach(function (id) { if (id && ids.indexOf(id) === -1) ids.push(id); });
+    var role = pos.fresh ? 'Ball' : 'Spare ball';
+    if (ids.length > 1) {
+      body.push(el('div', { class: 'sh-group' }, [
+        el('span', { class: 'sh-label', text: role }),
+        el('div', { class: 'sh-chips', role: 'group', 'aria-label': role }, ids.map(function (id) {
+          return el('button', {
+            type: 'button', class: 'sh-chip sh-ballchip' + (d.ball === id ? ' is-on' : ''),
+            'aria-pressed': d.ball === id ? 'true' : 'false',
+            onclick: function () { d.ball = id; refresh(); },
+          }, [thumb(id, 'sm'), el('span', { text: ballName(id) })]);
+        })),
+      ]));
+      if (d.ball !== inHand) {
+        body.push(el('p', { class: 'sh-note sh-switch', text: pos.fresh
+          ? 'Switching from ' + ballName(inHand) + ' to ' + ballName(d.ball) + '. First balls from here on use it' +
+            (game.spareBall ? '.' : ', and so do spares.')
+          : 'Switching spare ball from ' + ballName(inHand) + ' to ' + ballName(d.ball) + ' from here on.' }));
+      }
     } else {
       body.push(el('div', { class: 'sh-ballrow' }, [thumb(d.ball, 'md'), el('span', { class: 'sh-note', text: ballName(d.ball) })]));
+      body.push(el('p', { class: 'sh-hint' }, [
+        'Add more balls in your ', el('a', { href: '#/shots/arsenal', text: 'arsenal' }), ' to switch between them mid-game.']));
     }
 
     var ready = pos.fresh ? !!d.hit : (d.standing.length === 0 || !!d.miss);
@@ -687,6 +714,9 @@
         if (pos.fresh) input.hit = d.hit; else if (d.standing.length) input.miss = d.miss;
         var next;
         try { next = S.addShot(game, input); } catch (e) { return showError(err, e.message); }
+        /* A spare ball chosen here stays until you change it. Choosing the
+           strike ball again puts spares back on it. */
+        if (!pos.fresh) next.spareBall = d.ball === S.currentBalls(next).strike ? null : d.ball;
         saveGame(next).then(function () { ui.draft = null; entryPage(gameById(game.id)); },
           function (e) { showError(err, e.message); });
       }, 'primary', { disabled: !ready }),
@@ -766,7 +796,10 @@
     var ballsInGame = {};
     rows.forEach(function (r) { ballsInGame[r.c.ball] = true; });
     if (Object.keys(ballsInGame).length > 1) {
-      columns.push({ key: 'b', label: 'Ball', sortable: false, className: 'muted', render: function (r) { return ballName(r.c.ball); } });
+      columns.push({ key: 'b', label: 'Ball', sortable: false, className: 'col-tight',
+        render: function (r) {
+          return el('span', { title: ballName(r.c.ball), 'aria-label': ballName(r.c.ball) }, thumb(r.c.ball, 'sm'));
+        } });
     }
 
     var detail = [
@@ -775,8 +808,15 @@
       ['Oil pattern', game.pattern || '—'],
       ['Event', game.event ? game.event.charAt(0).toUpperCase() + game.event.slice(1) : '—'],
       ['Lane', game.lane || '—'],
-      ['Ball', el('span', { class: 'sh-ballrow' }, [thumb(game.ball, 'sm'), ballName(game.ball)])],
-      game.spareBall ? ['Spare ball', el('span', { class: 'sh-ballrow' }, [thumb(game.spareBall, 'sm'), ballName(game.spareBall)])] : null,
+      [S.ballsInGame(game).length > 1 ? 'Balls' : 'Ball', el('span', { class: 'sh-ballrow sh-wrap' },
+        S.ballsInGame(game).reduce(function (acc, id, i) {
+          if (i) acc.push(el('span', { class: 'sh-arrow', 'aria-hidden': 'true', text: '\u2192' }));
+          acc.push(el('span', { class: 'sh-ballrow' }, [thumb(id, 'sm'), ballName(id)]));
+          return acc;
+        }, []))],
+      S.switches(game).length ? ['Ball changes', S.switches(game).map(function (x) {
+        return 'Frame ' + x.frame + ': ' + ballName(x.from) + ' \u2192 ' + ballName(x.to) + (x.role === 'spare' ? ' (spares)' : '');
+      }).join('; ')] : null,
       game.notes ? ['Notes', game.notes] : null,
     ].filter(Boolean);
 
@@ -788,7 +828,13 @@
       head('Game: ' + sc.total, [UI.shortDate(game.date), game.pattern].filter(Boolean).join(' · ')),
       subnav('games'),
       el('section', { class: 'card sh-cardwrap' }, scorecard(game, null)),
-      UI.card(null, null, el('div', { class: 'card-body' }, tiles)),
+      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
+        tiles,
+        el('div', { class: 'sh-actions' }, [
+          el('a', { class: 'sh-btn is-primary', href: '#/shots/new', text: 'Bowl the next game' }),
+        ]),
+        S.switches(game).length ? el('p', { class: 'sh-note', text: 'A dot over a frame number on the card marks where the ball changed.' }) : null,
+      ])),
       UI.card('Conditions', null, el('dl', { class: 'sh-detail' }, detail.reduce(function (acc, row) {
         acc.push(el('dt', { text: row[0] }), typeof row[1] === 'object' ? el('dd', null, row[1]) : el('dd', { text: row[1] }));
         return acc;
@@ -878,6 +924,8 @@
       UI.stat('200+ games', stats.games ? stats.over200 + ' of ' + stats.games : '—'),
       UI.stat('Best strike run', String(stats.bestStreak), 'Most strikes in a row, fill balls included. Three in a row is a turkey: ' + stats.streaks3 + ' so far.'),
       UI.stat('Splits', pct1(stats.splitPct), 'How often the first ball left a split.'),
+      UI.stat('Strikes / game', UI.avg(stats.strikesPerGame), 'Strikes in an average game, fill balls included.'),
+      UI.stat('Ball changes', stats.games ? stats.switched + ' of ' + stats.games : '\u2014', 'Games where you switched balls partway through.'),
     ]);
 
     /* first-ball hits */
@@ -974,12 +1022,12 @@
 
     /* trend */
     var ordered = S.filter(pool, Object.assign({ pattern: f.pattern, location: f.location, event: f.event }, periodRange(f.period)))
-      .filter(function (g) { return !f.ball || g.ball === f.ball; })
+      .filter(function (g) { return !f.ball || S.primaryBall(g) === f.ball; })
       .sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || ''); });
     var trend = Charts.line({
       points: ordered.map(function (g, i) {
         return { label: UI.shortDate(g.date) + (g.pattern ? ' · ' + g.pattern : ''), axis: UI.shortDate(g.date),
-          value: S.score(g).total, caption: ballName(g.ball) };
+          value: S.score(g).total, caption: ballNames(g) };
       }),
       reference: stats.average == null ? null : { value: stats.average, label: 'avg ' + UI.avg(stats.average) },
       label: 'Game scores over time',
@@ -1038,7 +1086,7 @@
       el('div', null, [picker, rows.length
         ? UI.table({ columns: columns, rows: rows, state: ui.compareState, onSort: rerender })
         : UI.empty('Nothing to compare yet.')]),
-      'The same numbers for each ball, oil pattern, location, lane or event. Ball rows count the shots thrown with that ball: first balls on the strike ball, spare tries on the spare ball. Averages and highs are for games where it was the strike ball.');
+      'The same numbers for each ball, oil pattern, location, lane or event. Ball rows count the shots thrown with that ball: first balls on the strike ball, spare tries on the spare ball. Averages and highs are for games bowled mostly with it, meaning it threw the most first balls; a game where you switched counts toward one ball only.');
   }
 
   /* ---------- arsenal ---------- */
@@ -1111,7 +1159,7 @@
           el('strong', { text: b.name }),
           b.notes ? el('span', { class: 'sh-hint', text: b.notes }) : null,
           el('span', { class: 'sh-hint', text: s.racks
-            ? plural(s.games, 'game') + ' as strike ball · strike ' + pct(s.strikePct) + ' · spare ' + pct(s.sparePct) + (s.average != null ? ' · avg ' + UI.avg(s.average) : '')
+            ? plural(s.games, 'game') + ' as main ball · strike ' + pct(s.strikePct) + ' · spare ' + pct(s.sparePct) + (s.average != null ? ' · avg ' + UI.avg(s.average) : '')
             : 'Not used yet' }),
         ]),
         el('div', { class: 'sh-actions' }, [

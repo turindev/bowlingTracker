@@ -1505,3 +1505,22 @@ td.col-name .sub .team-no { margin-right: .35em; }
 }
 /* A bigger target than the dot, so a thumb can hit the right one. */
 .deck-pin::after { content: ''; position: absolute; inset: -6px; }
+
+/* ---------- switching balls ---------- */
+
+.sh-ballchip { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px 0 8px; }
+.sh-ballchip .sh-thumb { background: var(--surface); }
+.sh-switch { color: var(--text); font-weight: 600; }
+.sh-wrap { flex-wrap: wrap; }
+.sh-arrow { color: var(--text-dim); }
+/* A dot over the frame number where the ball changed. */
+.sh-frame.has-switch .sh-fno::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
