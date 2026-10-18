@@ -39,6 +39,9 @@ jobs:
       - name: Check the shot tracker's scoring and statistics
         run: node tools/test-shots.js
 
+      - name: Check the ball statistics
+        run: node tools/test-ballstats.js
+
       - name: Check the private vault's encryption and sync
         run: node tools/test-vault.js
 
