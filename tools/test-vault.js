@@ -174,6 +174,14 @@ const game = (id, at, extra) => Object.assign({ id, date: '2026-10-18', status: 
   check('merge is a union by id', m.games.map(g => g.id).join() === 'a,b,c', '');
   check('a tie keeps the local copy', m.games.find(g => g.id === 'b').x === 'mine', '');
 
+  const ms = Vault.mergeLibraries(
+    { balls: [], games: [], settings: { name: 'Old', updatedAt: '1' } },
+    { balls: [], games: [], settings: { name: 'New', updatedAt: '2' } });
+  check('settings: the later edit wins', ms.settings.name === 'New', JSON.stringify(ms.settings));
+  const mo = Vault.mergeLibraries({ balls: [], games: [] }, { balls: [], games: [], settings: { name: 'X', updatedAt: '1' } });
+  check('settings travel from the side that has them', mo.settings && mo.settings.name === 'X', '');
+  check('no settings stays no settings', !('settings' in Vault.mergeLibraries({ balls: [], games: [] }, { balls: [], games: [] })), '');
+
   console.log(ok.map(s => '  ok  ' + s).join('\n'));
   console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                            : '\nall vault assertions passed');

@@ -1563,3 +1563,8 @@ a.sh-score { font-weight: 650; color: var(--text); text-decoration: none; }
 a.sh-score:hover { color: var(--accent); text-decoration: underline; }
 a.sh-score.is-open { font-weight: 500; color: var(--text-dim); font-style: italic; }
 .sh-dot { color: var(--text-dim); }
+
+/* shareable pictures */
+.sh-share { display: flex; flex-direction: column; gap: 10px; }
+.sh-share-preview { display: block; width: 100%; max-width: 560px; height: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+.sh-share-preview.is-tall { max-height: 70vh; object-fit: contain; object-position: top left; width: auto; max-width: 100%; }

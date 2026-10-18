@@ -45,6 +45,21 @@
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
   function library() { return getVault().library() || { balls: [], games: [] }; }
+  /* The name printed on shared pictures. */
+  function shareName() { var st = library().settings; return st && st.name ? st.name : ''; }
+  function ballInfo(id) {
+    var b = library().balls.filter(function (x) { return x.id === id; })[0];
+    return { name: b ? b.name : '', image: b && b.image ? b.image : null };
+  }
+  function sharePanel(label, games, filename, kind) {
+    var done = games.filter(function (g) { return g.status === 'done'; });
+    return window.ShotsShare.panel({
+      label: label, kind: kind, filename: filename, title: label,
+      make: function () {
+        return window.Cards.scorecard(done, { name: shareName(), ballInfo: ballInfo });
+      },
+    });
+  }
   function allGames() { return library().games.filter(function (g) { return !g.deleted; }); }
   function allBalls() { return library().balls.filter(function (b) { return !b.deleted; }); }
   function activeBalls() { return allBalls().filter(function (b) { return !b.retired; }); }
@@ -474,6 +489,7 @@
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
         tiles,
         next ? el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots/new/' + set.id, text: 'Bowl game ' + (set.games.length + 1) + ' of ' + set.size })) : null,
+        done.length ? sharePanel(set.complete ? 'Share series scorecard' : 'Share scorecard so far', done, 'series-' + (set.date || today())) : null,
         set.games.length > 1 ? el('p', { class: 'sh-note', text: 'Games: ' + set.games.map(function (g) {
           return g.status === 'done' ? S.score(g).total : 'open';
         }).join(' · ') }) : null,
@@ -1090,6 +1106,7 @@
       ]),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
         tiles,
+        sharePanel('Share game scorecard', [game], 'game-' + (game.date || today())),
         mySet ? el('p', { class: 'sh-note sh-switch', text: mySet.complete
           ? 'Series complete: ' + mySet.total + ' (' + mySet.totals.join(' \u00b7 ') + ')'
           : setLabel(game) + ' bowled. Series so far: ' + mySet.total + '.' }) : null,
@@ -1490,8 +1507,55 @@
       head('Arsenal', 'Everything you bowl with'),
       subnav('arsenal'),
       UI.card('Your arsenal', 'Retiring a ball hides it from the pickers but keeps its history', el('div', { class: 'card-body sh-stack' }, [list])),
+      reportCard(pool),
       UI.card('Add to your arsenal', null, el('div', { class: 'card-body' }, add)),
     ]);
+  }
+
+  /* The ball report: pick balls, get a long infographic and a PDF. */
+  function reportCard(pool) {
+    var counts = {};
+    pool.forEach(function (g) { var id = S.primaryBall(g); if (id) counts[id] = (counts[id] || 0) + 1; });
+    var ready = allBalls().filter(function (b) { return counts[b.id] >= 2; })
+      .sort(function (a, b) { return counts[b.id] - counts[a.id]; });
+    var MAX = 4;
+    if (ready.length < 2) {
+      return UI.card('Ball report', 'A shareable infographic comparing your balls', el('div', { class: 'card-body' },
+        el('p', { class: 'sh-note', text: 'It needs at least two balls with two finished games each as the main ball. ' +
+          (ready.length ? ready[0].name + ' is the only one so far.' : 'None qualify yet.') })));
+    }
+    var boxes = ready.map(function (b, i) {
+      var box = el('input', { type: 'checkbox', value: b.id });
+      box.checked = i < MAX;
+      return box;
+    });
+    var err = el('p', { class: 'sh-note', hidden: true });
+    boxes.forEach(function (box) {
+      box.addEventListener('change', function () {
+        var on = boxes.filter(function (x) { return x.checked; }).length;
+        if (on > MAX) { box.checked = false; on--; }
+        err.hidden = on >= 2;
+        err.textContent = on >= 2 ? '' : 'Pick at least two balls.';
+      });
+    });
+    var panel = window.ShotsShare.panel({
+      label: 'Make ball report', kind: 'primary', filename: 'ball-report-' + today(), title: 'Ball report', pdf: true, tall: true,
+      make: function () {
+        var ids = boxes.filter(function (x) { return x.checked; }).map(function (x) { return x.value; });
+        if (ids.length < 2) return { error: 'Pick at least two balls.' };
+        var report = window.BallStats.build(pool, { ids: ids, maxBalls: MAX, label: ballName });
+        return window.Cards.ballReport(report, { name: shareName() });
+      },
+    });
+    return UI.card('Ball report', 'A shareable infographic comparing your balls',
+      el('div', { class: 'card-body sh-stack' }, [
+        el('p', { class: 'sh-note', text: 'Pick up to ' + MAX + ' balls. Every game counts toward the ball that threw most of its first balls. Differences between balls are tested, so small samples are called out as luck.' }),
+        el('div', { class: 'sh-stack' }, ready.map(function (b, i) {
+          return el('label', { class: 'sh-check' }, [boxes[i], thumb(b.id, 'sm'), el('span', { text: b.name + ' \u00b7 ' + plural(counts[b.id], 'game') })]);
+        })),
+        err,
+        panel,
+      ]));
   }
 
   /* ---------- settings ---------- */
@@ -1522,6 +1586,24 @@
       ]),
     ]);
 
+    var nameInput = el('input', { type: 'text', value: shareName(), autocapitalize: 'words', placeholder: 'e.g. Steven Smith' });
+    var nameNote = el('p', { class: 'sh-note', text: 'Printed on shared scorecards and reports.' });
+    var nameForm = el('form', {
+      class: 'sh-form',
+      onsubmit: function (e) {
+        e.preventDefault();
+        var value = nameInput.value.trim();
+        v.commit(function (lib) { lib.settings = { name: value, updatedAt: now() }; }).then(function () {
+          nameNote.textContent = value ? 'Saved.' : 'Cleared.';
+          backgroundSync();
+        }, function (ex) { nameNote.textContent = ex.message; });
+      },
+    }, [
+      field('Name on shared cards', nameInput),
+      nameNote,
+      el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Save name' })),
+    ]);
+
     var steps = el('ol', { class: 'sh-steps' }, [
       el('li', null, ['Open ', el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener', text: 'GitHub › New fine-grained token' }), '.']),
       el('li', { text: 'Name it anything, set a short expiry (90 days is sensible), and under Repository access choose Only select repositories › turindev/bowlingTracker.' }),
@@ -1547,6 +1629,7 @@
           }, 'primary'),
         ]),
       ])),
+      UI.card('Sharing', 'Scorecards and reports', el('div', { class: 'card-body sh-stack' }, nameForm)),
       UI.card('GitHub token', 'Lets this device save your games to the repo', el('div', { class: 'card-body sh-stack' }, [tokenForm, steps])),
       UI.card('Access', null, el('div', { class: 'card-body sh-stack' }, [
         el('label', { class: 'sh-check' }, [remembered, el('span', { text: 'Stay unlocked on this device for 30 days' })]),

@@ -150,11 +150,16 @@
   /* Union by id; where both sides have an item the later edit wins, and ties
      keep the local one. Deletions travel as `deleted: true` records. */
   function mergeLibraries(mine, theirs) {
-    return {
+    var merged = {
       v: 1,
       balls: mergeList(mine && mine.balls, theirs && theirs.balls),
       games: mergeList(mine && mine.games, theirs && theirs.games),
     };
+    /* Settings are one record: the later edit wins. */
+    var mineSet = mine && mine.settings, theirSet = theirs && theirs.settings;
+    var settings = mineSet && theirSet ? newer(mineSet, theirSet) : (mineSet || theirSet);
+    if (settings) merged.settings = settings;
+    return merged;
   }
 
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
