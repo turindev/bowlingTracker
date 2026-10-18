@@ -36,6 +36,12 @@ jobs:
       - name: Check how lines count
         run: node tools/test-lines.js
 
+      - name: Check the shot tracker's scoring and statistics
+        run: node tools/test-shots.js
+
+      - name: Check the private vault's encryption and sync
+        run: node tools/test-vault.js
+
   deploy:
     needs: check
     runs-on: ubuntu-latest

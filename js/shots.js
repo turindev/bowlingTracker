@@ -1,0 +1,563 @@
+/*
+ * Shot tracker engine: pure functions, no DOM, no storage.
+ *
+ * A game is a list of frames, a frame a list of shots, and a shot records the
+ * pins STILL STANDING after it (plus how it hit, or which way a spare was
+ * missed). Everything else — pins knocked, strikes, spares, splits, the
+ * scorecard, every statistic — is derived from that, so there is only one
+ * thing to get right at the lanes.
+ *
+ *   game = {
+ *     id, date, location, pattern, event, lane, notes,
+ *     ball, spareBall,          // ball ids; a shot carries the one used
+ *     status: 'open' | 'done',
+ *     frames: [{ shots: [{ standing: [..], hit?, miss?, ball? }] }],
+ *     createdAt, updatedAt, deleted?
+ *   }
+ *
+ * Works in the browser (window.Shots) and under Node (module.exports), so the
+ * rules can be tested without a browser.
+ */
+(function () {
+  'use strict';
+
+  var HITS = ['pocket', 'high', 'light', 'brooklyn', 'other'];
+  var HIT_LABELS = {
+    pocket: 'Pocket', high: 'High', light: 'Light', brooklyn: 'Brooklyn', other: 'Other',
+  };
+  var MISSES = ['left', 'right'];
+  var EVENTS = ['league', 'practice', 'tournament'];
+
+  var ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  /* The deck as it is drawn from behind the ball: back row first. */
+  var DECK = [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]];
+
+  /* Pins that touch each other. Two standing pins that do not touch, with the
+     headpin down, are a split. */
+  var TOUCH = {
+    1: [2, 3], 2: [1, 3, 4, 5], 3: [1, 2, 5, 6], 4: [2, 5, 7, 8], 5: [2, 3, 4, 6, 8, 9],
+    6: [3, 5, 9, 10], 7: [4, 8], 8: [4, 5, 7, 9], 9: [5, 6, 8, 10], 10: [6, 9],
+  };
+
+  var SPLIT_NAMES = {
+    '7-10': 'Bedposts', '4-6-7-10': 'Big four', '4-6-7-9-10': 'Greek church',
+    '4-6-7-8-10': 'Greek church', '2-7': 'Baby split', '3-10': 'Baby split',
+  };
+
+  function byNumber(a, b) { return a - b; }
+
+  function cleanPins(list) {
+    var seen = {};
+    return (list || []).map(Number).filter(function (p) {
+      if (!(p >= 1 && p <= 10) || p % 1 !== 0 || seen[p]) return false;
+      seen[p] = true;
+      return true;
+    }).sort(byNumber);
+  }
+
+  /* ---------- leaves ---------- */
+
+  function leaveKey(standing) {
+    return cleanPins(standing).join('-');
+  }
+
+  function components(pins) {
+    var left = pins.slice();
+    var count = 0;
+    while (left.length) {
+      count++;
+      var queue = [left.shift()];
+      while (queue.length) {
+        var pin = queue.pop();
+        TOUCH[pin].forEach(function (n) {
+          var i = left.indexOf(n);
+          if (i !== -1) { left.splice(i, 1); queue.push(n); }
+        });
+      }
+    }
+    return count;
+  }
+
+  /* A split: the headpin is down and the pins left are not all touching. */
+  function isSplit(standing) {
+    var pins = cleanPins(standing);
+    return pins.length >= 2 && pins.indexOf(1) === -1 && components(pins) > 1;
+  }
+
+  /* single | split | cluster — what kind of spare it is to pick up. */
+  function leaveType(standing) {
+    var pins = cleanPins(standing);
+    if (pins.length === 1) return 'single';
+    return isSplit(pins) ? 'split' : 'cluster';
+  }
+
+  function leaveLabel(standing) {
+    var pins = cleanPins(standing);
+    if (!pins.length) return 'Strike';
+    var key = pins.join('-');
+    if (pins.length === 1) return pins[0] + ' pin';
+    if (SPLIT_NAMES[key] && isSplit(pins)) return key + ' (' + SPLIT_NAMES[key] + ')';
+    return key + (isSplit(pins) ? ' split' : '');
+  }
+
+  /* ---------- walking a game ---------- */
+
+  /* Every shot in order, with the context it was bowled in. */
+  function walk(game) {
+    var out = [];
+    var frames = (game && game.frames) || [];
+    for (var f = 0; f < frames.length; f++) {
+      var shots = frames[f].shots || [];
+      var before = ALL;
+      var fresh = true;
+      for (var s = 0; s < shots.length; s++) {
+        var shot = shots[s];
+        var standing = cleanPins(shot.standing);
+        out.push({
+          f: f, s: s, shot: shot,
+          fresh: fresh,
+          before: before,
+          standing: standing,
+          knocked: before.length - standing.length,
+          strike: fresh && standing.length === 0,
+          spare: !fresh && standing.length === 0,
+          ball: shot.ball || null,
+        });
+        if (standing.length === 0) { before = ALL; fresh = true; }
+        else { before = standing; fresh = false; }
+      }
+    }
+    return out;
+  }
+
+  /* How many shots a frame takes, given the shots so far. null = unknown yet. */
+  function shotsNeeded(frameIndex, shots) {
+    if (!shots.length) return null;
+    var first = cleanPins(shots[0].standing).length === 0;
+    if (frameIndex < 9) return first ? 1 : 2;
+    if (first) return 3;
+    if (shots.length < 2) return null;
+    var second = cleanPins(shots[1].standing).length === 0;
+    return second ? 3 : 2;
+  }
+
+  function frameDone(frameIndex, shots) {
+    var need = shotsNeeded(frameIndex, shots || []);
+    return need != null && shots.length >= need;
+  }
+
+  function isComplete(game) {
+    var frames = (game && game.frames) || [];
+    return frames.length === 10 && frameDone(9, frames[9].shots || []);
+  }
+
+  /* Where the next shot goes, and what is standing for it. null when done. */
+  function position(game) {
+    var frames = (game && game.frames) || [];
+    var f = frames.length - 1;
+    if (f < 0 || frameDone(f, frames[f].shots || [])) {
+      if (frames.length >= 10) return null;
+      return {
+        frame: frames.length, shot: 0, fresh: true, before: ALL.slice(),
+        tenth: frames.length === 9,
+      };
+    }
+    var ctx = walk({ frames: [frames[f]] });
+    var last = ctx[ctx.length - 1];
+    var rackClear = last.standing.length === 0;
+    return {
+      frame: f, shot: ctx.length,
+      fresh: rackClear,
+      before: rackClear ? ALL.slice() : last.standing.slice(),
+      tenth: f === 9,
+    };
+  }
+
+  /* ---------- editing ---------- */
+
+  function copy(game) { return JSON.parse(JSON.stringify(game)); }
+
+  /* Adds a shot, or throws a plain-English error. Never mutates its input. */
+  function addShot(game, input) {
+    var pos = position(game);
+    if (!pos) throw new Error('This game is already complete.');
+
+    var standing = cleanPins(input.standing);
+    var stray = standing.filter(function (p) { return pos.before.indexOf(p) === -1; });
+    if (stray.length) {
+      throw new Error('Pin ' + stray[0] + ' was already down before this shot.');
+    }
+
+    var shot = { standing: standing };
+    if (pos.fresh) {
+      if (HITS.indexOf(input.hit) === -1) throw new Error('Say how the first ball hit.');
+      shot.hit = input.hit;
+    } else if (standing.length) {
+      if (MISSES.indexOf(input.miss) === -1) throw new Error('Say which way the spare was missed.');
+      shot.miss = input.miss;
+    }
+    if (input.ball) shot.ball = input.ball;
+
+    var next = copy(game);
+    next.frames = next.frames || [];
+    if (!next.frames.length || frameDone(next.frames.length - 1, next.frames[next.frames.length - 1].shots)) {
+      next.frames.push({ shots: [] });
+    }
+    next.frames[next.frames.length - 1].shots.push(shot);
+    return next;
+  }
+
+  /* Takes back the last shot. */
+  function undo(game) {
+    var next = copy(game);
+    var frames = next.frames || [];
+    while (frames.length && !frames[frames.length - 1].shots.length) frames.pop();
+    if (!frames.length) return next;
+    frames[frames.length - 1].shots.pop();
+    if (!frames[frames.length - 1].shots.length) frames.pop();
+    return next;
+  }
+
+  /* Drops frame `index` (0-based) and everything after, to re-bowl from there. */
+  function truncate(game, index) {
+    var next = copy(game);
+    next.frames = (next.frames || []).slice(0, Math.max(0, index));
+    return next;
+  }
+
+  /* ---------- scoring ---------- */
+
+  /* The scorecard: marks for each shot and running totals. A frame's total is
+     null until the shots its bonus depends on have been bowled. */
+  function score(game) {
+    var frames = (game && game.frames) || [];
+    var ctx = walk(game);
+
+    var rolls = [];
+    var firstRoll = [];
+    var marks = frames.map(function () { return []; });
+    var byFrame = frames.map(function () { return []; });
+    ctx.forEach(function (c) {
+      if (c.s === 0) firstRoll[c.f] = rolls.length;
+      rolls.push(c.knocked);
+      byFrame[c.f].push(c.knocked);
+
+      var text;
+      if (c.strike) text = 'X';
+      else if (c.spare) text = '/';
+      else text = c.knocked === 0 ? '-' : String(c.knocked);
+      marks[c.f].push({ text: text, split: c.fresh && isSplit(c.standing) });
+    });
+
+    var running = 0;
+    var totals = [];
+    var broke = false;
+    frames.forEach(function (frame, f) {
+      var own = byFrame[f];
+      var value = null;
+      if (!broke) {
+        var start = firstRoll[f];
+        if (f === 9) {
+          if (frameDone(9, frame.shots || [])) value = own.reduce(function (a, b) { return a + b; }, 0);
+        } else if (own[0] === 10) {
+          if (rolls.length >= start + 3) value = 10 + rolls[start + 1] + rolls[start + 2];
+        } else if (own.length === 2 && own[0] + own[1] === 10) {
+          if (rolls.length >= start + 3) value = 10 + rolls[start + 2];
+        } else if (own.length === 2) {
+          value = own[0] + own[1];
+        }
+      }
+      if (value == null) { broke = true; totals.push(null); return; }
+      running += value;
+      totals.push(running);
+    });
+
+    var complete = isComplete(game);
+    return {
+      frames: frames.map(function (frame, f) {
+        return { marks: marks[f], total: totals[f], rolls: byFrame[f] };
+      }),
+      total: complete ? totals[9] : null,
+      running: totals.filter(function (t) { return t != null; }).pop() || 0,
+      complete: complete,
+    };
+  }
+
+  /* ---------- statistics ---------- */
+
+  function ratio(n, d) { return d ? n / d : null; }
+
+  function emptyHit() { return { n: 0, strikes: 0, pins: 0 }; }
+
+  function bucket() {
+    return { attempts: 0, made: 0, left: 0, right: 0, unrecorded: 0 };
+  }
+
+  /* Matches games against a filter { pattern, location, event, lane, from, to }. */
+  function filter(games, f) {
+    f = f || {};
+    return (games || []).filter(function (g) {
+      if (g.deleted) return false;
+      if (f.pattern && (g.pattern || '') !== f.pattern) return false;
+      if (f.location && (g.location || '') !== f.location) return false;
+      if (f.event && (g.event || '') !== f.event) return false;
+      if (f.lane && String(g.lane || '') !== String(f.lane)) return false;
+      if (f.from && (g.date || '') < f.from) return false;
+      if (f.to && (g.date || '') > f.to) return false;
+      return true;
+    });
+  }
+
+  function finished(games) {
+    return (games || []).filter(function (g) {
+      return !g.deleted && g.status === 'done' && isComplete(g);
+    });
+  }
+
+  /* Everything worth knowing about a set of games. `opts.ball` narrows the
+     shot-level figures to one ball (and the game-level ones to games where
+     it was the strike ball). */
+  function analyze(games, opts) {
+    opts = opts || {};
+    var done = finished(games);
+    var ballId = opts.ball || null;
+
+    var totals = [];
+    var out = {
+      games: 0, average: null, high: null, low: null, sd: null,
+      over200: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null,
+      racks: 0, strikes: 0, strikePct: null, strikesPerGame: null,
+      attempts: 0, spares: 0, sparePct: null,
+      firstBallAvg: null,
+      single: bucket(), cluster: bucket(), split: bucket(),
+      splits: 0, splitPct: null,
+      hits: {}, hitsRecorded: 0,
+      misses: { left: 0, right: 0, total: 0, leftPct: null, rightPct: null },
+      leaves: [], byFrame: [],
+      bestStreak: 0, streaks3: 0, shots: 0,
+    };
+    HITS.forEach(function (h) { out.hits[h] = emptyHit(); });
+    for (var i = 1; i <= 10; i++) out.byFrame.push({ frame: i, racks: 0, strikes: 0, pct: null });
+
+    var leaves = {};
+    var firstPins = 0;
+
+    done.forEach(function (game) {
+      var ctx = walk(game);
+      var mine = ballId ? ctx.filter(function (c) { return c.ball === ballId; }) : ctx;
+      var gameIsMine = !ballId || game.ball === ballId;
+      var opensThisGame = 0;
+
+      mine.forEach(function (c) {
+        out.shots++;
+        if (c.fresh) {
+          out.racks++;
+          firstPins += c.knocked;
+          var frameStat = out.byFrame[c.f];
+          frameStat.racks++;
+          if (c.strike) { out.strikes++; frameStat.strikes++; }
+
+          var hit = out.hits[c.shot.hit];
+          if (hit) {
+            hit.n++;
+            hit.pins += c.knocked;
+            if (c.strike) hit.strikes++;
+            out.hitsRecorded++;
+          }
+
+          if (!c.strike) {
+            var key = leaveKey(c.standing);
+            var row = leaves[key] || (leaves[key] = {
+              key: key, label: leaveLabel(c.standing), type: leaveType(c.standing),
+              pins: c.standing.length, seen: 0, attempts: 0, made: 0, left: 0, right: 0,
+            });
+            row.seen++;
+            if (c.standing.indexOf(1) === -1 && isSplit(c.standing)) out.splits++;
+          }
+        } else {
+          /* A spare attempt, at the leave that was standing before it. */
+          out.attempts++;
+          var made = c.standing.length === 0;
+          if (made) out.spares++; else { out.opens++; opensThisGame++; }
+
+          var kind = out[leaveType(c.before)];
+          kind.attempts++;
+          if (made) kind.made++;
+          else if (c.shot.miss === 'left') kind.left++;
+          else if (c.shot.miss === 'right') kind.right++;
+          else kind.unrecorded++;
+
+          var leaveRow = leaves[leaveKey(c.before)];
+          if (leaveRow) {
+            leaveRow.attempts++;
+            if (made) leaveRow.made++;
+            else if (c.shot.miss === 'left') leaveRow.left++;
+            else if (c.shot.miss === 'right') leaveRow.right++;
+          }
+          if (!made && c.shot.miss) {
+            out.misses[c.shot.miss]++;
+            out.misses.total++;
+          }
+        }
+      });
+
+      if (gameIsMine) {
+        var total = score(game).total;
+        totals.push(total);
+        if (opensThisGame === 0) out.clean++;
+
+        /* Strike streaks run across frames and into the fill balls. */
+        var run = 0;
+        ctx.forEach(function (c) {
+          if (c.strike) {
+            run++;
+            if (run > out.bestStreak) out.bestStreak = run;
+            if (run === 3) out.streaks3++;
+          } else if (c.fresh) {
+            run = 0;
+          }
+        });
+      }
+    });
+
+    out.games = totals.length;
+    if (totals.length) {
+      var sum = totals.reduce(function (a, b) { return a + b; }, 0);
+      out.average = sum / totals.length;
+      out.high = Math.max.apply(null, totals);
+      out.low = Math.min.apply(null, totals);
+      out.over200 = totals.filter(function (t) { return t >= 200; }).length;
+      out.over250 = totals.filter(function (t) { return t >= 250; }).length;
+      if (totals.length > 1) {
+        out.sd = Math.sqrt(totals.reduce(function (a, t) {
+          return a + (t - out.average) * (t - out.average);
+        }, 0) / totals.length);
+      }
+      out.opensPerGame = out.opens / totals.length;
+      out.strikesPerGame = out.strikes / totals.length;
+    }
+
+    out.strikePct = ratio(out.strikes, out.racks);
+    out.sparePct = ratio(out.spares, out.attempts);
+    out.firstBallAvg = ratio(firstPins, out.racks);
+    out.splitPct = ratio(out.splits, out.racks);
+    out.misses.leftPct = ratio(out.misses.left, out.misses.total);
+    out.misses.rightPct = ratio(out.misses.right, out.misses.total);
+    ['single', 'cluster', 'split'].forEach(function (k) {
+      out[k].pct = ratio(out[k].made, out[k].attempts);
+    });
+    HITS.forEach(function (h) {
+      var hit = out.hits[h];
+      hit.pct = ratio(hit.n, out.hitsRecorded);
+      hit.strikePct = ratio(hit.strikes, hit.n);
+      hit.avgPins = ratio(hit.pins, hit.n);
+    });
+    out.byFrame.forEach(function (f) { f.pct = ratio(f.strikes, f.racks); });
+
+    out.leaves = Object.keys(leaves).map(function (k) {
+      var row = leaves[k];
+      row.pct = ratio(row.made, row.attempts);
+      return row;
+    }).sort(function (a, b) { return b.seen - a.seen || a.pins - b.pins || a.key.localeCompare(b.key); });
+
+    return out;
+  }
+
+  /* ---------- grouping ---------- */
+
+  function distinct(games, key) {
+    var seen = {};
+    (games || []).forEach(function (g) {
+      if (g.deleted) return;
+      var v = g[key];
+      if (v != null && v !== '') seen[String(v)] = true;
+    });
+    return Object.keys(seen).sort(function (a, b) {
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }
+
+  /* Balls that actually appear on a shot in these games. */
+  function ballsUsed(games) {
+    var seen = {};
+    finished(games).forEach(function (g) {
+      if (g.ball) seen[g.ball] = true;
+      if (g.spareBall) seen[g.spareBall] = true;
+      walk(g).forEach(function (c) { if (c.ball) seen[c.ball] = true; });
+    });
+    return Object.keys(seen);
+  }
+
+  /* One analysis per value of a dimension: pattern, location, event, lane or
+     ball. Rows come back sorted by games bowled, most first. */
+  function compare(games, dimension, labelOf) {
+    var done = finished(games);
+    var rows;
+    if (dimension === 'ball') {
+      rows = ballsUsed(done).map(function (id) {
+        return { key: id, label: labelOf ? labelOf(id) : id, stats: analyze(done, { ball: id }) };
+      });
+    } else {
+      var groups = {};
+      done.forEach(function (g) {
+        var v = g[dimension];
+        var key = v == null || v === '' ? '' : String(v);
+        (groups[key] = groups[key] || []).push(g);
+      });
+      rows = Object.keys(groups).map(function (key) {
+        return {
+          key: key,
+          label: key || 'Not recorded',
+          stats: analyze(groups[key]),
+        };
+      });
+    }
+    return rows.sort(function (a, b) {
+      return b.stats.games - a.stats.games || String(a.label).localeCompare(String(b.label));
+    });
+  }
+
+  /* ---------- small helpers ---------- */
+
+  function newGame(meta) {
+    var now = new Date().toISOString();
+    meta = meta || {};
+    return {
+      id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      date: meta.date || now.slice(0, 10),
+      location: meta.location || '',
+      pattern: meta.pattern || '',
+      event: EVENTS.indexOf(meta.event) === -1 ? 'practice' : meta.event,
+      lane: meta.lane == null ? '' : String(meta.lane),
+      ball: meta.ball || null,
+      spareBall: meta.spareBall || null,
+      notes: meta.notes || '',
+      status: 'open',
+      frames: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  function describeShot(pos, standing) {
+    var pins = cleanPins(standing);
+    var knocked = pos.before.length - pins.length;
+    if (!pins.length) return pos.fresh ? 'Strike' : 'Spare';
+    var base = knocked === 0 ? 'Miss' : knocked + (knocked === 1 ? ' pin' : ' pins');
+    return pos.fresh ? base + ' · ' + leaveLabel(pins) : base + ' · ' + pins.join('-') + ' left';
+  }
+
+  var api = {
+    HITS: HITS, HIT_LABELS: HIT_LABELS, MISSES: MISSES, EVENTS: EVENTS,
+    ALL: ALL, DECK: DECK,
+    cleanPins: cleanPins, leaveKey: leaveKey, leaveLabel: leaveLabel, leaveType: leaveType,
+    isSplit: isSplit,
+    walk: walk, position: position, isComplete: isComplete, frameDone: frameDone,
+    addShot: addShot, undo: undo, truncate: truncate, newGame: newGame,
+    score: score, analyze: analyze, compare: compare, filter: filter,
+    distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
+  };
+
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else window.Shots = api;
+})();

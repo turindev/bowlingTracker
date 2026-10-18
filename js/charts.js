@@ -123,10 +123,11 @@
       return drawColumns(width, points, options, tip);
     });
     if (!options.reference) return chart;
+    var keys = options.keys || {};
     return el('div', null, [
       el('p', { class: 'chart-key' }, [
-        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-above' }), 'Above average']),
-        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-below' }), 'Below average']),
+        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-above' }), keys.above || 'Above average']),
+        el('span', { class: 'chart-key-item' }, [el('i', { class: 'chart-key-swatch is-below' }), keys.below || 'Below average']),
       ]),
       chart,
     ]);
@@ -141,7 +142,8 @@
     var ref = options.reference || null;
 
     var top = points.reduce(function (max, p) { return Math.max(max, p.value); }, ref ? ref.value : 0);
-    var domain = [0, niceDomain(0, top || 1)[1]];
+    var domain = options.domain || [0, niceDomain(0, top || 1)[1]];
+    var formatAxis = options.formatAxis || function (v) { return UI.num(v); };
     function y(value) { return pad.top + plotH - (value / (domain[1] || 1)) * plotH; }
 
     var svg = node('svg', {
@@ -155,7 +157,7 @@
         class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: ty, y2: ty,
       }));
       var text = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: ty + 4, 'text-anchor': 'end' });
-      text.textContent = UI.num(value);
+      text.textContent = formatAxis(value);
       svg.appendChild(text);
     });
 
@@ -228,8 +230,9 @@
         var caption = point.caption || '';
         if (ref) {
           var diff = point.value - ref.value;
-          caption = (diff === 0 ? 'on average' : Math.abs(Math.round(diff * 10) / 10) +
-            (diff > 0 ? ' above' : ' below') + ' average') + (caption ? ' · ' + caption : '');
+          var word = options.referenceName || 'average';
+          caption = (diff === 0 ? 'on ' + word : Math.abs(Math.round(diff * 10) / 10) +
+            (diff > 0 ? ' above' : ' below') + ' ' + word) + (caption ? ' · ' + caption : '');
         }
         if (caption) tip.appendChild(el('small', { text: caption }));
         tip.classList.add('is-on');
