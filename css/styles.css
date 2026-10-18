@@ -1450,3 +1450,58 @@ td.col-name .sub .team-no { margin-right: .35em; }
   .sh-grid { grid-template-columns: 1fr; }
   .sh-pin { width: 54px; height: 54px; }
 }
+
+/* ---------- ball photos ---------- */
+
+.sh-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+.sh-thumb.is-sm { width: 28px; height: 28px; }
+.sh-thumb.is-md { width: 44px; height: 44px; }
+.sh-thumb.is-big { width: 96px; height: 96px; }
+.sh-thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1.5px dashed var(--border);
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 18px;
+  box-sizing: border-box;
+}
+.sh-thumb.is-sm.sh-thumb-empty { font-size: 12px; }
+.sh-ballrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sh-ballrow > select, .sh-ballrow > .sh-field { flex: 1 1 auto; min-width: 0; }
+.sh-photo-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.sh-photo-row .sh-stack { flex: 1 1 200px; gap: 8px; align-items: flex-start; }
+.sh-photo-row input[type="file"] { font: inherit; font-size: 14px; max-width: 100%; }
+.sh-ball { gap: 12px; }
+.sh-ball-main { flex: 1 1 180px; }
+
+/* ---------- the way in ---------- */
+
+/* An ornament, to anyone who does not know what it is. */
+.footer-deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 14px;
+  opacity: .55;
+  -webkit-tap-highlight-color: transparent;
+}
+.deck-row { display: flex; }
+.deck-pin {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  margin: 3px 4px;
+  border-radius: 50%;
+  background: var(--border);
+}
+/* A bigger target than the dot, so a thumb can hit the right one. */
+.deck-pin::after { content: ''; position: absolute; inset: -6px; }

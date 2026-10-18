@@ -44,6 +44,10 @@ against offline. Use four or more unrelated words.
 | `js/vault.js` | Encryption, device storage, GitHub sync, merging. Tested by `tools/test-vault.js` against `tools/fake-github.js`. |
 | `js/shots-ui.js` | The pages: unlock, new game, pin-deck entry, scorecard, stats, balls, settings. |
 
+Ball photos are shrunk in the browser (about 256px) and stored inside the
+encrypted library with the ball, so what is in the bag is as private as the
+scores.
+
 A shot records the pins **still standing** after it, plus `hit` (pocket / high /
 light / brooklyn / other) on a first ball, or `miss` (left / right) on a missed
 spare. Pins knocked, strikes, spares, splits and the scorecard are all derived.

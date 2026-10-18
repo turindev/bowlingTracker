@@ -54,6 +54,90 @@
   }
   function gameById(id) { return allGames().filter(function (g) { return g.id === id; })[0] || null; }
 
+  /* A ball's photo, or a plain disc with its initial until it has one. */
+  function thumb(id, size) {
+    var b = library().balls.filter(function (x) { return x.id === id; })[0];
+    var cls = 'sh-thumb' + (size ? ' is-' + size : '');
+    if (b && b.image) return el('img', { class: cls, src: b.image, alt: '' });
+    return el('span', { class: cls + ' sh-thumb-empty', 'aria-hidden': 'true',
+      text: b && b.name ? b.name.charAt(0).toUpperCase() : '' });
+  }
+
+  /* Shrinks a chosen photo to a small data URI. The photo is stored inside the
+     encrypted library, so it is kept small: a stock image of a ball loses
+     nothing at this size, and a transparent background stays transparent. */
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type || '')) {
+        return reject(new Error('That file is not an image.'));
+      }
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var best = null;
+        [256, 192, 144].some(function (max) {
+          var scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          var out = canvas.toDataURL('image/webp', 0.82);
+          /* Safari cannot write webp and answers with a png instead. */
+          if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+          best = out;
+          return out.length <= 90000;
+        });
+        URL.revokeObjectURL(url);
+        resolve(best);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('This browser could not read that image. A JPEG, PNG or WebP works.'));
+      };
+      img.src = url;
+    });
+  }
+
+  /* A photo chooser: value() is undefined if untouched, null if removed, or the new image. */
+  function photoField(current) {
+    var state = { value: undefined };
+    var preview = el('div', { class: 'sh-photo' });
+    var note = el('span', { class: 'sh-hint' });
+    var input = el('input', { type: 'file', accept: 'image/*', 'aria-label': 'Choose a photo' });
+    var remove = button('Remove photo', function () {
+      state.value = null;
+      input.value = '';
+      show();
+    });
+    function show() {
+      var src = state.value === undefined ? current : state.value;
+      UI.clear(preview);
+      preview.appendChild(src
+        ? el('img', { class: 'sh-thumb is-big', src: src, alt: 'Ball photo' })
+        : el('span', { class: 'sh-thumb is-big sh-thumb-empty', 'aria-hidden': 'true', text: '+' }));
+      remove.hidden = !src;
+    }
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      note.textContent = 'Preparing photo\u2026';
+      shrinkImage(file).then(function (uri) {
+        state.value = uri;
+        note.textContent = '';
+        show();
+      }, function (e) { note.textContent = e.message; });
+    });
+    show();
+    return {
+      node: el('div', { class: 'sh-field' }, [
+        el('span', { class: 'sh-label', text: 'Photo' }),
+        el('div', { class: 'sh-photo-row' }, [preview, el('div', { class: 'sh-stack' }, [input, remove, note])]),
+        el('span', { class: 'sh-hint', text: 'A stock image from the maker\u2019s website works well. Save it to your phone, then choose it here. It is kept inside your encrypted vault.' }),
+      ]),
+      value: function () { return state.value; },
+    };
+  }
+
   function draw(children) {
     UI.clear(ui.root);
     UI.append(ui.root, children.filter(Boolean));
@@ -73,7 +157,7 @@
     return el('nav', { class: 'tabs', 'aria-label': 'Shot tracker sections' }, [
       link('games', '#/shots', 'Games'),
       link('stats', '#/shots/stats', 'Stats'),
-      link('balls', '#/shots/balls', 'Balls'),
+      link('arsenal', '#/shots/arsenal', 'Arsenal'),
       link('settings', '#/shots/settings', 'Settings'),
     ]);
   }
@@ -128,7 +212,7 @@
     if (page === 'new') return newGamePage();
     if (page === 'game') return gamePage(p[1]);
     if (page === 'stats') return statsPage();
-    if (page === 'balls') return ballsPage();
+    if (page === 'arsenal' || page === 'balls') return arsenalPage();
     if (page === 'settings') return settingsPage();
     draw([head('Not found'), UI.card(null, null, el('p', { class: 'sh-note' }, [
       'There is no such page. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
@@ -321,12 +405,18 @@
     balls.forEach(function (b) { select.appendChild(el('option', { value: b.id }, b.name)); });
     select.appendChild(el('option', { value: NEW }, '＋ New ball…'));
     var input = el('input', { type: 'text', placeholder: 'Ball name', autocapitalize: 'words' });
-    function sync() { input.hidden = select.value !== NEW; }
+    var pic = thumb(null, 'md');
+    function sync() {
+      input.hidden = select.value !== NEW;
+      var next = thumb(select.value, 'md');
+      pic.replaceWith(next);
+      pic = next;
+    }
     select.addEventListener('change', sync);
     select.value = value && balls.some(function (b) { return b.id === value; }) ? value : (noneLabel ? '' : (balls[0] ? balls[0].id : NEW));
     sync();
     return {
-      node: field(label, el('div', { class: 'sh-pair' }, [select, input])),
+      node: field(label, el('div', { class: 'sh-pair' }, [el('div', { class: 'sh-ballrow' }, [pic, select]), input])),
       /* Resolves to { id } or { name } for a ball that still has to be created. */
       read: function () {
         if (select.value === NEW) return input.value.trim() ? { name: input.value.trim() } : { missing: true };
@@ -569,16 +659,20 @@
 
     var balls = activeBalls();
     if (balls.length > 1) {
+      var pic = thumb(d.ball, 'md');
       var select = el('select', {
         onchange: function () {
           d.ball = select.value;
           var picks = ui.picks[game.id] = ui.picks[game.id] || {};
           picks[pos.fresh ? 'strike' : 'spare'] = d.ball;
+          var next = thumb(d.ball, 'md');
+          pic.replaceWith(next);
+          pic = next;
         },
       }, balls.map(function (b) { return el('option', { value: b.id, selected: b.id === d.ball }, b.name); }));
-      body.push(field('Ball', select));
+      body.push(el('div', { class: 'sh-ballrow' }, [pic, field('Ball', select)]));
     } else {
-      body.push(el('p', { class: 'sh-note', text: 'Ball: ' + ballName(d.ball) }));
+      body.push(el('div', { class: 'sh-ballrow' }, [thumb(d.ball, 'md'), el('span', { class: 'sh-note', text: ballName(d.ball) })]));
     }
 
     var ready = pos.fresh ? !!d.hit : (d.standing.length === 0 || !!d.miss);
@@ -681,8 +775,8 @@
       ['Oil pattern', game.pattern || '—'],
       ['Event', game.event ? game.event.charAt(0).toUpperCase() + game.event.slice(1) : '—'],
       ['Lane', game.lane || '—'],
-      ['Ball', ballName(game.ball)],
-      game.spareBall ? ['Spare ball', ballName(game.spareBall)] : null,
+      ['Ball', el('span', { class: 'sh-ballrow' }, [thumb(game.ball, 'sm'), ballName(game.ball)])],
+      game.spareBall ? ['Spare ball', el('span', { class: 'sh-ballrow' }, [thumb(game.spareBall, 'sm'), ballName(game.spareBall)])] : null,
       game.notes ? ['Notes', game.notes] : null,
     ].filter(Boolean);
 
@@ -696,7 +790,7 @@
       el('section', { class: 'card sh-cardwrap' }, scorecard(game, null)),
       UI.card(null, null, el('div', { class: 'card-body' }, tiles)),
       UI.card('Conditions', null, el('dl', { class: 'sh-detail' }, detail.reduce(function (acc, row) {
-        acc.push(el('dt', { text: row[0] }), el('dd', { text: row[1] }));
+        acc.push(el('dt', { text: row[0] }), typeof row[1] === 'object' ? el('dd', null, row[1]) : el('dd', { text: row[1] }));
         return acc;
       }, []))),
       UI.card('Shot by shot', null, UI.table({ columns: columns, rows: rows, state: null, onSort: function () {} })),
@@ -923,7 +1017,11 @@
     }
     var columns = [
       col('name', ui.compareBy === 'ball' ? 'Ball' : dims.filter(function (d) { return d[0] === ui.compareBy; })[0][1],
-        function (r) { return r.name; }, function (r) { return r.name; }, { className: 'col-name', defaultDir: 'asc' }),
+        function (r) { return r.name; }, function (r) {
+          return ui.compareBy === 'ball'
+            ? el('span', { class: 'sh-ballrow' }, [thumb(r.key, 'sm'), r.name])
+            : r.name;
+        }, { className: 'col-name', defaultDir: 'asc' }),
       col('games', 'Games', function (r) { return r.s.games; }, function (r) { return String(r.s.games); }),
       col('avg', 'Avg', function (r) { return r.s.average; }, function (r) { return UI.avg(r.s.average); }, { className: 'num-strong' }),
       col('high', 'High', function (r) { return r.s.high; }, function (r) { return UI.num(r.s.high); }),
@@ -943,30 +1041,35 @@
       'The same numbers for each ball, oil pattern, location, lane or event. Ball rows count the shots thrown with that ball: first balls on the strike ball, spare tries on the spare ball. Averages and highs are for games where it was the strike ball.');
   }
 
-  /* ---------- balls ---------- */
+  /* ---------- arsenal ---------- */
 
-  function ballsPage() {
+  function arsenalPage() {
     var pool = S.finished(allGames());
     var balls = library().balls.filter(function (b) { return !b.deleted; });
     var stats = {};
     balls.forEach(function (b) { stats[b.id] = S.analyze(pool, { ball: b.id }); });
 
-    var name = el('input', { type: 'text', placeholder: 'e.g. Hammer Black Widow 2.0', autocapitalize: 'words', required: true });
+    var name = el('input', { type: 'text', placeholder: 'e.g. Storm Bionic', autocapitalize: 'words', required: true });
     var notes = el('input', { type: 'text', placeholder: 'Weight, coverstock, surface (optional)' });
+    var photo = photoField(null);
     var err = errorLine();
     var add = el('form', {
       class: 'sh-form',
       onsubmit: function (e) {
         e.preventDefault();
         if (!name.value.trim()) return showError(err, 'Give the ball a name.');
+        var image = photo.value();
         getVault().commit(function (lib) {
-          lib.balls.push({ id: uid('b'), name: name.value.trim(), notes: notes.value.trim(), updatedAt: now() });
+          var ball = { id: uid('b'), name: name.value.trim(), notes: notes.value.trim(), updatedAt: now() };
+          if (image) ball.image = image;
+          lib.balls.push(ball);
         }).then(rerender, function (ex) { showError(err, ex.message); });
       },
     }, [
-      el('div', { class: 'sh-grid' }, [field('New ball', name), field('Notes', notes)]),
+      el('div', { class: 'sh-grid' }, [field('Ball', name), field('Notes', notes)]),
+      photo.node,
       err,
-      el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Add ball' })),
+      el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Add to arsenal' })),
     ]);
 
     function update(id, change) {
@@ -981,19 +1084,29 @@
       if (ui.editingBall === b.id) {
         var n = el('input', { type: 'text', value: b.name });
         var m = el('input', { type: 'text', value: b.notes || '' });
+        var pic = photoField(b.image || null);
         return el('div', { class: 'sh-ball is-editing' }, [
-          el('div', { class: 'sh-grid' }, [field('Name', n), field('Notes', m)]),
-          el('div', { class: 'sh-actions' }, [
-            button('Save', function () {
-              if (!n.value.trim()) return;
-              ui.editingBall = null;
-              update(b.id, function (x) { x.name = n.value.trim(); x.notes = m.value.trim(); });
-            }, 'primary'),
-            button('Cancel', function () { ui.editingBall = null; rerender(); }),
+          el('div', { class: 'sh-stack' }, [
+            el('div', { class: 'sh-grid' }, [field('Name', n), field('Notes', m)]),
+            pic.node,
+            el('div', { class: 'sh-actions' }, [
+              button('Save', function () {
+                if (!n.value.trim()) return;
+                var image = pic.value();
+                ui.editingBall = null;
+                update(b.id, function (x) {
+                  x.name = n.value.trim();
+                  x.notes = m.value.trim();
+                  if (image === null) delete x.image; else if (image) x.image = image;
+                });
+              }, 'primary'),
+              button('Cancel', function () { ui.editingBall = null; rerender(); }),
+            ]),
           ]),
         ]);
       }
       return el('div', { class: 'sh-ball' + (b.retired ? ' is-retired' : '') }, [
+        thumb(b.id),
         el('div', { class: 'sh-ball-main' }, [
           el('strong', { text: b.name }),
           b.notes ? el('span', { class: 'sh-hint', text: b.notes }) : null,
@@ -1006,13 +1119,13 @@
           button(b.retired ? 'Bring back' : 'Retire', function () { update(b.id, function (x) { x.retired = !x.retired; }); }),
         ]),
       ]);
-    })) : UI.empty('No balls yet. Add the ones in your bag.');
+    })) : UI.empty('Nothing here yet. Add the balls in your bag.');
 
     draw([
-      head('Balls', 'Everything you bowl with'),
-      subnav('balls'),
-      UI.card('Your bag', 'Retiring a ball hides it from the pickers but keeps its history', el('div', { class: 'card-body sh-stack' }, [list])),
-      UI.card('Add a ball', null, el('div', { class: 'card-body' }, add)),
+      head('Arsenal', 'Everything you bowl with'),
+      subnav('arsenal'),
+      UI.card('Your arsenal', 'Retiring a ball hides it from the pickers but keeps its history', el('div', { class: 'card-body sh-stack' }, [list])),
+      UI.card('Add to your arsenal', null, el('div', { class: 'card-body' }, add)),
     ]);
   }
 
