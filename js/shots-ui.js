@@ -753,13 +753,16 @@
   function entryPage(game) {
     ui.game = game;
     var pos = S.position(game);
+    /* One short line instead of the title and tabs, so the entry controls
+       and Save stay on screen without scrolling. */
     var nodes = [
-      head(game.pattern || 'Game', [setLabel(game), UI.shortDate(game.date), game.location, game.lane ? 'lane ' + game.lane : null]
-        .filter(Boolean).join(' · ')),
-      subnav('games'),
-      el('section', { class: 'card sh-cardwrap' }, [
+      el('div', { class: 'sh-minihead' }, [
+        el('a', { href: '#/shots', class: 'sh-back', text: '\u2039 Games' }),
+        el('span', { class: 'sh-minititle', text: [game.pattern, setLabel(game), UI.shortDate(game.date), game.lane ? 'lane ' + game.lane : null]
+          .filter(Boolean).join(' \u00b7 ') }),
+      ]),
+      el('section', { class: 'card sh-cardwrap sh-cardwrap-tight' }, [
         scorecard(game, pos, { editable: true }),
-        shotCount(game) ? el('p', { class: 'sh-hint sh-tapnote', text: 'Tap a frame on the card to correct it.' }) : null,
       ]),
     ];
 
@@ -771,9 +774,11 @@
       fillPanel(game, pos, liveIO(game));
       nodes.push(ui.panel);
     }
-    nodes.push(el('p', { class: 'sh-note' }, [
-      el('a', { href: '#/shots', text: 'Leave this game for now' }),
-      ' — it is saved on this device after every shot and picks up where you left off.',
+    nodes.push(el('p', { class: 'sh-note sh-leave' }, [
+      shotCount(game) ? 'Tap a frame on the card to correct it. ' : null,
+      'Saved on this device after every shot, so ',
+      el('a', { href: '#/shots', text: 'leave any time' }),
+      ' and pick up later.',
     ]));
     draw(nodes);
   }
@@ -897,76 +902,32 @@
       io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
     }
 
-    var children = [
-      el('div', { class: 'card-head' }, [el('div', { class: 'card-title' }, el('h2', { text: title }))]),
-    ];
     var body = [];
 
-    /* The fast path: a strike, or the spare, in one tap. */
-    var noPins = d.standing.length === 0;
-    body.push(el('button', {
-      type: 'button',
-      class: 'sh-btn is-primary sh-quick',
-      disabled: !noPins,
-      onclick: function () {
-        if (pos.fresh) quick({ standing: [], hit: d.hit || undefined, ball: d.ball });
-        else quick({ standing: [], ball: d.ball });
-      },
-      title: pos.fresh ? 'Saves a strike right now' : 'Saves the spare right now',
-    }, [el('span', { class: 'sh-bolt', html: BOLT }), el('span', { text: pos.fresh ? 'Strike' : 'Spare' })]));
-    if (pos.fresh && d.hit) {
-      body.push(el('p', { class: 'sh-hint sh-center-text', text: 'Saves as a ' + S.HIT_LABELS[d.hit].toLowerCase() + ' strike.' }));
-    }
-
-    body.push(el('p', { class: 'sh-note', text: pos.fresh
-      ? 'Left some standing? Tap the pins that are still up; they fill in.'
-      : 'Pins left: ' + pos.before.join(', ') + '. Missed it? Tap the pins still up; they fill in.' }));
-
-    body.push(pinDeck(pos.before, d.standing, function (pin) {
-      var i = d.standing.indexOf(pin);
-      if (i === -1) d.standing.push(pin); else d.standing.splice(i, 1);
-      d.standing.sort(function (a, b) { return a - b; });
-      if (d.standing.length === 0) d.miss = null;
-      refresh();
-    }));
-
-    body.push(el('div', { class: 'sh-actions sh-center' }, [
-      button('Missed everything', function () { d.standing = pos.before.slice(); refresh(); }, null,
-        { disabled: d.standing.length === pos.before.length }),
-      d.standing.length ? button('Clear pins', function () { d.standing = []; d.miss = null; refresh(); }) : null,
-    ]));
-
-    if (pos.fresh) {
-      body.push(el('div', { class: 'sh-group' }, [
-        el('span', { class: 'sh-label', text: 'How did it hit? (optional)' }),
-        chips(S.HITS.map(function (h) { return { value: h, label: S.HIT_LABELS[h] }; }), d.hit,
-          function (v) { d.hit = d.hit === v ? null : v; refresh(); }, 'How the shot hit'),
-      ]));
-    } else if (d.standing.length) {
-      body.push(el('div', { class: 'sh-group' }, [
-        el('span', { class: 'sh-label', text: 'Which way did you miss? (optional)' }),
-        chips([{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }], d.miss,
-          function (v) { d.miss = d.miss === v ? null : v; refresh(); }, 'Which way the spare was missed'),
-      ]));
-    }
-
-    /* The ball: one quiet line, opened only to switch. */
+    /* The ball: one quiet line beside the title, opened only to switch. */
     var carrying = S.currentBalls(work);
     var inHand = pos.fresh ? carrying.strike : carrying.spare;
     var ids = activeBalls().map(function (b) { return b.id; });
     [inHand, d.ball].forEach(function (id) { if (id && ids.indexOf(id) === -1) ids.push(id); });
     var role = pos.fresh ? 'Ball' : 'Spare ball';
     var switching = d.ball !== inHand;
-    body.push(el('div', { class: 'sh-ballsum' }, [
-      el('span', { class: 'sh-ballrow' }, [
-        thumb(d.ball, 'sm'),
-        el('span', { class: 'sh-note' + (switching ? ' sh-switch' : ''), text: role + ': ' + ballName(d.ball) + (switching ? ' (switching)' : '') }),
+    var children = [
+      el('div', { class: 'card-head sh-entry-head' }, [
+        el('div', { class: 'card-title' }, el('h2', { text: title })),
+        el('div', { class: 'sh-ballsum' }, [
+          el('span', { class: 'sh-ballrow', title: role + ': ' + ballName(d.ball) }, [
+            thumb(d.ball, 'sm'),
+            el('span', { class: 'sh-note sh-ballname' + (switching ? ' sh-switch' : ''), text: ballName(d.ball) + (switching ? ' (switching)' : '') }),
+          ]),
+          ids.length > 1 ? el('button', {
+            type: 'button', class: 'link-button', 'aria-expanded': d.ballOpen ? 'true' : 'false',
+            onclick: function () { d.ballOpen = !d.ballOpen; refresh(); },
+          }, d.ballOpen ? 'Done' : 'Change') : null,
+        ]),
       ]),
-      ids.length > 1 ? el('button', {
-        type: 'button', class: 'link-button', 'aria-expanded': d.ballOpen ? 'true' : 'false',
-        onclick: function () { d.ballOpen = !d.ballOpen; refresh(); },
-      }, d.ballOpen ? 'Done' : 'Change') : null,
-    ]));
+    ];
+
+    /* Changing the ball opens a row above the controls. */
     if (d.ballOpen && ids.length > 1) {
       body.push(el('div', { class: 'sh-chips', role: 'group', 'aria-label': role }, ids.map(function (id) {
         return el('button', {
@@ -983,13 +944,68 @@
       }
     }
 
+    /* The fast path: a strike, or the spare, in one tap, beside the deck. */
+    var noPins = d.standing.length === 0;
+    var quickBtn = el('button', {
+      type: 'button',
+      class: 'sh-btn is-primary sh-quick',
+      disabled: !noPins,
+      onclick: function () {
+        if (pos.fresh) quick({ standing: [], hit: d.hit || undefined, ball: d.ball });
+        else quick({ standing: [], ball: d.ball });
+      },
+      title: pos.fresh ? 'Saves a strike right now' : 'Saves the spare right now',
+    }, [
+      el('span', { class: 'sh-bolt', html: BOLT }),
+      el('span', { class: 'sh-quick-text' }, [
+        el('span', { text: pos.fresh ? 'Strike' : 'Spare' }),
+        pos.fresh && d.hit ? el('small', { text: S.HIT_LABELS[d.hit].toLowerCase() }) : null,
+      ]),
+    ]);
+
+    var deck = pinDeck(pos.before, d.standing, function (pin) {
+      var i = d.standing.indexOf(pin);
+      if (i === -1) d.standing.push(pin); else d.standing.splice(i, 1);
+      d.standing.sort(function (a, b) { return a - b; });
+      if (d.standing.length === 0) d.miss = null;
+      refresh();
+    });
+
+    body.push(el('div', { class: 'sh-entrygrid' }, [
+      el('div', { class: 'sh-deckcol' }, [
+        el('span', { class: 'sh-hint', text: pos.fresh ? 'Tap the pins still up' : 'Left: ' + pos.before.join(', ') + ' · tap what is still up' }),
+        deck,
+      ]),
+      el('div', { class: 'sh-sidecol' }, [
+        quickBtn,
+        button('Missed all', function () { d.standing = pos.before.slice(); refresh(); }, null,
+          { disabled: d.standing.length === pos.before.length, title: 'Every pin still standing' }),
+        button('Clear pins', function () { d.standing = []; d.miss = null; refresh(); }, null, { disabled: !d.standing.length }),
+      ]),
+    ]));
+
+    if (pos.fresh) {
+      body.push(el('div', { class: 'sh-group' }, [
+        el('span', { class: 'sh-label', text: 'How did it hit? (optional)' }),
+        chips(S.HITS.map(function (h) { return { value: h, label: S.HIT_LABELS[h] }; }), d.hit,
+          function (v) { d.hit = d.hit === v ? null : v; refresh(); }, 'How the shot hit'),
+      ]));
+    } else {
+      /* Always drawn, so the Save button does not jump when a pin is tapped. */
+      body.push(el('div', { class: 'sh-group' + (d.standing.length ? '' : ' is-idle') }, [
+        el('span', { class: 'sh-label', text: 'Which way did you miss? (optional)' }),
+        chips([{ value: 'left', label: 'Left' }, { value: 'right', label: 'Right' }], d.miss,
+          function (v) { d.miss = d.miss === v ? null : v; refresh(); }, 'Which way the spare was missed'),
+      ]));
+    }
+
     /* Nothing is required: pins, how it hit and which way a spare went are all optional. */
     var ready = true;
     body.push(el('p', { class: 'sh-summary', text: S.describeShot(pos, d.standing) +
       (pos.fresh && d.hit ? ' · ' + S.HIT_LABELS[d.hit] : '') +
       (!pos.fresh && d.standing.length && d.miss ? ' · missed ' + d.miss : '') }));
     body.push(err);
-    body.push(el('div', { class: 'sh-actions' }, [
+    body.push(el('div', { class: 'sh-actions sh-saverow' }, [
       button('Save shot', function () {
         var input = { standing: d.standing, ball: d.ball };
         if (pos.fresh) input.hit = d.hit; else if (d.standing.length && d.miss) input.miss = d.miss;
@@ -997,7 +1013,7 @@
         try { next = S.addShot(work, input); } catch (e) { return showError(err, e.message); }
         io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
       }, d.standing.length || !pos.fresh ? 'primary' : null, { disabled: !ready }),
-      button('Undo last shot', function () { io.undo(); }, null, { disabled: !io.canUndo }),
+      button('Undo', function () { io.undo(); }, null, { disabled: !io.canUndo, title: 'Undo the last shot' }),
     ]));
 
     children.push(el('div', { class: 'card-body sh-stack' }, body));
@@ -1032,6 +1048,55 @@
   }
 
   /* ---------- a finished game ---------- */
+
+  /* Picked the wrong ball? Swap it, on this game or every game in the set that used it. */
+  function fixBallCard(game, mySet) {
+    var used = S.ballsInGame(game);
+    if (!used.length) return null;
+    var picks = used.map(function (id) { return { id: id, picker: ballPicker('Change ' + ballName(id) + ' to', 'Keep ' + ballName(id), '') }; });
+    var others = mySet ? mySet.games.filter(function (g) { return g.id !== game.id; }) : [];
+    var wholeSet = el('input', { type: 'checkbox' });
+    var err = errorLine();
+
+    function apply() {
+      var changes = [];
+      for (var i = 0; i < picks.length; i++) {
+        var to = picks[i].picker.read();
+        if (to.missing) return showError(err, 'Name the new ball, or pick one from the list.');
+        if (to.name || (to.id && to.id !== picks[i].id)) changes.push({ from: picks[i].id, to: to });
+      }
+      if (!changes.length) return showError(err, 'Pick a different ball first.');
+      showError(err, '');
+      getVault().commit(function (lib) {
+        var targets = wholeSet.checked ? others.map(function (g) { return g.id; }).concat(game.id) : [game.id];
+        changes.forEach(function (c) {
+          var to = c.to.id;
+          if (c.to.name) {
+            var ball = { id: uid('b'), name: c.to.name, updatedAt: now() };
+            lib.balls.push(ball);
+            to = ball.id;
+          }
+          lib.games.forEach(function (g, i) {
+            if (targets.indexOf(g.id) === -1 || g.deleted || S.ballsInGame(g).indexOf(c.from) === -1) return;
+            var fixed = S.replaceBall(g, c.from, to);
+            fixed.updatedAt = now();
+            lib.games[i] = fixed;
+          });
+        });
+      }).then(function () {
+        backgroundSync();
+        rerender();
+      }, function (ex) { showError(err, ex.message); });
+    }
+
+    return UI.card('Wrong ball?', 'Fix which ball was used. Your stats by ball follow the change', el('div', { class: 'card-body sh-stack' }, [
+      el('div', { class: 'sh-stack' }, picks.map(function (p) { return p.picker.node; })),
+      others.length ? el('label', { class: 'sh-check' }, [wholeSet, el('span', { text: 'Also fix the other ' + plural(others.length, 'game') + ' in this set that used it' })]) : null,
+      el('p', { class: 'sh-note', text: 'This changes the ball on every shot it threw. To change the ball for just one frame, tap that frame on the card.' }),
+      err,
+      el('div', { class: 'sh-actions' }, button('Change ball', apply, 'primary')),
+    ]));
+  }
 
   function reviewPage(game) {
     var mySet = game.setId ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === game.setId; })[0] : null;
@@ -1121,6 +1186,7 @@
         acc.push(el('dt', { text: row[0] }), typeof row[1] === 'object' ? el('dd', null, row[1]) : el('dd', { text: row[1] }));
         return acc;
       }, []))),
+      fixBallCard(game, mySet),
       UI.card('Shot by shot', null, UI.table({ columns: columns, rows: rows, state: null, onSort: function () {} })),
       UI.card('Fix or remove', null, el('div', { class: 'card-body sh-stack' }, [
         el('p', { class: 'sh-note', text: 'Entered one frame wrong? Tap it on the card above and enter just that frame again. To redo the whole rest of the game, re-bowl from a frame: that frame and everything after it is cleared and the game reopens.' }),

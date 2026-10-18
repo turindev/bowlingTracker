@@ -1568,3 +1568,46 @@ a.sh-score.is-open { font-weight: 500; color: var(--text-dim); font-style: itali
 .sh-share { display: flex; flex-direction: column; gap: 10px; }
 .sh-share-preview { display: block; width: 100%; max-width: 560px; height: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
 .sh-share-preview.is-tall { max-height: 70vh; object-fit: contain; object-position: top left; width: auto; max-width: 100%; }
+
+/* ---------- compact entry: the whole first shot fits on one phone screen ---------- */
+
+.sh-minihead { display: flex; align-items: baseline; gap: 10px; min-width: 0; padding: 2px 2px 0; }
+.sh-back { flex: none; font-weight: 700; font-size: 15px; color: var(--accent); text-decoration: none; }
+.sh-minititle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--text-dim); }
+.sh-cardwrap-tight { padding: 6px; }
+.sh-leave { text-align: center; }
+
+.sh-entry .sh-entry-head { flex-wrap: nowrap; align-items: center; padding: 8px 12px; gap: 10px; }
+.sh-entry .sh-entry-head h2 { white-space: nowrap; }
+.sh-entry .sh-ballsum { padding: 0; background: none; min-width: 0; flex: 0 1 auto; gap: 8px; }
+.sh-entry .sh-ballsum .sh-ballrow { min-width: 0; gap: 6px; }
+.sh-entry .sh-ballname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9.5em; }
+.sh-entry .card-body { padding: 10px 12px 12px; gap: 10px; }
+
+.sh-entrygrid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.sh-deckcol { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.sh-deckcol .sh-hint { font-size: 12px; text-align: center; }
+.sh-entry .sh-deck { gap: 6px; padding: 0; }
+.sh-entry .sh-row { gap: 6px; }
+.sh-entry .sh-pin { width: 46px; height: 46px; font-size: 15px; }
+.sh-sidecol { display: flex; flex-direction: column; gap: 8px; }
+.sh-sidecol .sh-quick { flex: 1 1 auto; min-height: 84px; flex-direction: column; gap: 4px; font-size: 20px; padding: 0 8px; }
+.sh-sidecol .sh-btn { padding: 0 8px; font-size: 14px; min-height: 40px; }
+.sh-sidecol .sh-quick .sh-bolt svg { width: 24px; height: 24px; }
+.sh-quick-text { display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.sh-quick-text small { font-size: 12px; font-weight: 600; opacity: .85; }
+
+.sh-entry .sh-group { gap: 4px; }
+.sh-entry .sh-group .sh-label { font-size: 12px; }
+.sh-entry .sh-group.is-idle .sh-chips { opacity: .45; pointer-events: none; }
+.sh-entry .sh-group .sh-chip { min-height: 38px; padding: 0 8px; font-size: 14px; min-width: 0; }
+.sh-entry .sh-group .sh-chips { gap: 6px; flex-wrap: nowrap; }
+.sh-entry .sh-summary { font-size: 14px; min-height: 1.3em; }
+.sh-saverow { flex-wrap: nowrap; }
+.sh-saverow .sh-btn { flex: 1 1 0; min-width: 0; }
+.sh-saverow .sh-btn:first-child { flex: 2 1 0; }
+
+@media (min-width: 700px) {
+  .sh-entry .sh-pin { width: 54px; height: 54px; }
+  .sh-entry .sh-group .sh-chips { flex-wrap: wrap; }
+}

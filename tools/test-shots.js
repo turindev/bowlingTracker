@@ -197,6 +197,22 @@ check('the ball comparison credits a series to the ball that threw most of its f
 check('a new set game records its place and length', (() => { const n = S.newGame({ setId: 'X', gameNo: 2, setSize: 3 }); return n.setId === 'X' && n.gameNo === 2 && n.setSize === 3; })() &&
       S.newGame({}).setId === null, '');
 
+// --- fixing a wrong ball afterwards --------------------------------------------------------
+(() => {
+  let g = S.newGame({ ball: 'A', spareBall: 'C' });
+  g = S.addShot(g, { standing: [10], ball: 'A' });
+  g = S.addShot(g, { standing: [], ball: 'C' });
+  g = S.addShot(g, { standing: [], ball: 'B' });
+  const fixed = S.replaceBall(g, 'A', 'B');
+  check('replaceBall swaps the ball on every shot that used it', S.ballsInGame(fixed).join() === 'B,C' && fixed.ball === 'B', S.ballsInGame(fixed).join());
+  check('and leaves the original untouched', g.ball === 'A' && g.frames[0].shots[0].ball === 'A', '');
+  check('replacing the spare ball with the strike ball clears the spare ball', S.replaceBall(g, 'C', 'A').spareBall === null, '');
+  check('replacing with the same ball changes nothing', JSON.stringify(S.replaceBall(g, 'A', 'A')) === JSON.stringify(g), '');
+  check('the game now counts toward the corrected ball', S.primaryBall(fixed) === 'B', S.primaryBall(fixed));
+  const legacy = S.addShot(S.newGame({ ball: 'A' }), { standing: [] });
+  check('a game with no per-shot balls follows the game ball', S.primaryBall(S.replaceBall(legacy, 'A', 'Z')) === 'Z', '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

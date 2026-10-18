@@ -245,6 +245,20 @@
     return next;
   }
 
+  /* The game with every use of ball `from` swapped for `to`: the ball it started
+     with, the spare ball, and each shot. For fixing a wrong pick afterwards. */
+  function replaceBall(game, from, to) {
+    var next = copy(game);
+    if (!to || from === to) return next;
+    if (next.ball === from) next.ball = to;
+    if (next.spareBall === from) next.spareBall = to;
+    if (next.spareBall && next.spareBall === next.ball) next.spareBall = null;
+    (next.frames || []).forEach(function (f) {
+      (f.shots || []).forEach(function (s) { if (s.ball === from) s.ball = to; });
+    });
+    return next;
+  }
+
   /* Drops frame `index` (0-based) and everything after, to re-bowl from there. */
   function truncate(game, index) {
     var next = copy(game);
@@ -733,7 +747,7 @@
     cleanPins: cleanPins, leaveKey: leaveKey, leaveLabel: leaveLabel, leaveType: leaveType,
     isSplit: isSplit,
     walk: walk, position: position, isComplete: isComplete, frameDone: frameDone,
-    addShot: addShot, undo: undo, truncate: truncate, replaceFrame: replaceFrame, newGame: newGame,
+    addShot: addShot, undo: undo, replaceBall: replaceBall, truncate: truncate, replaceFrame: replaceFrame, newGame: newGame,
     score: score, analyze: analyze, compare: compare, filter: filter,
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
