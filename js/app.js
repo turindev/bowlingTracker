@@ -2158,7 +2158,15 @@
     if (parts[0] === 'compare') return compareView(parts[1], parts[2]);
     if (parts[0] === 'week') return weekView(parts[1]);
     if (parts[0] === 'rules') return rulesView();
+    /* Not linked from anywhere: a private tool, behind a passphrase. */
+    if (parts[0] === 'shots') return shotsView(parts.slice(1));
     return overviewView();
+  }
+
+  function shotsView(rest) {
+    document.title = 'Shot tracker \u00b7 ' + APP_NAME;
+    if (!window.ShotsView) return notFound('The shot tracker did not load.');
+    window.ShotsView.mount(viewRoot, rest);
   }
 
   function navigated() {
