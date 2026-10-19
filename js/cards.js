@@ -70,8 +70,10 @@
      ====================================================================== */
 
   var SC = {
-    bg: '#09141d', line: '#1c2f3d', soft: '#6f8497', text: '#ffffff', blue: '#27b4ff',
-    amber: '#e8b53c', green: '#2fd39a', red: '#f0605d', grey: '#33434f', tenth: '#16211f', white: '#f3f8fb',
+    /* A plain dark mode: near-black with neutral greys, the bright marks doing the colouring. */
+    bg: '#121212', panel: '#1b1b1b', line: '#2e2e2e', soft: '#8c8c8c', text: '#ffffff', blue: '#27b4ff',
+    amber: '#e8b53c', green: '#2fd39a', red: '#f0605d', grey: '#404040', tenth: '#232323', white: '#f5f5f5',
+    disc: '#2a2a2a', sub: '#b8b8b8', foot: '#666666',
   };
 
   var DECK_ROWS = [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]];
@@ -119,7 +121,7 @@
     svg.text(x0 + width - 12, y0 + 34, sc.complete ? String(sc.total) : String(sc.running), { fontSize: 50, fontWeight: 700, fill: SC.text, textAnchor: 'end' });
 
     var top = y0 + 56, h = 222;
-    svg.rect(x0, top, width, h, { rx: 26, fill: '#0c1a25', stroke: SC.line, strokeWidth: 2 });
+    svg.rect(x0, top, width, h, { rx: 26, fill: SC.panel, stroke: SC.line, strokeWidth: 2 });
     var unit = width / 11;                         /* nine single frames and a double-width tenth */
     var clip = svg.id('c');
     svg.add('<clipPath id="' + clip + '"><rect x="' + x0 + '" y="' + top + '" width="' + width + '" height="' + h + '" rx="26"/></clipPath><g clip-path="url(#' + clip + ')">');
@@ -167,7 +169,7 @@
       svg.add('<image href="' + esc(ball.image) + '" x="' + r1(cx - r) + '" y="' + r1(cy - r) + '" width="' + r1(r * 2) + '" height="' + r1(r * 2) +
         '" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + clip + ')"/>');
     } else {
-      svg.circle(cx, cy, r, { fill: '#18303f', stroke: SC.line, strokeWidth: 2 });
+      svg.circle(cx, cy, r, { fill: SC.disc, stroke: SC.line, strokeWidth: 2 });
       svg.text(cx, cy + r * 0.3, ball && ball.name ? ball.name.charAt(0).toUpperCase() : '', { fontSize: r * 0.9, fontWeight: 700, fill: SC.soft, textAnchor: 'middle' });
     }
   }
@@ -190,7 +192,7 @@
     svg.text(X, 140, name || (series ? 'Series scorecard' : 'Game scorecard'), { fontSize: 66, fontWeight: 800, fill: SC.text, letterSpacing: -1 });
     var where = [first.location, first.pattern ? 'Oil: ' + first.pattern : null].filter(Boolean).join(' · ');
     svg.circle(X + 7, 178, 7, { fill: SC.soft });
-    svg.text(X + 38, 192, where || (first.event ? first.event.charAt(0).toUpperCase() + first.event.slice(1) : ''), { fontSize: 34, fill: '#aebdc9' });
+    svg.text(X + 38, 192, where || (first.event ? first.event.charAt(0).toUpperCase() + first.event.slice(1) : ''), { fontSize: 34, fill: SC.sub });
     svg.text(X, 236, longDate(first.date), { fontSize: 30, fill: SC.soft });
 
     /* The balls: one large, or a row of up to three. */
@@ -225,7 +227,7 @@
     } else {
       y += 40;
     }
-    svg.text(W / 2, H - 56, 'Shared from ' + (opts.brand || 'LeagueCraft'), { fontSize: 26, fill: '#4d6071', textAnchor: 'middle' });
+    svg.text(W / 2, H - 56, 'Shared from ' + (opts.brand || 'LeagueCraft'), { fontSize: 26, fill: SC.foot, textAnchor: 'middle' });
     return { svg: svg.toString(), width: W, height: H, total: total };
   }
 
