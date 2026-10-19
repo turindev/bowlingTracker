@@ -45,6 +45,9 @@ jobs:
       - name: Check the progress and ball-comparison figures
         run: node tools/test-trends.js
 
+      - name: Check importing games from a file
+        run: node tools/test-importer.js
+
       - name: Check the private vault's encryption and sync
         run: node tools/test-vault.js
 

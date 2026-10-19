@@ -1711,3 +1711,11 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .sh-scoretable thead th { color: var(--text); }
 .sh-heatmap th.sh-heat-ball { white-space: normal; min-width: 96px; }
 .sh-heatmap thead th { color: var(--text-dim); font-size: 12px; font-weight: 700; }
+
+/* import page */
+.sh-problems { margin: 0; padding-left: 20px; color: var(--loss); font-size: 14px; line-height: 1.5; }
+.sh-problems li + li { margin-top: 6px; }
+.sh-notes-list { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+.sh-code { margin: 0; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.45; background: var(--surface-2); border-radius: var(--radius-sm); }
+.sh-inline summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); padding: 4px 0; }
+.sh-inline.sh-details { border: 0; }

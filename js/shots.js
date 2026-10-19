@@ -203,6 +203,9 @@
       shot.miss = input.miss;
     }
     if (input.ball) shot.ball = input.ball;
+    /* Pins known only by how many were left, from an import: kept for the score
+       and the pin count, left out of the leave statistics. */
+    if (input.approx) shot.approx = true;
 
     var next = copy(game);
     next.frames = next.frames || [];
@@ -223,7 +226,7 @@
     for (var i = 0; i < index; i++) probe.frames.push({ shots: [{ standing: [] }] });
     (shots || []).forEach(function (shot) {
       probe = addShot(probe, {
-        standing: shot.standing, hit: shot.hit, miss: shot.miss, ball: shot.ball,
+        standing: shot.standing, hit: shot.hit, miss: shot.miss, ball: shot.ball, approx: shot.approx,
       });
     });
     var built = probe.frames[index];
@@ -459,7 +462,7 @@
             out.hitsRecorded++;
           }
 
-          if (!c.strike) {
+          if (!c.strike && !c.shot.approx) {
             var key = leaveKey(c.standing);
             var row = leaves[key] || (leaves[key] = {
               key: key, label: leaveLabel(c.standing), type: leaveType(c.standing),

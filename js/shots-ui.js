@@ -236,9 +236,22 @@
     if (page === 'stats') return statsPage();
     if (page === 'arsenal' || page === 'balls') return arsenalPage();
     if (page === 'settings') return settingsPage();
+    if (page === 'import') return getImport().page();
     draw([head('Not found'), UI.card(null, null, el('p', { class: 'sh-note' }, [
       'There is no such page. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
     ]))]);
+  }
+
+  var importer = null;
+  function getImport() {
+    if (!importer) {
+      importer = window.ShotsImport.create({
+        head: head, subnav: subnav, draw: draw, field: field, button: button, getVault: getVault,
+        library: function () { return getVault().library() || { balls: [], games: [] }; },
+        backgroundSync: backgroundSync, rerender: rerender, now: now, uid: uid,
+      });
+    }
+    return importer;
   }
 
   /* Pull in changes from other devices and push this one's, quietly. */
@@ -405,6 +418,7 @@
         ui.status = '';
         backgroundSync();
       }),
+      el('a', { class: 'sh-btn', href: '#/shots/import', text: 'Import games' }),
     ]));
     var line = syncLine();
     if (line) top.push(el('p', { class: 'sh-note', text: line }));
