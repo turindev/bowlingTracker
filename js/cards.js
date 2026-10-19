@@ -75,6 +75,7 @@
     amber: '#e8b53c', green: '#2fd39a', red: '#f0605d', grey: '#404040', tenth: '#232323', white: '#f5f5f5',
     disc: '#2a2a2a', sub: '#b8b8b8', foot: '#666666',
     flame: ['#ff9a2e', '#ff7a18', '#ff4a2a'], flameCore: '#ffd34d', ember: '#ff7a18',
+    gold: ['#ffe58f', '#f4b822', '#b9790a'], goldInk: '#2b1a00',
   };
 
   var DECK_ROWS = [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]];
@@ -123,10 +124,43 @@
     svg.path(S.ART.flameCore, { fill: SC.flameCore, transform: t });
   }
 
-  /* The badges a game earned, in a row after its title: flames and the name of the streak, a tick for a clean game. */
-  function drawBadges(svg, game, x, y) {
-    S.badges(game).forEach(function (b) {
-      if (b.key === 'hot') {
+  /* A trophy outline (a personal record), scaled and placed. */
+  function drawTrophy(svg, x, y, size, color) {
+    var k = size / 24;
+    svg.path(S.ART.trophy, { fill: 'none', stroke: color, strokeWidth: 2.4, strokeLinecap: 'round', strokeLinejoin: 'round',
+      transform: 'translate(' + r1(x) + ' ' + r1(y) + ') scale(' + r1(k * 100) / 100 + ')' });
+  }
+
+  /* An honor score: a gold pill, a star (two for the top honors) and the word, with a couple of sparkles. */
+  function drawHonor(svg, b, x, y) {
+    var stars = b.level >= 2 ? 2 : 1;
+    var w = 20 + stars * 34 + 5 * 21 + 22, top = y - 38, h = 56;
+    var gid = svg.id('hg');
+    svg.add('<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + SC.gold[0] + '"/><stop offset="0.55" stop-color="' + SC.gold[1] + '"/><stop offset="1" stop-color="' + SC.gold[2] + '"/></linearGradient></defs>');
+    svg.rect(x, top, w, h, { rx: 28, fill: 'url(#' + gid + ')' });
+    svg.rect(x + 3, top + 3, w - 6, h - 6, { rx: 25, fill: 'none', stroke: '#fff3c4', strokeWidth: 1.5, opacity: 0.7 });
+    for (var i = 0; i < stars; i++) {
+      var k = 44 / 24;
+      svg.path(S.ART.star, { fill: SC.goldInk, transform: 'translate(' + r1(x + 10 + i * 34) + ' ' + r1(top + 2) + ') scale(' + r1(k * 100) / 100 + ')' });
+    }
+    svg.text(x + 16 + stars * 34, y - 1, 'HONOR', { fontSize: 25, fontWeight: 800, fill: SC.goldInk, letterSpacing: 1.2 });
+    svg.path('M' + r1(x + w + 8) + ' ' + r1(top - 2) + 'l3 7l7 3l-7 3l-3 7l-3 -7l-7 -3l7 -3z', { fill: SC.gold[0] });
+    svg.path('M' + r1(x + w + 22) + ' ' + r1(top + 26) + 'l2 5l5 2l-5 2l-2 5l-2 -5l-5 -2l5 -2z', { fill: SC.gold[1] });
+    return w + 38;
+  }
+
+  /* Badges in a row from x on the baseline y: flames and the streak name, a tick for a clean game,
+     a trophy and PR for a record, and the gold pill for an honor score. */
+  function drawBadgeList(svg, list, x, y) {
+    list.forEach(function (b) {
+      if (b.key === 'honor') {
+        x += drawHonor(svg, b, x, y);
+      } else if (b.key === 'pr') {
+        drawTrophy(svg, x, y - 32, 34, SC.blue);
+        x += 44;
+        svg.text(x, y, 'PR', { fontSize: 25, fontWeight: 800, fill: SC.blue, letterSpacing: 1.2 });
+        x += 2 * 17 + 30;
+      } else if (b.key === 'hot') {
         for (var i = 0; i < b.level; i++) drawFlame(svg, x + i * 26, y - 30, 32, b.level);
         x += b.level * 26 + 14;
         svg.text(x, y, b.label.toUpperCase(), { fontSize: 25, fontWeight: 800, fill: SC.ember, letterSpacing: 1.2 });
@@ -141,12 +175,17 @@
     });
   }
 
+  /* The badges a game earned, in a row after its title. */
+  function drawBadges(svg, game, x, y, ctx) {
+    drawBadgeList(svg, S.badges(game, ctx), x, y);
+  }
+
   /* One game's card: ten frames, the marks, a leave diagram and the running total. */
-  function drawGame(svg, game, n, x0, y0, width) {
+  function drawGame(svg, game, n, x0, y0, width, ctx) {
     var sc = S.score(game);
     var hot = S.heatFrames(game);
     svg.text(x0 + 12, y0 + 30, 'GAME ' + n, { fontSize: 36, fontWeight: 700, fill: SC.blue, letterSpacing: 1.5 });
-    drawBadges(svg, game, x0 + 12 + 190, y0 + 28);
+    drawBadges(svg, game, x0 + 12 + 190, y0 + 28, ctx);
     svg.text(x0 + width - 12, y0 + 34, sc.complete ? String(sc.total) : String(sc.running), { fontSize: 50, fontWeight: 700, fill: SC.text, textAnchor: 'end' });
 
     var top = y0 + 56, h = 222;
@@ -244,7 +283,7 @@
 
     var y = 430;
     list.forEach(function (g, i) {
-      drawGame(svg, g, g.gameNo || i + 1, X, y, CW);
+      drawGame(svg, g, g.gameNo || i + 1, X, y, CW, opts.context);
       y += 336;
     });
 
@@ -252,6 +291,7 @@
     if (series) {
       svg.line(X, y + 8, W - X, y + 8, { stroke: SC.line, strokeWidth: 3 });
       svg.text(X, y + 152, 'SERIES TOTAL', { fontSize: 42, fontWeight: 800, fill: SC.green, letterSpacing: 1.5 });
+      if (opts.set && opts.context) drawBadgeList(svg, S.setBadges(opts.set, opts.context), X + 400, y + 150);
       svg.text(W - X - 4, y + 168, String(total), { fontSize: 128, fontWeight: 800, fill: SC.text, textAnchor: 'end', letterSpacing: -3 });
       y += 236;
     } else {

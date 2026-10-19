@@ -1766,3 +1766,29 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .sh-frame.is-hot { background: linear-gradient(to top, rgba(255, 100, 0, calc(.12 + var(--heat, .5) * .40)), rgba(255, 190, 50, calc(.03 + var(--heat, .5) * .12))); }
 .sh-frame.is-hot .sh-fno { background: rgba(255, 140, 40, .22); position: relative; }
 .sh-hotmark { display: inline-flex; margin-left: 3px; vertical-align: -1px; }
+
+/* personal records and honor scores */
+.sh-badge.is-pr { color: #0b57c4; background: #e8f1ff; border-color: #a9c9fb; }
+:root[data-theme="dark"] .sh-badge.is-pr { color: #8cc0ff; background: #12233b; border-color: #28497a; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sh-badge.is-pr { color: #8cc0ff; background: #12233b; border-color: #28497a; }
+}
+.art-trophy { stroke: currentColor; }
+.sh-badge.is-honor {
+  position: relative; overflow: hidden; color: #2b1a00; border-color: #b9790a; padding: 4px 12px 4px 8px; font-size: 14px; letter-spacing: .2px;
+  background: linear-gradient(120deg, #ffe58f 0%, #f4b822 45%, #ffe58f 60%, #d9962a 100%);
+  box-shadow: 0 0 0 1px #fff3c4 inset, 0 1px 8px rgba(244, 184, 34, .55);
+}
+.sh-badge.is-honor::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .75), transparent);
+  animation: sh-sheen 3.6s ease-in-out infinite;
+}
+@keyframes sh-sheen { 0%, 55% { left: -60%; } 100% { left: 130%; } }
+@media (prefers-reduced-motion: reduce) { .sh-badge.is-honor::after { animation: none; display: none; } }
+.sh-badge.is-honor.heat-2 { box-shadow: 0 0 0 1px #fff3c4 inset, 0 0 12px rgba(255, 196, 40, .85); }
+.art-medal { fill: #fff0b0; stroke: #8a5600; stroke-width: 1.4; }
+.art-star { fill: #8a5600; }
+.sh-badge-icon.is-pr { color: #1e6bff; }
+.sh-badge-icon.is-honor svg { filter: drop-shadow(0 0 3px rgba(244, 184, 34, .9)); }
+.sh-badge-icon.is-honor .art-medal { fill: #ffd34d; }

@@ -56,7 +56,7 @@
     return window.ShotsShare.panel({
       label: label, kind: kind, filename: filename, title: label,
       make: function () {
-        return window.Cards.scorecard(done, { name: shareName(), ballInfo: ballInfo });
+        return window.Cards.scorecard(done, { name: shareName(), ballInfo: ballInfo, context: badgeCtx(), set: done.length > 1 ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === done[0].setId; })[0] : null });
       },
     });
   }
@@ -160,6 +160,7 @@
   }
 
   function draw(children) {
+    badgeMemo = null;
     UI.clear(ui.root);
     UI.append(ui.root, children.filter(Boolean));
   }
@@ -461,7 +462,7 @@
         render: function (r) {
           var set = r.set;
           if (set.standalone) return el('span', { class: 'muted', text: '—' });
-          return set.complete ? String(set.total)
+          return set.complete ? el('span', null, [String(set.total), setBadgeIcons(set)])
             : el('span', { class: 'muted', title: set.finished + ' of ' + set.size + ' games bowled', text: set.total + ' (' + set.finished + '/' + set.size + ')' });
         } },
       { key: 'avg', label: 'Avg', value: function (r) { return r.set.average; }, render: function (r) { return UI.avg(r.set.average); } },
@@ -563,6 +564,7 @@
       head(heading, [UI.shortDate(set.date), set.pattern, set.location].filter(Boolean).join(' · ')),
       subnav('games'),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
+        setBadgeChips(set),
         tiles,
         next ? el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots/new/' + set.id, text: 'Bowl game ' + (set.games.length + 1) + ' of ' + set.size })) : null,
         done.length ? sharePanel(set.complete ? 'Share series scorecard' : 'Share scorecard so far', done, 'series-' + (set.date || today())) : null,
@@ -776,33 +778,58 @@
     if (kind === 'flame') {
       path(S.ART.flame, 'art-flame fl-' + (level || 1));
       path(S.ART.flameCore, 'art-core');
+    } else if (kind === 'trophy') {
+      path(S.ART.trophy, 'art-trophy', { fill: 'none', 'stroke-width': '2.2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    } else if (kind === 'honor') {
+      path(S.ART.medal, 'art-medal');
+      path(S.ART.star, 'art-star');
     } else {
       path(S.ART.check, 'art-check', { fill: 'none', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
     }
     return svg;
   }
 
-  /* The badges a game earned, as chips: "Turkey" with its flames, "Clean game" with a tick. */
-  function badgeChips(game) {
-    var list = S.badges(game);
+  /* What badges need to know about all the games (the records, the honor lines).
+     Worked out once per page drawn, not once per badge. */
+  var badgeMemo = null;
+  function badgeCtx() {
+    if (!badgeMemo) { var lib = library(); badgeMemo = S.context(lib.games || [], lib.settings || {}); }
+    return badgeMemo;
+  }
+
+  /* One badge's pictures: flames for a hot streak, a tick for a clean game, a cup
+     for a record, a medal with stars for an honor score. */
+  function badgeArt(b, size) {
+    if (b.key === 'hot') { var f = []; for (var i = 0; i < b.level; i++) f.push(artSvg('flame', b.level, size)); return f; }
+    if (b.key === 'pr') return [artSvg('trophy', 0, size)];
+    if (b.key === 'honor') return [artSvg('honor', b.level, size + 2)];
+    return [artSvg('check', 0, size)];
+  }
+
+  function chipsFor(list) {
     if (!list.length) return null;
     return el('div', { class: 'sh-badges' }, list.map(function (b) {
-      var icons = [];
-      if (b.key === 'hot') for (var i = 0; i < b.level; i++) icons.push(artSvg('flame', b.level, 16));
-      else icons.push(artSvg('check', 0, 16));
-      return el('span', { class: 'sh-badge is-' + b.key + (b.key === 'hot' ? ' heat-' + b.level : ''), title: b.title }, icons.concat([el('span', { text: b.label })]));
+      var label = b.key === 'pr' || b.key === 'honor' ? b.label + ' \u00b7 ' + b.total : b.label;
+      return el('span', { class: 'sh-badge is-' + b.key + (b.key === 'hot' || b.key === 'honor' ? ' heat-' + b.level : ''), title: b.title }, badgeArt(b, 16).concat([el('span', { text: label })]));
+    }));
+  }
+
+  /* The badges a game earned, as chips: "Turkey" with its flames, "Clean game" with a tick, "PR game 247". */
+  function badgeChips(game) { return chipsFor(S.badges(game, badgeCtx())); }
+
+  /* The badges of a whole series: honor series, PR series. */
+  function setBadgeChips(set) { return chipsFor(S.setBadges(set, badgeCtx())); }
+
+  function iconsFor(list) {
+    if (!list.length) return null;
+    return el('span', { class: 'sh-badge-icons' }, list.map(function (b) {
+      return el('span', { class: 'sh-badge-icon is-' + b.key, title: b.title, role: 'img', 'aria-label': b.title }, badgeArt(b, 14)[0]);
     }));
   }
 
   /* The same badges as bare icons, small enough to sit beside a score in a list. */
-  function badgeIcons(game) {
-    var list = S.badges(game);
-    if (!list.length) return null;
-    return el('span', { class: 'sh-badge-icons' }, list.map(function (b) {
-      return el('span', { class: 'sh-badge-icon is-' + b.key, title: b.title, role: 'img', 'aria-label': b.title },
-        b.key === 'hot' ? artSvg('flame', b.level, 14) : artSvg('check', 0, 14));
-    }));
-  }
+  function badgeIcons(game) { return iconsFor(S.badges(game, badgeCtx())); }
+  function setBadgeIcons(set) { return iconsFor(S.setBadges(set, badgeCtx())); }
 
   function scorecard(game, pos, opts) {
     opts = opts || {};
@@ -2235,7 +2262,7 @@
       onsubmit: function (e) {
         e.preventDefault();
         var value = nameInput.value.trim();
-        v.commit(function (lib) { lib.settings = { name: value, updatedAt: now() }; }).then(function () {
+        v.commit(function (lib) { lib.settings = Object.assign({}, lib.settings, { name: value, updatedAt: now() }); }).then(function () {
           nameNote.textContent = value ? 'Saved.' : 'Cleared.';
           backgroundSync();
         }, function (ex) { nameNote.textContent = ex.message; });
@@ -2244,6 +2271,27 @@
       field('Name on shared cards', nameInput),
       nameNote,
       el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Save name' })),
+    ]);
+
+    var honorNow = S.honorLimits(library().settings);
+    var honorGame = el('input', { type: 'number', inputmode: 'numeric', min: '1', max: '300', value: String(honorNow.game) });
+    var honorSeries = el('input', { type: 'number', inputmode: 'numeric', min: '1', max: '900', value: String(honorNow.series) });
+    var honorNote = el('p', { class: 'sh-note', text: 'A game or a 3-game series at or above these gets the gold honor badge. 300 and 800 earn the top honor.' });
+    var honorForm = el('form', {
+      class: 'sh-form',
+      onsubmit: function (e) {
+        e.preventDefault();
+        var g = Math.round(Number(honorGame.value)), r = Math.round(Number(honorSeries.value));
+        if (!(g > 0 && g <= 300) || !(r > 0 && r <= 900)) { honorNote.textContent = 'Use a game from 1 to 300 and a series from 1 to 900.'; return; }
+        v.commit(function (lib) { lib.settings = Object.assign({}, lib.settings, { honorGame: g, honorSeries: r, updatedAt: now() }); }).then(function () {
+          honorNote.textContent = 'Saved.';
+          backgroundSync();
+        }, function (ex) { honorNote.textContent = ex.message; });
+      },
+    }, [
+      el('div', { class: 'sh-grid' }, [field('Honor game', honorGame), field('Honor series (3 games)', honorSeries)]),
+      honorNote,
+      el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Save honor scores' })),
     ]);
 
     var steps = el('ol', { class: 'sh-steps' }, [
@@ -2272,6 +2320,7 @@
         ]),
       ])),
       UI.card('Sharing', 'Scorecards and reports', el('div', { class: 'card-body sh-stack' }, nameForm)),
+      UI.card('Honor scores', 'What earns the gold badge', el('div', { class: 'card-body sh-stack' }, honorForm)),
       UI.card('GitHub token', 'Lets this device save your games to the repo', el('div', { class: 'card-body sh-stack' }, [tokenForm, steps])),
       UI.card('Access', null, el('div', { class: 'card-body sh-stack' }, [
         el('label', { class: 'sh-check' }, [remembered, el('span', { text: 'Stay unlocked on this device for 30 days' })]),
