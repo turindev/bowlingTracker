@@ -2202,8 +2202,7 @@
      this is only about not putting a door in front of everyone.
        1. The ten dots under the footer are a pin deck. Pick up the 7-10 split:
           tap the 7, then the 10.
-       2. A perfect game is twelve strikes: tap the logo twelve times, each
-          within a moment of the last. */
+       2. Tap the logo five times, each within a moment of the last. */
   function initSecrets() {
     function enter() {
       try { if (navigator.vibrate) navigator.vibrate([25, 45, 25]); } catch (e) { /* no haptics */ }
@@ -2237,7 +2236,7 @@
         taps = t - last < 1500 ? taps + 1 : 1;
         last = t;
         /* The logo is a link home; stop that from undoing the way in. */
-        if (taps >= 12) { taps = 0; e.preventDefault(); enter(); }
+        if (taps >= 5) { taps = 0; e.preventDefault(); enter(); }
       });
     }
   }
