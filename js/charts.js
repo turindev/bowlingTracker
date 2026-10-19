@@ -221,6 +221,245 @@
     return svg;
   }
 
+  /* ---- series through real time ---------------------------------------
+     series: { key (colour slot s1..s4), name, points: [{ t (day number), v,
+     label, caption }], dots: [{ t, v }] faint raw values behind the line }.
+     Several balls or measures share one time axis even if they were bowled
+     on different nights. Hover or drag across it: the nearest point is
+     picked out with a crosshair and a tooltip.
+     -------------------------------------------------------------------- */
+  function timeseries(options) {
+    var series = (options.series || []).filter(function (s) { return s.points.length; });
+    if (!series.length) return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
+    var keys = series.map(function (s) {
+      return el('span', { class: 'chart-key' }, [el('i', { class: 'chart-swatch ml-' + s.key }), s.name]);
+    });
+    if (options.reference) keys.push(el('span', { class: 'chart-key' }, [el('i', { class: 'chart-swatch is-ref' }), options.reference.label]));
+    var wrap = responsive(function (width, tip) { return drawTime(width, series, options, tip); });
+    return el('div', null, [series.length > 1 || options.reference || options.legend ? el('div', { class: 'chart-legend' }, keys) : null, wrap]);
+  }
+
+  function drawTime(width, series, options, tip) {
+    var height = options.height || 240;
+    var pad = { top: 12, right: 44, bottom: 26, left: 40 };
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var plotH = height - pad.top - pad.bottom;
+    var format = options.format || function (v) { return UI.num(v); };
+    var tFormat = options.tFormat || function (t) { return String(t); };
+
+    var ts = [], vs = [];
+    series.forEach(function (s) {
+      s.points.concat(s.dots || []).forEach(function (p) { ts.push(p.t); vs.push(p.v); });
+    });
+    if (options.reference) vs.push(options.reference.value);
+    var t0 = Math.min.apply(null, ts), t1 = Math.max.apply(null, ts);
+    var domain = options.domain || niceDomain(Math.min.apply(null, vs), Math.max.apply(null, vs));
+    function x(t) { return t1 === t0 ? pad.left + plotW / 2 : pad.left + ((t - t0) / (t1 - t0)) * plotW; }
+    function y(v) { return pad.top + plotH - ((v - domain[0]) / (domain[1] - domain[0] || 1)) * plotH; }
+
+    var svg = node('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': options.label || 'Trend' });
+    ticks(domain, options.integerTicks !== false).forEach(function (v) {
+      svg.appendChild(node('line', { class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: y(v), y2: y(v) }));
+      var tx = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: y(v) + 4, 'text-anchor': 'end' });
+      tx.textContent = (options.formatAxis || function (n) { return UI.num(n); })(v);
+      svg.appendChild(tx);
+    });
+    if (options.reference) {
+      svg.appendChild(node('line', { class: 'chart-ref ml-ref', x1: pad.left, x2: pad.left + plotW, y1: y(options.reference.value), y2: y(options.reference.value) }));
+    }
+    var count = Math.max(2, Math.min(5, Math.floor(plotW / 78)));
+    for (var i = 0; i < count; i++) {
+      var tt = t0 + (t1 - t0) * (i / (count - 1));
+      var lbl = node('text', { class: 'chart-axis-label', x: x(tt), y: height - 8, 'text-anchor': i === 0 ? 'start' : i === count - 1 ? 'end' : 'middle' });
+      lbl.textContent = tFormat(Math.round(tt));
+      svg.appendChild(lbl);
+      if (t1 === t0) break;
+    }
+
+    var cross = node('line', { class: 'chart-cross', x1: 0, x2: 0, y1: pad.top, y2: pad.top + plotH, visibility: 'hidden' });
+    svg.appendChild(cross);
+    var focus = node('circle', { class: 'ts-focus', r: 6, cx: 0, cy: 0, visibility: 'hidden' });
+
+    var ends = [];
+    series.forEach(function (s) {
+      (s.dots || []).forEach(function (p) {
+        svg.appendChild(node('circle', { class: 'ts-raw ml-' + s.key, cx: x(p.t), cy: y(p.v), r: 2.6 }));
+      });
+      if (s.points.length > 1) {
+        svg.appendChild(node('polyline', { class: 'ml-line ml-' + s.key, points: s.points.map(function (p) { return x(p.t) + ',' + y(p.v); }).join(' ') }));
+      }
+      var last = s.points[s.points.length - 1];
+      svg.appendChild(node('circle', { class: 'ml-dot ml-' + s.key, cx: x(last.t), cy: y(last.v), r: 4 }));
+      if (options.endLabels !== false) ends.push({ y: y(last.v), text: (options.formatEnd || format)(last.v), key: s.key });
+    });
+    ends.sort(function (a, b) { return a.y - b.y; });
+    for (var k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 14) ends[k].y = ends[k - 1].y + 14;
+    ends.forEach(function (e) {
+      svg.appendChild(node('circle', { class: 'ml-swatch ml-' + e.key, cx: pad.left + plotW + 10, cy: e.y, r: 3.5 }));
+      var tx = node('text', { class: 'ml-end', x: pad.left + plotW + 17, y: e.y + 4 });
+      tx.textContent = e.text;
+      svg.appendChild(tx);
+    });
+    svg.appendChild(focus);
+
+    var cover = node('rect', { class: 'chart-hit', x: pad.left, y: pad.top, width: plotW, height: plotH });
+    svg.appendChild(cover);
+    function nearest(px) {
+      var best = null;
+      series.forEach(function (s) {
+        s.points.forEach(function (p) {
+          var d = Math.abs(x(p.t) - px);
+          if (!best || d < best.d) best = { d: d, p: p, s: s };
+        });
+      });
+      return best;
+    }
+    function move(ev) {
+      var box = svg.getBoundingClientRect();
+      var hit = nearest(ev.clientX - box.left);
+      if (!hit) return;
+      var px = x(hit.p.t), py = y(hit.p.v);
+      cross.setAttribute('x1', px); cross.setAttribute('x2', px); cross.setAttribute('visibility', 'visible');
+      focus.setAttribute('cx', px); focus.setAttribute('cy', py); focus.setAttribute('visibility', 'visible');
+      tip.textContent = '';
+      tip.appendChild(el('strong', { text: hit.p.label || tFormat(hit.p.t) }));
+      tip.appendChild(el('span', { class: 'chart-tip-row' }, [el('i', { class: 'chart-swatch ml-' + hit.s.key }), el('b', { text: format(hit.p.v) }), ' ' + hit.s.name]));
+      if (hit.p.caption) tip.appendChild(el('small', { text: hit.p.caption }));
+      tip.classList.add('is-on');
+      var w = tip.offsetWidth;
+      tip.style.left = Math.max(2, Math.min(width - w - 2, px - w / 2)) + 'px';
+      tip.style.top = Math.max(0, py - tip.offsetHeight - 12) + 'px';
+    }
+    function leave() { cross.setAttribute('visibility', 'hidden'); focus.setAttribute('visibility', 'hidden'); tip.classList.remove('is-on'); }
+    cover.addEventListener('pointermove', move);
+    cover.addEventListener('pointerdown', move);
+    cover.addEventListener('pointerleave', leave);
+    svg.addEventListener('mouseleave', leave);
+    return svg;
+  }
+
+  /* ---- ranges: a typical spread for each of several things --------------
+     rows: { key (colour slot), label, lo, hi, mid, mean, text, caption }.
+     The band is the low-to-high range (for scores, the tenth to the ninetieth
+     percentile), the black tick is the median and the dot is the mean. A
+     narrow band high on the axis is steady and strong; a wide one is boom or
+     bust.
+     -------------------------------------------------------------------- */
+  function ranges(options) {
+    var rows = options.rows || [];
+    if (!rows.length) return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
+    var wrap = responsive(function (width, tip) { return drawRanges(width, rows, options, tip); });
+    wrap.style.minHeight = (8 + rows.length * 46 + 28) + 'px';
+    return wrap;
+  }
+
+  function drawRanges(width, rows, options, tip) {
+    var rowH = 46;
+    var pad = { top: 8, right: 14, bottom: 28, left: Math.max(96, Math.min(150, Math.round(width * 0.36))) };
+    var height = pad.top + rows.length * rowH + pad.bottom;
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var vs = [];
+    rows.forEach(function (r) { vs.push(r.lo, r.hi, r.mean); });
+    var domain = options.domain || niceDomain(Math.min.apply(null, vs), Math.max.apply(null, vs));
+    function x(v) { return pad.left + ((v - domain[0]) / (domain[1] - domain[0] || 1)) * plotW; }
+    var svg = node('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': options.label || 'Ranges' });
+    ticks(domain, true).forEach(function (v) {
+      svg.appendChild(node('line', { class: 'chart-grid-line', x1: x(v), x2: x(v), y1: pad.top, y2: pad.top + rows.length * rowH }));
+      var tx = node('text', { class: 'chart-axis-label', x: x(v), y: height - 8, 'text-anchor': 'middle' });
+      tx.textContent = String(v);
+      svg.appendChild(tx);
+    });
+    rows.forEach(function (r, i) {
+      var cy = pad.top + i * rowH + rowH / 2;
+      var room = Math.floor((pad.left - 8) / 7);
+      var name = r.label.length > room ? r.label.slice(0, room - 1) + '\u2026' : r.label;
+      var lt = node('text', { class: 'ml-rowlabel', x: 0, y: cy - (r.sub ? 2 : -4) });
+      lt.textContent = name;
+      var title = node('title', {});
+      title.textContent = r.label;
+      lt.appendChild(title);
+      svg.appendChild(lt);
+      if (r.sub) {
+        var st = node('text', { class: 'ml-rowsub', x: 0, y: cy + 13 });
+        st.textContent = r.sub;
+        svg.appendChild(st);
+      }
+      var g = node('g', { class: 'rg-row' });
+      g.appendChild(node('rect', { class: 'rg-band fill-' + r.key, x: x(r.lo), y: cy - 9, width: Math.max(3, x(r.hi) - x(r.lo)), height: 18, rx: 9 }));
+      if (r.mid != null) g.appendChild(node('line', { class: 'rg-mid', x1: x(r.mid), x2: x(r.mid), y1: cy - 12, y2: cy + 12 }));
+      g.appendChild(node('circle', { class: 'ml-dot ml-' + r.key, cx: x(r.mean), cy: cy, r: 5.5 }));
+      var hit = node('rect', { class: 'chart-hit', x: 0, y: cy - rowH / 2, width: width, height: rowH });
+      function show() {
+        tip.textContent = '';
+        tip.appendChild(el('strong', { text: r.label }));
+        tip.appendChild(el('span', { class: 'chart-tip-row' }, [el('i', { class: 'chart-swatch ml-' + r.key }), el('b', { text: r.text })]));
+        if (r.caption) tip.appendChild(el('small', { text: r.caption }));
+        tip.classList.add('is-on');
+        var w = tip.offsetWidth;
+        tip.style.left = Math.max(2, Math.min(width - w - 2, x(r.mean) - w / 2)) + 'px';
+        tip.style.top = Math.max(0, cy - tip.offsetHeight - 14) + 'px';
+      }
+      hit.addEventListener('mouseenter', show);
+      hit.addEventListener('pointerdown', show);
+      hit.addEventListener('mouseleave', function () { tip.classList.remove('is-on'); });
+      g.appendChild(hit);
+      svg.appendChild(g);
+    });
+    return svg;
+  }
+
+  /* ---- grouped columns: a few bars per group --------------------------
+     groups: { label, bars: [{ key (colour slot), name, value, text, caption }] }.
+     Bars are labelled with their value; the legend names the colours.
+     -------------------------------------------------------------------- */
+  function groups(options) {
+    var gs = options.groups || [];
+    var any = gs.some(function (g) { return g.bars.some(function (b) { return b.value != null; }); });
+    if (!any) return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
+    var seen = {}, keys = [];
+    gs.forEach(function (g) { g.bars.forEach(function (b) { if (!seen[b.key]) { seen[b.key] = 1; keys.push(el('span', { class: 'chart-key' }, [el('i', { class: 'chart-swatch ml-' + b.key }), b.name])); } }); });
+    return el('div', null, [el('div', { class: 'chart-legend' }, keys), responsive(function (width, tip) { return drawGroups(width, gs, options, tip); })]);
+  }
+
+  function drawGroups(width, gs, options, tip) {
+    var height = options.height || 240;
+    var pad = { top: 18, right: 10, bottom: 34, left: 40 };
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var plotH = height - pad.top - pad.bottom;
+    var domain = options.domain || [0, 100];
+    function y(v) { return pad.top + plotH - ((v - domain[0]) / (domain[1] - domain[0] || 1)) * plotH; }
+    var svg = node('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': options.label || 'Chart' });
+    ticks(domain, true).forEach(function (v) {
+      svg.appendChild(node('line', { class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: y(v), y2: y(v) }));
+      var tx = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: y(v) + 4, 'text-anchor': 'end' });
+      tx.textContent = (options.formatAxis || String)(v);
+      svg.appendChild(tx);
+    });
+    var slot = plotW / gs.length;
+    gs.forEach(function (g, gi) {
+      var inner = slot * 0.8, bw = Math.min(46, inner / g.bars.length - 4);
+      var left = pad.left + slot * gi + (slot - (bw + 4) * g.bars.length + 4) / 2;
+      g.bars.forEach(function (b, bi) {
+        if (b.value == null) return;
+        var bx = left + bi * (bw + 4);
+        var rect = node('rect', { class: 'fill-' + b.key, x: bx, y: y(b.value), width: bw, height: Math.max(1, y(domain[0]) - y(b.value)), rx: 4 });
+        var title = node('title', {});
+        title.textContent = g.label + ' \u00b7 ' + b.name + ': ' + b.text + (b.caption ? ' (' + b.caption + ')' : '');
+        rect.appendChild(title);
+        svg.appendChild(rect);
+        if (bw >= 16) {
+          var vt = node('text', { class: 'rg-value', x: bx + bw / 2, y: y(b.value) - 5, 'text-anchor': 'middle' });
+          vt.textContent = b.text;
+          svg.appendChild(vt);
+        }
+      });
+      var lt = node('text', { class: 'chart-axis-label rg-group', x: pad.left + slot * (gi + 0.5), y: height - 12, 'text-anchor': 'middle' });
+      lt.textContent = g.label;
+      svg.appendChild(lt);
+    });
+    return svg;
+  }
+
   /* ---- columns ---------------------------------------------------------
      points: { label, axis, value, caption } — one bar per point, in order,
      rising from a zero baseline with a rounded data-end. An optional
@@ -639,5 +878,5 @@
     return out;
   }
 
-  window.Charts = { bars: bars, diverging: diverging, line: line, columns: columns, race: race, multiline: multiline };
+  window.Charts = { bars: bars, diverging: diverging, line: line, columns: columns, race: race, multiline: multiline, timeseries: timeseries, ranges: ranges, groups: groups };
 })();

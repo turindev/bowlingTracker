@@ -1383,14 +1383,10 @@
     return el('div', { class: 'control-field' }, [el('span', { class: 'sh-label', text: label }), select]);
   }
 
-  function statsPage() {
+  function statsControls(pool, showBall) {
     var f = ui.filters;
-    var pool = S.finished(allGames());
-    var filtered = S.filter(pool, Object.assign({ pattern: f.pattern, location: f.location, event: f.event }, periodRange(f.period)));
-    var stats = S.analyze(filtered, { ball: f.ball || null });
-
-    var controls = el('div', { class: 'sh-filters' }, [
-      filterSelect('Ball', 'ball', S.ballsUsed(pool), ballName),
+    return el('div', { class: 'sh-filters' }, [
+      showBall ? filterSelect('Ball', 'ball', S.ballsUsed(pool), ballName) : null,
       filterSelect('Oil pattern', 'pattern', S.distinct(pool, 'pattern')),
       filterSelect('Location', 'location', S.distinct(pool, 'location')),
       filterSelect('Event', 'event', S.EVENTS, function (e) { return e.charAt(0).toUpperCase() + e.slice(1); }),
@@ -1401,13 +1397,63 @@
         select.value = f.period;
         return el('div', { class: 'control-field' }, [el('span', { class: 'sh-label', text: 'Period' }), select]);
       })(),
-    ]);
+    ].filter(Boolean));
+  }
+
+  /* Overview, Progress and Balls, all under the same filters. */
+  function statsTabs() {
+    var tab = ui.statsTab || 'overview';
+    return el('div', { class: 'sh-chips sh-statstabs', role: 'group', 'aria-label': 'Stats views' }, [
+      ['overview', 'Overview'], ['progress', 'Progress'], ['balls', 'Balls'],
+    ].map(function (t) {
+      return el('button', {
+        type: 'button', class: 'sh-chip' + (tab === t[0] ? ' is-on' : ''), 'aria-pressed': tab === t[0] ? 'true' : 'false',
+        onclick: function () { ui.statsTab = t[0]; rerender(); },
+      }, t[1]);
+    }));
+  }
+
+  var insights = null;
+  function getInsights() {
+    if (!insights) insights = window.ShotsInsights.create({ ballName: ballName, thumb: thumb, rerender: rerender, state: ui, today: today });
+    return insights;
+  }
+
+  /* The deeper tabs: progress through time, and ball against ball. */
+  function deepStatsPage(tab, pool) {
+    var f = ui.filters;
+    var base = { location: f.location, event: f.event };
+    var range = periodRange(f.period);
+    var scoped = S.filter(pool, Object.assign({}, base, range));
+    var patterned = S.filter(pool, Object.assign({ pattern: f.pattern }, base, range));
+    var cards;
+    if (tab === 'progress') {
+      var games = f.ball ? patterned.filter(function (g) { return S.primaryBall(g) === f.ball; }) : patterned;
+      cards = [weeksCard(patterned, f.ball)].concat(getInsights().progress({ games: games }));
+    } else {
+      cards = getInsights().balls({ pool: pool, f: f, scoped: scoped, patterned: patterned });
+    }
+    draw([
+      head('Stats', tab === 'progress' ? 'How you are improving' : 'Ball against ball, pattern by pattern'),
+      subnav('stats'),
+      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), statsControls(pool, tab === 'progress')])),
+    ].concat(cards));
+  }
+
+  function statsPage() {
+    var f = ui.filters;
+    var pool = S.finished(allGames());
+    if ((ui.statsTab || 'overview') !== 'overview') return deepStatsPage(ui.statsTab, pool);
+    var filtered = S.filter(pool, Object.assign({ pattern: f.pattern, location: f.location, event: f.event }, periodRange(f.period)));
+    var stats = S.analyze(filtered, { ball: f.ball || null });
+
+    var controls = statsControls(pool, true);
 
     if (!stats.games && !stats.racks) {
       draw([
         head('Stats', 'Everything you record, sliced any way you like'),
         subnav('stats'),
-        UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [controls])),
+        UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), controls])),
         UI.card(null, null, UI.empty(pool.length ? 'No games match these filters.' : 'Finish a game and its statistics appear here.')),
       ]);
       return;
@@ -1545,9 +1591,8 @@
     draw([
       head('Stats', plural(stats.games, 'game') + (f.ball ? ' with ' + ballName(f.ball) : '')),
       subnav('stats'),
-      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [controls])),
+      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), controls])),
       UI.card(null, null, el('div', { class: 'card-body' }, tiles)),
-      weeksCard(filtered, f.ball),
       seriesCard(filtered, f.ball),
       compareCard(filtered),
       hitCard,
