@@ -543,13 +543,15 @@
     var base = chosen ? chosen.games[chosen.games.length - 1] : last;
 
     var carry = base.id ? S.currentBalls(base) : {};
-    var date = el('input', { type: 'date', value: today(), required: true });
+    /* A set is bowled on one date and starts on one lane, so the rest of it follows the first game. */
+    var starter = chosen ? chosen.games[0] : null;
+    var date = el('input', { type: 'date', value: starter && starter.date ? starter.date : today(), required: true });
     var where = el('input', { type: 'text', list: 'sh-locations', value: base.location || '', autocapitalize: 'words', placeholder: 'e.g. Leisure Time Bowling' });
     var pattern = el('input', { type: 'text', list: 'sh-patterns', value: base.pattern || '', autocapitalize: 'words', placeholder: 'e.g. Kegel Flagship, house shot' });
     var event = el('select', null, S.EVENTS.map(function (e) {
       return el('option', { value: e, selected: e === (base.event || 'league') }, e.charAt(0).toUpperCase() + e.slice(1));
     }));
-    var lane = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 23', value: '' });
+    var lane = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 23', value: starter && starter.lane ? starter.lane : '' });
     var strike = ballPicker('Ball', null, carry.strike);
     var spare = ballPicker('Spare ball (if different)', 'Same ball', base.spareBall);
     var err = errorLine();
@@ -576,6 +578,8 @@
         where.value = g.location || where.value;
         pattern.value = g.pattern || pattern.value;
         event.value = g.event || event.value;
+        date.value = picked.games[0].date || date.value;
+        lane.value = picked.games[0].lane || '';
       }
     });
     syncSet();
