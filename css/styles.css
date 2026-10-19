@@ -1792,3 +1792,12 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .sh-badge-icon.is-pr { color: #1e6bff; }
 .sh-badge-icon.is-honor svg { filter: drop-shadow(0 0 3px rgba(244, 184, 34, .9)); }
 .sh-badge-icon.is-honor .art-medal { fill: #ffd34d; }
+
+/* games of one set share a colour, which changes from set to set */
+.chart-groupband { fill: var(--text-dim); opacity: .09; }
+.chart-seg { stroke-width: 2.4; stroke-linecap: round; }
+.chart-seg.is-link { stroke: var(--text-dim); opacity: .4; stroke-width: 1.5; stroke-dasharray: 3 3; }
+.chart-seg.ml-s1 { stroke: var(--s1); } .chart-seg.ml-s2 { stroke: var(--s2); } .chart-seg.ml-s3 { stroke: var(--s3); }
+.chart-dot-s1 { fill: var(--s1); } .chart-dot-s2 { fill: var(--s2); } .chart-dot-s3 { fill: var(--s3); }
+.chart-ref-label { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.sh-chips.is-inline { padding: 0 0 10px; }

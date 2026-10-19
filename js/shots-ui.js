@@ -1815,14 +1815,25 @@
     var ordered = S.filter(pool, Object.assign({ pattern: f.pattern, location: f.location, event: f.event }, periodRange(f.period)))
       .filter(function (g) { return !f.ball || S.primaryBall(g) === f.ball; })
       .sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || ''); });
+    var limit = [30, 60, 90].indexOf(ui.scoreLimit) === -1 ? 30 : ui.scoreLimit;
+    var shown = ordered.slice(-limit);
+    var setNo = {};
+    S.setsOf(pool, { all: true }).forEach(function (st) { st.games.forEach(function (g, i) { setNo[g.id] = { n: i + 1, of: st.games.length, solo: st.standalone }; }); });
     var trend = Charts.line({
-      points: ordered.map(function (g, i) {
+      points: shown.map(function (g) {
+        var pos = setNo[g.id];
         return { label: UI.shortDate(g.date) + (g.pattern ? ' · ' + g.pattern : ''), axis: UI.shortDate(g.date),
-          value: S.score(g).total, caption: ballNames(g) };
+          value: S.score(g).total, group: g.setId || g.id,
+          caption: [pos && !pos.solo ? 'game ' + pos.n + ' of ' + pos.of : null, ballNames(g)].filter(Boolean).join(' · ') };
       }),
       reference: stats.average == null ? null : { value: stats.average, label: 'avg ' + UI.avg(stats.average) },
-      label: 'Game scores over time',
+      label: 'Game scores over time, each set of games in its own colour',
     });
+    var scoreChips = ordered.length > 30 ? el('div', { class: 'sh-chips is-inline', role: 'group', 'aria-label': 'How many games to show' }, [30, 60, 90].map(function (n) {
+      return el('button', { type: 'button', class: 'sh-chip' + (limit === n ? ' is-on' : ''), 'aria-pressed': limit === n ? 'true' : 'false',
+        onclick: function () { ui.scoreLimit = n; rerender(); } }, 'Last ' + n);
+    })) : null;
+    var scoreHint = (ordered.length > shown.length ? 'Last ' + shown.length + ' of ' + ordered.length + ' games' : 'Every game, in order') + ' \u00b7 games of a set share a colour';
 
     draw([
       head('Stats', plural(stats.games, 'game') + (f.ball ? ' with ' + ballName(f.ball) : '')),
@@ -1836,7 +1847,7 @@
       spareCard,
       UI.card('Strike % by frame', 'Do you start strong or fade?', el('div', { class: 'card-body' }, frameChart)),
       leaveCard,
-      UI.card('Scores', 'Every game, in order', el('div', { class: 'card-body' }, trend)),
+      UI.card('Scores', scoreHint, el('div', { class: 'card-body' }, [scoreChips, trend])),
     ]);
   }
 
