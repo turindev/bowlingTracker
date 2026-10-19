@@ -698,6 +698,24 @@
     };
   }
 
+  /* ---------- tidying ---------- */
+
+  /* Games dated differently from the first game of their set. A set is one night,
+     so the first game's date is the one the rest should have. (An old bug gave
+     the later games of a set today's date.) Returns { game, setId, gameNo, from, to }. */
+  function dateMismatches(games) {
+    var out = [];
+    setsOf(games, { all: true }).forEach(function (set) {
+      if (set.standalone || set.games.length < 2) return;
+      var first = set.games[0];
+      if (!first.date) return;
+      set.games.slice(1).forEach(function (g) {
+        if (g.date && g.date !== first.date) out.push({ game: g, setId: set.id, gameNo: g.gameNo, from: g.date, to: first.date });
+      });
+    });
+    return out;
+  }
+
   /* ---------- editing a set ---------- */
 
   function inOrder(games) {
@@ -874,7 +892,7 @@
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
-    weekly: weekly, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
+    weekly: weekly, dateMismatches: dateMismatches, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;
