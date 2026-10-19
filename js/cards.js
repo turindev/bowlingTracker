@@ -74,6 +74,7 @@
     bg: '#121212', panel: '#1b1b1b', line: '#2e2e2e', soft: '#8c8c8c', text: '#ffffff', blue: '#27b4ff',
     amber: '#e8b53c', green: '#2fd39a', red: '#f0605d', grey: '#404040', tenth: '#232323', white: '#f5f5f5',
     disc: '#2a2a2a', sub: '#b8b8b8', foot: '#666666',
+    flame: ['#ff9a2e', '#ff7a18', '#ff4a2a'], flameCore: '#ffd34d', ember: '#ff7a18',
   };
 
   var DECK_ROWS = [[7, 8, 9, 10], [4, 5, 6], [2, 3], [1]];
@@ -114,10 +115,38 @@
     return text === 'X' ? SC.blue : text === '/' ? SC.amber : text === '-' ? SC.soft : SC.white;
   }
 
+  /* A flame badge icon: the shared 24x24 shapes, scaled and placed. */
+  function drawFlame(svg, x, y, size, level) {
+    var k = size / 24;
+    var t = 'translate(' + r1(x) + ' ' + r1(y) + ') scale(' + r1(k * 100) / 100 + ')';
+    svg.path(S.ART.flame, { fill: SC.flame[Math.min(2, Math.max(0, (level || 1) - 1))], transform: t });
+    svg.path(S.ART.flameCore, { fill: SC.flameCore, transform: t });
+  }
+
+  /* The badges a game earned, in a row after its title: flames and the name of the streak, a tick for a clean game. */
+  function drawBadges(svg, game, x, y) {
+    S.badges(game).forEach(function (b) {
+      if (b.key === 'hot') {
+        for (var i = 0; i < b.level; i++) drawFlame(svg, x + i * 26, y - 30, 32, b.level);
+        x += b.level * 26 + 14;
+        svg.text(x, y, b.label.toUpperCase(), { fontSize: 25, fontWeight: 800, fill: SC.ember, letterSpacing: 1.2 });
+        x += b.label.length * 17 + 30;
+      } else {
+        svg.path('M' + r1(x + 6 * 1.33) + ' ' + r1(y - 30 + 12.8 * 1.33) + 'L' + r1(x + 10.4 * 1.33) + ' ' + r1(y - 30 + 17.2 * 1.33) + 'L' + r1(x + 18.2 * 1.33) + ' ' + r1(y - 30 + 8.2 * 1.33),
+          { fill: 'none', stroke: SC.green, strokeWidth: 4.5, strokeLinecap: 'round', strokeLinejoin: 'round' });
+        x += 40;
+        svg.text(x, y, 'CLEAN', { fontSize: 25, fontWeight: 800, fill: SC.green, letterSpacing: 1.2 });
+        x += 5 * 17 + 30;
+      }
+    });
+  }
+
   /* One game's card: ten frames, the marks, a leave diagram and the running total. */
   function drawGame(svg, game, n, x0, y0, width) {
     var sc = S.score(game);
+    var hot = S.heatFrames(game);
     svg.text(x0 + 12, y0 + 30, 'GAME ' + n, { fontSize: 36, fontWeight: 700, fill: SC.blue, letterSpacing: 1.5 });
+    drawBadges(svg, game, x0 + 12 + 190, y0 + 28);
     svg.text(x0 + width - 12, y0 + 34, sc.complete ? String(sc.total) : String(sc.running), { fontSize: 50, fontWeight: 700, fill: SC.text, textAnchor: 'end' });
 
     var top = y0 + 56, h = 222;
@@ -129,8 +158,9 @@
     for (var f = 0; f < 10; f++) {
       var fx = x0 + f * unit, fw = f === 9 ? unit * 2 : unit, cx = fx + fw / 2;
       if (f === 9) svg.rect(fx, top, fw, h, { fill: SC.tenth });
+      if (hot[f]) svg.rect(fx, top, fw, h, { fill: '#ff6a00', opacity: 0.10 + 0.30 * hot[f].heat });
       if (f > 0) svg.line(fx, top, fx, top + h, { stroke: SC.line, strokeWidth: 2 });
-      svg.text(cx, top + 31, String(f + 1), { fontSize: 20, fill: SC.soft, textAnchor: 'middle' });
+      svg.text(cx, top + 31, String(f + 1), { fontSize: 20, fill: hot[f] ? SC.ember : SC.soft, fontWeight: hot[f] ? 700 : 400, textAnchor: 'middle' });
 
       var frame = sc.frames[f];
       if (!frame || !frame.marks.length) continue;

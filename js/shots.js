@@ -439,6 +439,8 @@
       misses: { left: 0, right: 0, total: 0, leftPct: null, rightPct: null },
       leaves: [], byFrame: [],
       bestStreak: 0, streaks3: 0, shots: 0,
+      runs: [], runGames: [],
+      afterStrike: { n: 0, strikes: 0, pct: null }, afterOther: { n: 0, strikes: 0, pct: null },
     };
     HITS.forEach(function (h) { out.hits[h] = emptyHit(); });
     for (var i = 1; i <= 10; i++) out.byFrame.push({ frame: i, racks: 0, strikes: 0, pct: null });
@@ -512,15 +514,27 @@
         if (opensThisGame === 0) out.clean++;
 
         /* Strike streaks run across frames and into the fill balls. */
-        var run = 0;
+        var gameRuns = strikeRuns(game);
+        var longest = 0;
+        gameRuns.forEach(function (r) {
+          out.runs.push(r.length);
+          if (r.length > longest) longest = r.length;
+          if (r.length > out.bestStreak) out.bestStreak = r.length;
+          if (r.length >= 3) out.streaks3++;
+        });
+        out.runGames.push(longest);
+        if (ctx.some(function (c) { return c.strike; }) && !gameRuns.length && out.bestStreak < 1) out.bestStreak = 1;
+
+        /* Is a strike likelier right after a strike? Pairs of first balls, in order. */
+        var prev = null;
         ctx.forEach(function (c) {
-          if (c.strike) {
-            run++;
-            if (run > out.bestStreak) out.bestStreak = run;
-            if (run === 3) out.streaks3++;
-          } else if (c.fresh) {
-            run = 0;
+          if (!c.fresh) return;
+          if (prev != null) {
+            var bucketKey = prev ? out.afterStrike : out.afterOther;
+            bucketKey.n++;
+            if (c.strike) bucketKey.strikes++;
           }
+          prev = c.strike;
         });
       }
     });
@@ -542,6 +556,8 @@
       out.strikesPerGame = out.strikes / totals.length;
     }
 
+    out.afterStrike.pct = ratio(out.afterStrike.strikes, out.afterStrike.n);
+    out.afterOther.pct = ratio(out.afterOther.strikes, out.afterOther.n);
     out.strikePct = ratio(out.strikes, out.racks);
     out.sparePct = ratio(out.spares, out.attempts);
     out.firstBallAvg = ratio(firstPins, out.racks);
@@ -696,6 +712,90 @@
       weeks: rows.map(function (r) { var f = figures(r.games); f.start = r.start; return f; }),
       window: figures(inside),
     };
+  }
+
+  /* ---------- strike streaks and badges ---------- */
+
+  /* Every run of two or more strikes in a row, fill balls included: how long, and
+     which shots (frame index and shot number) made it up. */
+  function strikeRuns(game) {
+    var runs = [], run = null;
+    walk(game).forEach(function (c) {
+      if (!c.fresh) return;
+      if (c.strike) {
+        if (!run) run = { length: 0, strikes: [] };
+        run.length++;
+        run.strikes.push({ f: c.f, s: c.s });
+      } else {
+        if (run && run.length >= 2) runs.push(run);
+        run = null;
+      }
+    });
+    if (run && run.length >= 2) runs.push(run);
+    return runs;
+  }
+
+  /* Frames inside a hot streak (three or more in a row), each with how hot it
+     is: 0..1, rising along the run so the card warms up as it goes. */
+  function heatFrames(game) {
+    var out = {};
+    strikeRuns(game).filter(function (r) { return r.length >= 3; }).forEach(function (r) {
+      r.strikes.forEach(function (x, i) {
+        var heat = (i + 1) / r.length;
+        if (!out[x.f] || out[x.f].heat < heat) {
+          out[x.f] = { heat: heat, first: i === 0 || (out[x.f] && out[x.f].first) || false, length: r.length };
+        }
+      });
+    });
+    return out;
+  }
+
+  /* The little pictures for badges, as 24x24 paths, shared by the page and the
+     shareable card so they match. */
+  var ART = {
+    flame: 'M12 1.5C12.4 5 15.4 6.6 16.6 9.6C17.5 8.9 18 7.8 18.1 6.9C20.2 9.2 21.2 11.7 21.2 14.2C21.2 18.9 17 22.5 12 22.5C7 22.5 2.8 18.9 2.8 14.2C2.8 11.3 4.2 9.1 6 7.5C6.1 9 6.9 10.2 8 10.9C7.5 7.2 9.4 3.6 12 1.5Z',
+    flameCore: 'M12 22C9.4 22 7.5 20.2 7.5 17.8C7.5 15.9 8.7 14.6 9.7 13.4C10.3 14.5 11 15 11.8 15.1C11.9 13.9 11.7 12.8 11.4 11.7C13.8 13.1 16.5 15.1 16.5 17.8C16.5 20.2 14.6 22 12 22Z',
+    check: 'M6 12.8L10.4 17.2L18.2 8.2',
+  };
+
+  var RUN_NAMES = { 3: 'Turkey', 4: 'Hambone', 5: 'Five-bagger', 6: 'Six-pack' };
+  function runName(n) {
+    if (n >= 12) return 'Perfect game';
+    return RUN_NAMES[n] || n + ' in a row';
+  }
+
+  /* What a game earned: a hot streak (3+ strikes in a row, named for the longest),
+     and a clean game (finished with no open frame). */
+  function badges(game) {
+    var out = [];
+    var runs = strikeRuns(game).filter(function (r) { return r.length >= 3; });
+    if (runs.length) {
+      var longest = Math.max.apply(null, runs.map(function (r) { return r.length; }));
+      out.push({
+        key: 'hot', length: longest, count: runs.length, level: longest >= 6 ? 3 : longest >= 4 ? 2 : 1,
+        label: runName(longest),
+        title: runName(longest) + (runs.length > 1 ? ' (' + runs.length + ' hot streaks: ' + runs.map(function (r) { return r.length; }).join(', ') + ')' : ''),
+      });
+    }
+    if (isComplete(game) && !walk(game).some(function (c) { return !c.fresh && c.standing.length > 0; })) {
+      out.push({ key: 'clean', label: 'Clean game', title: 'Clean game: no open frames' });
+    }
+    return out;
+  }
+
+  /* The streak table for a set of games: for each length of run that happened,
+     how many times, how many times that long or longer, how many games had one,
+     and how often (one game in N). */
+  function streakTable(stats) {
+    var lengths = {};
+    stats.runs.forEach(function (n) { lengths[n] = (lengths[n] || 0) + 1; });
+    var present = Object.keys(lengths).map(Number).sort(function (a, b) { return a - b; });
+    return present.map(function (n) {
+      var atLeast = stats.runs.filter(function (r) { return r >= n; }).length;
+      var games = stats.runGames.filter(function (g) { return g >= n; }).length;
+      return { length: n, name: n >= 3 ? runName(n) : 'Back-to-back', times: lengths[n], atLeast: atLeast, games: games,
+        oneIn: games ? stats.games / games : null, perGame: stats.games ? atLeast / stats.games : null };
+    });
   }
 
   /* ---------- tidying ---------- */
@@ -892,7 +992,7 @@
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
-    weekly: weekly, dateMismatches: dateMismatches, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
+    weekly: weekly, dateMismatches: dateMismatches, ART: ART, strikeRuns: strikeRuns, heatFrames: heatFrames, badges: badges, streakTable: streakTable, runName: runName, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;
