@@ -87,6 +87,16 @@ const night = T.progress([perfect('2026-10-01', 'A', 'House'), nines('2026-10-01
 check('three games on one night get three increasing times inside that day', night.games[0].t < night.games[1].t && night.games[1].t < night.games[2].t && night.games[2].t < night.games[0].t + 1, JSON.stringify(night.games.map(x => x.t)));
 check('a lone game that day sits on the day itself', night.games[3].t === T.dayNumber('2026-10-02'), '');
 
+// strike streaks by ball
+const Cg = [nines('2026-10-20', 'C', 'House'), nines('2026-10-21', 'C', 'House')];
+const sRows = T.balls(A.concat(Cg), { label: id => id });
+const sA = sRows.find(r => r.id === 'A').streaks, sC = sRows.find(r => r.id === 'C').streaks;
+check('each ball row carries its streak figures', sA && sC && sA.games === 6 && sC.games === 2, JSON.stringify(sA));
+check('a turkey or better is counted once per run, and per game', sA.turkeys === 12 && sA.turkeysPerGame === 2 && sA.gamesWithTurkey === 6 && sA.turkeyGamePct === 1, JSON.stringify(sA));
+check('the longest streak and the runs by length', sA.longest === 8 && sA.byLength[3] === 6 && sA.byLength[4] === 0 && sA.byLength[5] === 6, JSON.stringify(sA));
+check('a ball that never strings strikes has none', sC.turkeys === 0 && sC.turkeysPerGame === 0 && sC.longest <= 1 && sC.turkeyGamePct === 0, JSON.stringify(sC));
+check('strike after strike is reported with its sample', sA.afterStrikeN > 0 && sA.afterStrikePct >= 0.9, JSON.stringify(sA));
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n') : '\nall trends assertions passed');
 process.exit(fails.length ? 1 : 0);

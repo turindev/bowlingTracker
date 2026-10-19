@@ -328,6 +328,48 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('the pairs of first balls add up', a.afterStrike.n + a.afterOther.n === a.racks - 3, a.afterStrike.n + '+' + a.afterOther.n + ' vs ' + a.racks);
 })();
 
+// --- personal records and honor scores ---------------------------------------------------------
+(() => {
+  const nine = ['9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-'];                      // 90
+  const spares = ['9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/9'];                    // 190
+  const strong = ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', '9/', '9/9'];                            // well over 250
+  const mk = (card, date, setId, no) => fromCard(card, { date, setId: setId || null, gameNo: setId ? no : null, setSize: setId ? 3 : null });
+  const gs = [
+    mk(nine, '2026-09-01', 's1', 1), mk(spares, '2026-09-01', 's1', 2), mk(nine, '2026-09-01', 's1', 3),
+    mk(spares, '2026-09-08', 's2', 1), mk(strong, '2026-09-08', 's2', 2), mk(spares, '2026-09-08', 's2', 3),
+  ];
+  const ctx = S.context(gs, {});
+  const top = gs[4];
+  check('the highest game holds the game record', ctx.gameRecord === top.id && ctx.gameBest === total(top), JSON.stringify(ctx));
+  check('only that game gets the PR game badge', gs.filter(g => S.badges(g, ctx).some(b => b.key === 'pr')).map(g => g.id).join() === top.id, '');
+  check('a PR badge says what it is and the score', (() => { const b = S.badges(top, ctx).find(x => x.key === 'pr'); return b.kind === 'game' && b.total === total(top) && /best game/.test(b.title); })(), '');
+  check('without a context there are no record or honor badges', S.badges(top).every(b => b.key !== 'pr' && b.key !== 'honor'), '');
+
+  const sets = S.setsOf(gs);
+  const best = sets.reduce((a, b) => (b.total > a.total ? b : a));
+  check('the highest series holds the series record', ctx.seriesRecords[best.id] === true && Object.keys(ctx.seriesRecords).length === 1 && ctx.seriesBest[3] === best.total, JSON.stringify(ctx));
+  check('and gets a PR series badge, the other does not', S.setBadges(best, ctx).some(b => b.key === 'pr' && b.kind === 'series' && b.total === best.total) && !S.setBadges(sets.find(x => x !== best), ctx).some(b => b.key === 'pr'), '');
+  check('a record needs a few games behind it: two games, no PR', S.context(gs.slice(0, 2), {}).gameRecord === null, '');
+  check('and two series before one is a record', Object.keys(S.context(gs.slice(0, 3), {}).seriesRecords).length === 0, '');
+  check('an unfinished series has no series badges', S.setBadges({ standalone: false, complete: false, total: 900, size: 3, id: 'x' }, ctx).length === 0, '');
+  check('a tie goes to whoever got there first', (() => {
+    const a = mk(strong, '2026-09-08', null), b = mk(strong, '2026-09-10', null), c = mk(nine, '2026-09-12', null), d = mk(nine, '2026-09-13', null);
+    return S.context([b, a, c, d], {}).gameRecord === a.id;
+  })(), '');
+
+  // honor scores: 250 a game and 700 a series unless the settings say otherwise
+  check('a game at or over the honor line earns the honor badge', S.badges(top, ctx).some(b => b.key === 'honor' && b.kind === 'game' && b.level === 1 && b.total === total(top)) && total(top) >= 250 && total(top) < 300, String(total(top)));
+  check('a game under it does not', gs.filter(g => g !== top).every(g => !S.badges(g, ctx).some(b => b.key === 'honor')), '');
+  check('300 is the top honor', (() => { const p = fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']); const b = S.badges(p, S.context([p, gs[0], gs[1]], {})).find(x => x.key === 'honor'); return b && b.level === 2; })(), '');
+  check('the lines come from settings', S.badges(gs[1], S.context(gs, { honorGame: 190 })).some(b => b.key === 'honor') && !S.badges(top, S.context(gs, { honorGame: total(top) + 1 })).some(b => b.key === 'honor'), '');
+  check('bad settings fall back to 250 and 700', JSON.stringify(S.honorLimits({ honorGame: 'x', honorSeries: -3 })) === JSON.stringify({ game: 250, series: 700 }), '');
+  const hi = S.context(gs, { honorSeries: best.total });
+  check('a series at the honor line earns the honor series badge', S.setBadges(best, hi).some(b => b.key === 'honor' && b.kind === 'series' && b.total === best.total), '');
+  check('one point under it does not', !S.setBadges(best, S.context(gs, { honorSeries: best.total + 1 })).some(b => b.key === 'honor'), '');
+  check('the series line is scaled for other lengths', S.setBadges({ standalone: false, complete: true, total: 467, size: 2, id: 'y' }, S.context(gs, {})).some(b => b.key === 'honor') && !S.setBadges({ standalone: false, complete: true, total: 466, size: 2, id: 'y' }, S.context(gs, {})).some(b => b.key === 'honor'), '');
+  check('honor comes first, then the record', S.badges(top, ctx).map(b => b.key).slice(0, 2).join() === 'honor,pr', S.badges(top, ctx).map(b => b.key).join());
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

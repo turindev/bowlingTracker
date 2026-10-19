@@ -756,6 +756,11 @@
     flame: 'M12 1.5C12.4 5 15.4 6.6 16.6 9.6C17.5 8.9 18 7.8 18.1 6.9C20.2 9.2 21.2 11.7 21.2 14.2C21.2 18.9 17 22.5 12 22.5C7 22.5 2.8 18.9 2.8 14.2C2.8 11.3 4.2 9.1 6 7.5C6.1 9 6.9 10.2 8 10.9C7.5 7.2 9.4 3.6 12 1.5Z',
     flameCore: 'M12 22C9.4 22 7.5 20.2 7.5 17.8C7.5 15.9 8.7 14.6 9.7 13.4C10.3 14.5 11 15 11.8 15.1C11.9 13.9 11.7 12.8 11.4 11.7C13.8 13.1 16.5 15.1 16.5 17.8C16.5 20.2 14.6 22 12 22Z',
     check: 'M6 12.8L10.4 17.2L18.2 8.2',
+    /* personal record: a cup, drawn as an outline */
+    trophy: 'M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M12 14v4M8 20h8',
+    /* honor score: a five-point star, and the ring it sits in */
+    star: 'M12 5.2l1.9 3.9 4.3.6-3.1 3 .7 4.3-3.8-2-3.8 2 .7-4.3-3.1-3 4.3-.6z',
+    medal: 'M12 1.8a10.2 10.2 0 1 1 0 20.4 10.2 10.2 0 0 1 0-20.4z',
   };
 
   var RUN_NAMES = { 3: 'Turkey', 4: 'Hambone', 5: 'Five-bagger', 6: 'Six-pack' };
@@ -764,10 +769,78 @@
     return RUN_NAMES[n] || n + ' in a row';
   }
 
-  /* What a game earned: a hot streak (3+ strikes in a row, named for the longest),
-     and a clean game (finished with no open frame). */
-  function badges(game) {
+  /* ---------- records and honor scores ---------- */
+
+  /* Honor scores are a house rule, so the lines are settings: a game of 250 or
+     more, a three-game series of 700 or more. 300 and 800 are the top honors. */
+  var HONOR = { game: 250, series: 700 };
+  var HONOR_TOP = { game: 300, series: 800 };
+
+  function honorLimits(settings) {
+    var g = settings && Number(settings.honorGame), r = settings && Number(settings.honorSeries);
+    return { game: g > 0 ? g : HONOR.game, series: r > 0 ? r : HONOR.series };
+  }
+
+  /* A series of another length is held to the same per-game line. */
+  function seriesLine(per3, size) { return Math.ceil(size * per3 / 3); }
+
+  function earlier(a, b) {
+    return String(a.date || '').localeCompare(String(b.date || '')) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  }
+
+  /*
+   * What badges need to know about all your games: who holds the top game and the
+   * top series right now (the first one to reach a tie), and the honor lines. A
+   * record needs a few games behind it to mean anything. Series are compared with
+   * series of the same length.
+   */
+  function context(games, settings) {
+    var done = finished(games).slice().sort(earlier);
+    var ctx = { honor: honorLimits(settings), gameRecord: null, gameBest: null, seriesRecords: {}, seriesBest: {} };
+    if (done.length >= 3) {
+      done.forEach(function (g) {
+        var t = score(g).total;
+        if (ctx.gameBest == null || t > ctx.gameBest) { ctx.gameBest = t; ctx.gameRecord = g.id; }
+      });
+    }
+    var sets = setsOf(games).filter(function (x) { return !x.standalone && x.complete; });
+    var bySize = {};
+    sets.forEach(function (x) { (bySize[x.size] = bySize[x.size] || []).push(x); });
+    Object.keys(bySize).forEach(function (size) {
+      var list = bySize[size];
+      if (list.length < 2) return;
+      var best = null;
+      list.forEach(function (x) { if (best == null || x.total > best.total) best = x; });
+      ctx.seriesRecords[best.id] = true;
+      ctx.seriesBest[size] = best.total;
+    });
+    return ctx;
+  }
+
+  function honorBadge(kind, total, size, ctx) {
+    var line = kind === 'game' ? ctx.honor.game : seriesLine(ctx.honor.series, size);
+    if (total < line) return null;
+    var top = kind === 'game' ? HONOR_TOP.game : seriesLine(HONOR_TOP.series, size);
+    return {
+      key: 'honor', kind: kind, level: total >= top ? 2 : 1, total: total,
+      label: kind === 'game' ? 'Honor game' : 'Honor series',
+      title: (kind === 'game' ? 'Honor game' : 'Honor series') + ': ' + total + (total >= top ? ' (top honor)' : ' (honor line is ' + line + ')'),
+    };
+  }
+
+  /* What a game earned: an honor score, the personal-best game, a hot streak (3+
+     strikes in a row, named for the longest), and a clean game (finished with no
+     open frame). The first two need `ctx` from context(). */
+  function badges(game, ctx) {
     var out = [];
+    if (ctx && game.status === 'done' && isComplete(game)) {
+      var total = score(game).total;
+      var honor = honorBadge('game', total, 1, ctx);
+      if (honor) out.push(honor);
+      if (ctx.gameRecord === game.id) {
+        out.push({ key: 'pr', kind: 'game', label: 'PR game', total: total, title: 'Personal record: your best game, ' + total });
+      }
+    }
     var runs = strikeRuns(game).filter(function (r) { return r.length >= 3; });
     if (runs.length) {
       var longest = Math.max.apply(null, runs.map(function (r) { return r.length; }));
@@ -779,6 +852,18 @@
     }
     if (isComplete(game) && !walk(game).some(function (c) { return !c.fresh && c.standing.length > 0; })) {
       out.push({ key: 'clean', label: 'Clean game', title: 'Clean game: no open frames' });
+    }
+    return out;
+  }
+
+  /* What a whole series earned: an honor series and the personal-best series. */
+  function setBadges(set, ctx) {
+    var out = [];
+    if (!ctx || !set || set.standalone || !set.complete) return out;
+    var honor = honorBadge('series', set.total, set.size, ctx);
+    if (honor) out.push(honor);
+    if (ctx.seriesRecords[set.id]) {
+      out.push({ key: 'pr', kind: 'series', label: 'PR series', total: set.total, title: 'Personal record: your best ' + set.size + '-game series, ' + set.total });
     }
     return out;
   }
@@ -992,7 +1077,7 @@
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
-    weekly: weekly, dateMismatches: dateMismatches, ART: ART, strikeRuns: strikeRuns, heatFrames: heatFrames, badges: badges, streakTable: streakTable, runName: runName, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
+    weekly: weekly, dateMismatches: dateMismatches, ART: ART, strikeRuns: strikeRuns, heatFrames: heatFrames, badges: badges, setBadges: setBadges, context: context, honorLimits: honorLimits, HONOR: HONOR, HONOR_TOP: HONOR_TOP, streakTable: streakTable, runName: runName, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;
