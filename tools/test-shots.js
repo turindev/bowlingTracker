@@ -294,6 +294,40 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('deleted games are ignored', S.dateMismatches([set[0], Object.assign({}, set[1], { deleted: true })]).length === 0, '');
 })();
 
+// --- strike streaks and badges ---------------------------------------------------------------
+(() => {
+  // X X X 9/ X X 81 X X X (tenth: X X 9)  -> runs: 3, 2, then frames 8-10 and fills: X X X X(?)...
+  const card = (frames) => fromCard(frames);
+  const g1 = card(['X', 'X', 'X', '9/', 'X', 'X', '81', '9-', '9-', '9-']);
+  const runs = S.strikeRuns(g1).map(r => r.length);
+  check('strike runs are the maximal runs of two or more', runs.join() === '3,2', runs.join());
+  const b1 = S.badges(g1);
+  check('three in a row earns a Turkey with one flame', b1.some(b => b.key === 'hot' && b.length === 3 && b.label === 'Turkey' && b.level === 1), JSON.stringify(b1));
+  check('a game with open frames is not clean', !b1.some(b => b.key === 'clean'), '');
+  check('heat covers the frames of the turkey only, warming along the run', (() => { const h = S.heatFrames(g1); return Object.keys(h).join() === '0,1,2' && h[0].heat < h[1].heat && h[1].heat < h[2].heat && h[0].first === true && h[1].first === false; })(), JSON.stringify(S.heatFrames(g1)));
+  const perfectG = card(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']);
+  const bp = S.badges(perfectG);
+  check('twelve in a row is a perfect game, three flames, and clean', bp.some(b => b.key === 'hot' && b.length === 12 && b.label === 'Perfect game' && b.level === 3) && bp.some(b => b.key === 'clean'), JSON.stringify(bp));
+  check('a four is a Hambone with two flames', (() => { const g = card(['X', 'X', 'X', 'X', '9-', '9-', '9-', '9-', '9-', '9-']); const h = S.badges(g).find(b => b.key === 'hot'); return h.length === 4 && h.label === 'Hambone' && h.level === 2; })(), '');
+  check('six is a Six-pack with three flames', (() => { const g = card(['X', 'X', 'X', 'X', 'X', 'X', '9-', '9-', '9-', '9-']); const h = S.badges(g).find(b => b.key === 'hot'); return h.length === 6 && h.label === 'Six-pack' && h.level === 3; })(), '');
+  check('two in a row is not a hot streak', S.badges(card(['X', 'X', '9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-'])).every(b => b.key !== 'hot'), '');
+  const clean = card(['9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/9']);
+  check('a game of strikes and spares is clean', S.badges(clean).some(b => b.key === 'clean') && !S.badges(clean).some(b => b.key === 'hot'), JSON.stringify(S.badges(clean)));
+  check('a game still in progress cannot be clean', S.badges(S.newGame({})).length === 0, '');
+  check('several hot streaks are counted in the title', (() => { const g = card(['X', 'X', 'X', '9/', 'X', 'X', 'X', '9-', '9-', '9-']); const h = S.badges(g).find(b => b.key === 'hot'); return h.count === 2 && /2 hot streaks/.test(h.title); })(), '');
+
+  // across games
+  const pool = [g1, perfectG, clean];
+  const a = S.analyze(pool);
+  check('analyze lists every run, and the longest per game', a.runs.slice().sort((x, y) => x - y).join() === '2,3,12' && a.runGames.join() === '3,12,0', a.runs.join() + ' | ' + a.runGames.join());
+  check('best streak and turkeys still count as before', a.bestStreak === 12 && a.streaks3 === 2, a.bestStreak + ' ' + a.streaks3);
+  const tab = S.streakTable(a);
+  check('the streak table has a row per length that happened, with "or longer" counts', tab.map(r => r.length).join() === '2,3,12' && tab[0].atLeast === 3 && tab[1].atLeast === 2 && tab[2].atLeast === 1, JSON.stringify(tab.map(r => [r.length, r.times, r.atLeast])));
+  check('and one game in N that had one', tab[1].games === 2 && Math.abs(tab[1].oneIn - 1.5) < 1e-9 && tab[2].oneIn === 3, JSON.stringify(tab.map(r => [r.games, r.oneIn])));
+  check('a strike after a strike is counted apart from a strike after anything else', a.afterStrike.n > 0 && a.afterOther.n > 0 && a.afterStrike.pct > a.afterOther.pct, JSON.stringify([a.afterStrike, a.afterOther]));
+  check('the pairs of first balls add up', a.afterStrike.n + a.afterOther.n === a.racks - 3, a.afterStrike.n + '+' + a.afterOther.n + ' vs ' + a.racks);
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

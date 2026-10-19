@@ -453,6 +453,7 @@
             out.push(g.status === 'done'
               ? el('a', { class: 'sh-score', href: '#/shots/game/' + g.id, text: String(S.score(g).total) })
               : el('a', { class: 'sh-score is-open', href: '#/shots/game/' + g.id, text: 'open' }));
+            if (g.status === 'done') out.push(badgeIcons(g));
           });
           return el('span', { class: 'sh-scores' }, out);
         } },
@@ -509,6 +510,7 @@
       return UI.card('Game ' + (g.gameNo || i + 1) + (g.status === 'done' ? ': ' + sc.total : ' (open)'),
         [g.lane ? 'lane ' + g.lane : null, ballNames(g)].filter(Boolean).join(' · '),
         el('div', { class: 'sh-cardwrap' }, [
+          badgeChips(g),
           scorecard(g, null, { editable: true }),
           el('p', { class: 'sh-hint sh-tapnote' }, el('a', { href: '#/shots/game/' + g.id, text: g.status === 'done' ? 'Open this game' : 'Resume this game' })),
           el('div', { class: 'sh-actions sh-center' }, [
@@ -754,9 +756,58 @@
 
   /* opts.editable: a finished frame is a link to correct just that frame.
      opts.editing: the frame being redone, shown highlighted. */
+  /* Badge pictures: flames for a hot streak (more of them the longer the run),
+     a tick for a clean game. */
+  function artSvg(kind, level, size) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', String(size || 16));
+    svg.setAttribute('height', String(size || 16));
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    function path(d, cls, extra) {
+      var p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('class', cls);
+      Object.keys(extra || {}).forEach(function (k) { p.setAttribute(k, extra[k]); });
+      svg.appendChild(p);
+    }
+    if (kind === 'flame') {
+      path(S.ART.flame, 'art-flame fl-' + (level || 1));
+      path(S.ART.flameCore, 'art-core');
+    } else {
+      path(S.ART.check, 'art-check', { fill: 'none', 'stroke-width': '3', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    }
+    return svg;
+  }
+
+  /* The badges a game earned, as chips: "Turkey" with its flames, "Clean game" with a tick. */
+  function badgeChips(game) {
+    var list = S.badges(game);
+    if (!list.length) return null;
+    return el('div', { class: 'sh-badges' }, list.map(function (b) {
+      var icons = [];
+      if (b.key === 'hot') for (var i = 0; i < b.level; i++) icons.push(artSvg('flame', b.level, 16));
+      else icons.push(artSvg('check', 0, 16));
+      return el('span', { class: 'sh-badge is-' + b.key + (b.key === 'hot' ? ' heat-' + b.level : ''), title: b.title }, icons.concat([el('span', { text: b.label })]));
+    }));
+  }
+
+  /* The same badges as bare icons, small enough to sit beside a score in a list. */
+  function badgeIcons(game) {
+    var list = S.badges(game);
+    if (!list.length) return null;
+    return el('span', { class: 'sh-badge-icons' }, list.map(function (b) {
+      return el('span', { class: 'sh-badge-icon is-' + b.key, title: b.title, role: 'img', 'aria-label': b.title },
+        b.key === 'hot' ? artSvg('flame', b.level, 14) : artSvg('check', 0, 14));
+    }));
+  }
+
   function scorecard(game, pos, opts) {
     opts = opts || {};
     var sc = S.score(game);
+    var hot = S.heatFrames(game);
     var changed = {};
     S.switches(game).forEach(function (x) { changed[x.frame - 1] = true; });
     var cells = [];
@@ -778,13 +829,14 @@
       var bowled = (game.frames || [])[f] && S.frameDone(f, game.frames[f].shots || []);
       var link = opts.editable && bowled;
       cells.push(el(link ? 'a' : 'div', {
-        class: 'sh-frame' + (f === 9 ? ' is-tenth' : '') + (pos && pos.frame === f ? ' is-current' : '') +
+        style: hot[f] ? '--heat:' + hot[f].heat.toFixed(2) : null,
+        class: 'sh-frame' + (hot[f] ? ' is-hot' : '') + (f === 9 ? ' is-tenth' : '') + (pos && pos.frame === f ? ' is-current' : '') +
                (changed[f] ? ' has-switch' : '') + (opts.editing === f ? ' is-editing' : '') + (link ? ' is-link' : ''),
         href: link ? '#/shots/game/' + game.id + '/frame/' + (f + 1) : null,
         'aria-label': link ? 'Edit frame ' + (f + 1) : null,
         title: link ? 'Tap to correct frame ' + (f + 1) : (changed[f] ? 'Ball changed in this frame' : null),
       }, [
-        el('span', { class: 'sh-fno', text: String(f + 1) }),
+        el('span', { class: 'sh-fno' }, hot[f] && hot[f].first ? [String(f + 1), el('span', { class: 'sh-hotmark', 'aria-hidden': 'true' }, artSvg('flame', 1, 11))] : String(f + 1)),
         el('div', { class: 'sh-marks' }, marks),
         el('span', { class: 'sh-total', text: frame.total == null ? '' : String(frame.total) }),
       ]));
@@ -1455,6 +1507,7 @@
       head('Game: ' + sc.total, [setLabel(game), UI.shortDate(game.date), game.pattern].filter(Boolean).join(' · ')),
       subnav('games'),
       el('section', { class: 'card sh-cardwrap' }, [
+        badgeChips(game),
         scorecard(game, null, { editable: true }),
         el('p', { class: 'sh-hint sh-tapnote', text: 'Tap a frame on the card to correct just that frame.' }),
       ]),
@@ -1749,6 +1802,7 @@
       subnav('stats'),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), controls])),
       UI.card(null, null, el('div', { class: 'card-body' }, tiles)),
+      streakCard(stats),
       seriesCard(filtered, f.ball),
       compareCard(filtered),
       hitCard,
@@ -1818,6 +1872,60 @@
         el('details', { class: 'sh-details' }, [el('summary', { text: 'Show the numbers' }), table]),
       ]),
       'Makeable spares are spares made on leaves that are not splits. A week with no games is skipped. Only finished games count, and the filters above apply.');
+  }
+
+  /* Strike streaks: how long they run, how often, and whether a strike makes the next more likely. */
+  function streakCard(stats) {
+    if (!stats.racks) return null;
+    var table = S.streakTable(stats);
+    var withTurkey = stats.runGames.filter(function (n) { return n >= 3; }).length;
+    var tiles = UI.statGrid([
+      UI.stat('Longest streak', String(stats.bestStreak), 'Most strikes in a row, fill balls included.'),
+      UI.stat('Turkeys or better', String(stats.streaks3), 'Runs of three or more strikes in a row. A long run counts once.'),
+      UI.stat('Games with one', stats.games ? withTurkey + ' of ' + stats.games : '\u2014', 'Games with at least one run of three or more.'),
+      UI.stat('How often', withTurkey ? '1 game in ' + UI.avg(stats.games / withTurkey) : '\u2014', 'A game with a turkey or better comes round about this often.'),
+      UI.stat('Strike after a strike', pct1(stats.afterStrike.pct), stats.afterStrike.strikes + ' of ' + stats.afterStrike.n + ' first balls that followed a strike.'),
+      UI.stat('Strike after anything else', pct1(stats.afterOther.pct), stats.afterOther.strikes + ' of ' + stats.afterOther.n + ' first balls that followed a spare or an open frame.'),
+    ]);
+    if (!table.length) {
+      return UI.card('Strike streaks', 'None yet', el('div', null, [el('div', { class: 'card-body' }, tiles), UI.empty('Two strikes in a row start a streak. They will show up here.')]));
+    }
+    var top = table[table.length - 1].length;
+    var points = [];
+    for (var n = 2; n <= top; n++) {
+      var row = table.filter(function (r) { return r.length === n; })[0];
+      points.push({ label: row ? row.name + (n >= 3 ? ' (' + n + ')' : '') : n + ' in a row', axis: String(n),
+        value: row ? row.times : 0, caption: row ? plural(row.games, 'game') + ' had one' : 'never' });
+    }
+    var tableUi = UI.table({
+      columns: [
+        { key: 'n', label: 'Streak', sortable: false, className: 'col-name', render: function (r) { return r.length + ' \u00b7 ' + r.name; } },
+        { key: 't', label: 'Times', sortable: false, className: 'num-strong', render: function (r) { return String(r.times); } },
+        { key: 'a', label: 'Or longer', sortable: false, render: function (r) { return String(r.atLeast); } },
+        { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.games); } },
+        { key: 'o', label: 'How often', sortable: false, render: function (r) { return r.oneIn ? '1 in ' + UI.avg(r.oneIn) : '\u2014'; } },
+      ], rows: table, state: null, onSort: function () {},
+    });
+    var streakNote = stats.afterStrike.n >= 10 && stats.afterOther.n >= 10 && stats.afterStrike.pct != null && stats.afterOther.pct != null
+      ? (stats.afterStrike.pct > stats.afterOther.pct + 0.03
+          ? 'After a strike you strike again ' + pct(stats.afterStrike.pct) + ' of the time, against ' + pct(stats.afterOther.pct) + ' after anything else: you do carry momentum.'
+          : stats.afterStrike.pct < stats.afterOther.pct - 0.03
+            ? 'After a strike you strike again ' + pct(stats.afterStrike.pct) + ' of the time, against ' + pct(stats.afterOther.pct) + ' after anything else. Streaks come from the lane, not from momentum.'
+            : 'After a strike you strike again ' + pct(stats.afterStrike.pct) + ' of the time, about the same as after anything else (' + pct(stats.afterOther.pct) + '). Streaks here are what chance predicts.')
+      : 'Once there are a few more games, this compares how often a strike follows a strike with how often it follows anything else.';
+    return UI.card('Strike streaks', plural(stats.runs.length, 'streak') + ' of two or more',
+      el('div', null, [
+        el('div', { class: 'card-body sh-stack' }, [
+          tiles,
+          Charts.columns({
+            points: points, label: 'Strike streaks by length', integerTicks: true,
+            format: function (v) { return String(Math.round(v)); }, formatAxis: function (v) { return String(Math.round(v)); },
+          }),
+          el('p', { class: 'sh-note', text: streakNote }),
+        ]),
+        tableUi,
+      ]),
+      'A streak is strikes in a row, counted from the first strike to the last, fill balls in the tenth included. A run of five counts once, as a five. "Or longer" adds up everything at least that long. Three or more is a hot streak and earns the flame on a scorecard.');
   }
 
   /* Later games of a set that carry a different date from the first game. */

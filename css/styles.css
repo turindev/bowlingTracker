@@ -1741,3 +1741,28 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 
 .sh-tidyrow { align-items: flex-start; }
 .sh-tidyrow input { margin-top: 3px; }
+
+/* badges: hot streaks and clean games */
+.sh-badges { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 4px 8px; }
+.sh-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px 3px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid transparent; }
+.sh-badge.is-hot { color: #b53a00; background: #fff0e0; border-color: #ffc796; }
+.sh-badge.is-hot.heat-3 { color: #a11d00; background: #ffe3dc; border-color: #ff9d8a; }
+.sh-badge.is-clean { color: var(--win); background: color-mix(in srgb, var(--win) 12%, var(--surface)); border-color: color-mix(in srgb, var(--win) 40%, var(--surface)); }
+.sh-badge span { margin-left: 2px; }
+:root[data-theme="dark"] .sh-badge.is-hot { color: #ffb072; background: #3a2412; border-color: #70401c; }
+:root[data-theme="dark"] .sh-badge.is-hot.heat-3 { color: #ff9985; background: #3c1a14; border-color: #7a2d20; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sh-badge.is-hot { color: #ffb072; background: #3a2412; border-color: #70401c; }
+  :root:not([data-theme="light"]) .sh-badge.is-hot.heat-3 { color: #ff9985; background: #3c1a14; border-color: #7a2d20; }
+}
+.art-flame { fill: #ff7a18; }
+.art-flame.fl-2 { fill: #ff5a12; }
+.art-flame.fl-3 { fill: #ff3d1f; }
+.art-core { fill: #ffd34d; }
+.art-check { stroke: var(--win); }
+.sh-badge-icons { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: -2px; }
+.sh-badge-icon { display: inline-flex; }
+/* a hot streak warms the frames it runs through */
+.sh-frame.is-hot { background: linear-gradient(to top, rgba(255, 100, 0, calc(.12 + var(--heat, .5) * .40)), rgba(255, 190, 50, calc(.03 + var(--heat, .5) * .12))); }
+.sh-frame.is-hot .sh-fno { background: rgba(255, 140, 40, .22); position: relative; }
+.sh-hotmark { display: inline-flex; margin-left: 3px; vertical-align: -1px; }
