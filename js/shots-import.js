@@ -14,7 +14,10 @@
   var EXAMPLE = window.Importer.EXAMPLE;
 
   function create(h) {
-    var state = { text: '', name: '', aliases: {}, done: null };
+    var state = { text: '', name: '', aliases: {}, done: null, defaults: { location: '', pattern: '', event: 'practice', lane: '' }, address: '', loading: false, loadError: '' };
+
+    /* A change event can fire as a field loses focus; redrawing from inside it trips the browser. */
+    function later() { setTimeout(h.rerender, 0); }
 
     function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
 
@@ -30,6 +33,7 @@
         balls: lib.balls,
         existingKeys: lib.games.map(function (g) { return g.importKey; }).filter(Boolean),
         aliases: state.aliases,
+        defaults: state.defaults,
         makeId: h.uid,
       });
     }
@@ -45,6 +49,23 @@
       };
       reader.onerror = function () { state.text = ''; state.name = ''; h.rerender(); };
       reader.readAsText(file);
+    }
+
+    function loadAddress(url) {
+      state.loadError = '';
+      if (!/^(https?:\/\/|\/|\.\/|[\w-]+\/)/.test(url)) { state.loadError = 'Enter a web address, like https://\u2026/file.json'; return h.rerender(); }
+      state.loading = true;
+      h.rerender();
+      fetch(url, { cache: 'no-store' }).then(function (res) {
+        if (!res.ok) throw new Error('The address answered ' + res.status + '.');
+        return res.text();
+      }).then(function (text) {
+        state.text = text; state.name = url.split('/').pop() || url; state.aliases = {}; state.done = null; state.loading = false;
+        h.rerender();
+      }, function (e) {
+        state.loading = false; state.loadError = 'Could not load that: ' + e.message;
+        h.rerender();
+      });
     }
 
     function download(name, text) {
@@ -72,13 +93,33 @@
       });
     }
 
+    /* LaneTalk pictures show neither where nor on what oil, so say it once for the whole file. */
+    function detailFields(res) {
+      var m = res.missing;
+      if (!m || !(m.location || m.pattern || m.event || m.lane)) return null;
+      function text(key, label, placeholder) {
+        var input = el('input', { type: 'text', value: state.defaults[key], placeholder: placeholder, autocapitalize: 'words' });
+        input.addEventListener('change', function () { state.defaults[key] = input.value.trim(); later(); });
+        return h.field(label, input);
+      }
+      var event = el('select', { 'aria-label': 'Event' }, [['practice', 'Practice'], ['league', 'League'], ['tournament', 'Tournament']].map(function (e) {
+        return el('option', { value: e[0], selected: state.defaults.event === e[0] }, e[1]);
+      }));
+      event.addEventListener('change', function () { state.defaults.event = event.value; later(); });
+      return el('div', { class: 'sh-stack' }, [
+        el('p', { class: 'sh-note', text: 'The file does not say these for some nights. What you enter here is used for those nights.' }),
+        el('div', { class: 'sh-grid' }, [m.event ? h.field('Event', event) : null, m.location ? text('location', 'Location', 'e.g. Leisure Time Bowling') : null,
+          m.pattern ? text('pattern', 'Oil pattern', 'e.g. House') : null, m.lane ? text('lane', 'Lane', 'e.g. 23') : null].filter(Boolean)),
+      ]);
+    }
+
     function ballChoices(res) {
       if (!res.ballMap.length) return null;
       var arsenal = h.library().balls.filter(function (b) { return !b.deleted; });
       return el('div', { class: 'sh-stack' }, res.ballMap.map(function (m) {
         var select = el('select', {
           'aria-label': 'Which ball is "' + m.name + '"',
-          onchange: function () { state.aliases[m.key] = select.value; h.rerender(); },
+          onchange: function () { state.aliases[m.key] = select.value; later(); },
         }, [el('option', { value: 'new' }, 'Add "' + m.name + '" to my arsenal')].concat(arsenal.map(function (b) {
           return el('option', { value: b.id, selected: m.id === b.id }, b.name);
         })));
@@ -123,6 +164,7 @@
       cards.push(UI.card('What will be added', summary, el('div', null, [
         table,
         el('div', { class: 'card-body sh-stack' }, [
+          detailFields(res),
           ballChoices(res),
           res.warnings.length ? el('ul', { class: 'sh-notes-list' }, res.warnings.map(function (w) { return el('li', { text: w }); })) : null,
           err,
@@ -156,6 +198,13 @@
         nodes.push(UI.card('Choose a file', state.name ? state.name : 'A LeagueCraft games file (.json)', el('div', { class: 'card-body sh-stack' }, [
           h.field('File', file),
           paste,
+          (function () {
+            var url = el('input', { type: 'url', value: state.address, placeholder: 'https://\u2026/file.json', autocapitalize: 'off', 'aria-label': 'Web address of a games file' });
+            return el('div', { class: 'sh-stack' }, [
+              h.field('Or load it from a web address', url, state.loadError || null),
+              h.button(state.loading ? 'Loading\u2026' : 'Load', function () { state.address = url.value.trim(); loadAddress(state.address); }, null, { disabled: state.loading }),
+            ]);
+          })(),
           el('div', { class: 'sh-actions' }, [
             h.button('Check what I pasted', function () {
               state.text = paste.value.trim(); state.name = ''; state.aliases = {}; h.rerender();

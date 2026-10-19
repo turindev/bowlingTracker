@@ -9,7 +9,7 @@ const sample = fs.readFileSync(__dirname + '/import-sample.json', 'utf8');
 let n = 0;
 const makeId = p => p + (++n);
 const run = (text, opts) => I.parse(typeof text === 'string' ? text : JSON.stringify(text), Object.assign({ makeId }, opts));
-const doc = (games, extra) => ({ format: 'leaguecraft-games', version: 1, sets: [Object.assign({ date: '2026-10-13', ball: 'Storm Bionic', games }, extra)] });
+const doc = (games, extra) => ({ format: 'leaguecraft-games', version: 1, sets: [Object.assign({ date: '2026-09-19', ball: 'Storm Bionic', games }, extra)] });
 const STRIKES = new Array(10).fill('.');
 const TEN_STRIKES = STRIKES.slice(0, 9).concat(['. . .']);
 
@@ -21,7 +21,7 @@ check('and the series is 589, as on the screenshot', r.games.reduce((t, g) => t 
 check('the warm-up game is skipped, the rest numbered 1 to 3', r.games.map(g => g.gameNo).join() === '1,2,3' && r.games.every(g => g.setSize === 3), JSON.stringify(r.games.map(g => [g.gameNo, g.setSize])));
 check('the games are one set, finished, with the ball on every shot', new Set(r.games.map(g => g.setId)).size === 1 && r.games.every(g => g.status === 'done' && S.walk(g).every(c => c.ball === 'b1')), '');
 check('"Supra Sport" is matched to "Motiv Supra Sport" and says so', r.newBalls.length === 0 && r.ballMap[0].how === 'close' && r.ballMap[0].match === 'Motiv Supra Sport', JSON.stringify(r.ballMap));
-check('every game carries its import key', r.games.map(g => g.importKey).join() === '2026-10-13/1,2024-10-13/2'.replace('2024', '2026') + ',2026-10-13/3', r.games.map(g => g.importKey).join());
+check('every game carries its import key', r.games.map(g => g.importKey).join() === '2026-09-19/1,2026-09-19/2,2026-09-19/3', r.games.map(g => g.importKey).join());
 check('games come back in the order bowled', r.games.map(g => g.createdAt).join() === r.games.map(g => g.createdAt).slice().sort().join(), '');
 const leaves = S.analyze(r.games).leaves.map(l => l.key);
 check('the leaves from the pictures are real leaves', leaves.indexOf('1-2-8-10') !== -1 && leaves.indexOf('4-8') !== -1, leaves.join());
@@ -63,6 +63,15 @@ check('too many balls in a frame is caught', bad([{ frames: ['. .', '.', '.', '.
 check('nine frames is not a game', /needs ten/.test(bad([{ frames: STRIKES.slice(0, 9) }]).errors.join()), '');
 check('a nonsense ball is explained', /not a ball/.test(bad([{ frames: ['abc'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.join()), '');
 check('pin 11 does not exist', /no pin 11/.test(bad([{ frames: ['11 .'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.join()), '');
+check('"?1" can come before another ball: one pin left is a single whichever pin it is', bad([{ frames: ['?1 .'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.length === 0, bad([{ frames: ['?1 .'] }]).errors.join());
+const noDeck = bad([{ frames: ['?1 .'].concat(STRIKES.slice(1, 9), ['. . .']), total: 290 }]);
+check('a spare after an unknown pin counts as a single-pin spare but names no leave', (() => { const a = S.analyze(noDeck.games); return a.single.attempts === 1 && a.single.made === 1 && a.leaves.length === 0; })(), noDeck.errors.join());
+check('the leave table is not credited for a spare try at an unknown pin', (() => { const g = bad([{ frames: ['10 .', '?1 .'].concat(STRIKES.slice(2, 9), ['. . .']) }]).games[0]; const l = S.analyze([g]).leaves; return l.length === 1 && l[0].key === '10' && l[0].seen === 1 && l[0].attempts === 1; })(), '');
+check('a missed everything frame is all ten pins, written out', bad([{ frames: ['1-2-3-4-5-6-7-8-9-10 1-2-3-4-5-6-7-8-9-10'].concat(STRIKES.slice(1, 9), ['. . .']), total: 270 }]).errors.length === 0, bad([{ frames: ['1-2-3-4-5-6-7-8-9-10 1-2-3-4-5-6-7-8-9-10'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.join());
+const dflt = run(doc([{ frames: TEN_STRIKES }], { event: undefined, location: undefined }), { balls: [], defaults: { location: 'LTB', pattern: 'Flat', lane: '7', event: 'tournament' } });
+check('details missing from the file come from the defaults', dflt.games[0].location === 'LTB' && dflt.games[0].pattern === 'Flat' && dflt.games[0].lane === '7' && dflt.games[0].event === 'tournament', JSON.stringify(dflt.games[0]));
+check('with no event anywhere a night is practice', bad([{ frames: TEN_STRIKES }], { event: undefined }).games[0].event === 'practice', '');
+check('what the file says beats the defaults', run(doc([{ frames: TEN_STRIKES }], { location: 'Here' }), { balls: [], defaults: { location: 'There' } }).games[0].location === 'Here', '');
 check('"?" is refused where the next ball depends on it', /last ball of a frame/.test(bad([{ frames: ['?2 .'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.join()), bad([{ frames: ['?2 .'] }]).errors.join());
 check('"?" is allowed on the last ball of a frame', bad([{ frames: ['10 ?1'].concat(STRIKES.slice(1, 9), ['. . .']) }]).errors.length === 0, '');
 check('a bad date is explained', /date must look like/.test(bad([{ frames: TEN_STRIKES }], { date: '13/10/2026' }).errors.join()), '');
@@ -83,6 +92,12 @@ check('imported games are scored and listed like any other', (() => { const g = 
 
 const ex = run(I.EXAMPLE, { balls: [] });
 check('the example file in the app imports cleanly', ex.errors.length === 0 && ex.games.length === 2 && ex.games.map(g => S.score(g).total).join() === '300,191', ex.errors.join() + ' ' + ex.games.map(g => S.score(g).total).join());
+
+// --- the history transcribed from LaneTalk screenshots ----------------------------------------
+const hist = run(fs.readFileSync(__dirname + '/../imports/lanetalk-2026.json', 'utf8'), { balls: [] });
+check('the LaneTalk history imports with every total and running total matching', hist.errors.length === 0 && hist.games.length === 13, hist.errors.join(' | '));
+check('and the series are the ones printed on the screenshots', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join() === '589,599,576,660,233', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join());
+check('the sample and the history agree about the night they share, so importing both adds it once', (() => { const smp = run(sample, { balls: [] }); return smp.games.map(g => g.importKey).join() === hist.games.slice(0, 3).map(g => g.importKey).join(); })(), '');
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n') : '\nall importer assertions passed');
