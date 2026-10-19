@@ -42,6 +42,8 @@ against offline. Use four or more unrelated words.
 |---|---|
 | `js/shots.js` | Scoring, leaves and splits, every statistic. Pure; tested by `tools/test-shots.js`. |
 | `js/ballstats.js` | The ball report's statistics: confidence intervals, ANOVA, Kruskal–Wallis, Levene, Welch with Holm, bootstrap odds, shrinkage. Pure; tested by `tools/test-ballstats.js`. |
+| `js/trends.js` | Rolling averages, score distribution, balls and ball-by-pattern figures, forgiveness measures. Pure; tested by `tools/test-trends.js`. |
+| `js/shots-insights.js` | The Progress and Balls tabs of Stats: draws the figures from `trends.js`. |
 | `js/cards.js` | Draws the series scorecard and the ball report as SVG, and turns a picture into PNG, PDF or a share-sheet file. |
 | `js/shots-share.js` | The preview / Share / Save / PDF panel. |
 | `js/vault.js` | Encryption, device storage, GitHub sync, merging. Tested by `tools/test-vault.js` against `tools/fake-github.js`. |

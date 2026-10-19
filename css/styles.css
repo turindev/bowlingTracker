@@ -23,6 +23,7 @@
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
+  --s4: #eda100;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,6 +44,7 @@
     --s1: #3987e5;
     --s2: #d95926;
     --s3: #199e70;
+    --s4: #c98500;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
   }
 }
@@ -64,6 +66,7 @@
   --s1: #3987e5;
   --s2: #d95926;
   --s3: #199e70;
+  --s4: #c98500;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
 }
 
@@ -1663,3 +1666,48 @@ i.chart-swatch.ml-s3, circle.ml-swatch.ml-s3 { background: var(--s3); fill: var(
 
 .chart-swatch.is-ref { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--text-dim); background: none; }
 .ml-ref { stroke-dasharray: 5 4; opacity: .8; }
+
+/* the fourth slot, plus bars, bands and raw dots in any slot */
+i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(--s4); }
+.ml-line.ml-s4 { stroke: var(--s4); } .ml-dot.ml-s4 { fill: var(--s4); }
+.fill-s1 { fill: var(--s1); } .fill-s2 { fill: var(--s2); } .fill-s3 { fill: var(--s3); } .fill-s4 { fill: var(--s4); }
+.ts-raw { opacity: .3; } .ts-raw.ml-s1 { fill: var(--s1); } .ts-raw.ml-s2 { fill: var(--s2); } .ts-raw.ml-s3 { fill: var(--s3); } .ts-raw.ml-s4 { fill: var(--s4); }
+.ts-focus { fill: none; stroke: var(--text); stroke-width: 2; }
+.rg-band { opacity: .28; }
+.rg-mid { stroke: var(--text); stroke-width: 2.5; stroke-linecap: round; }
+.rg-value { fill: var(--text); font-size: 11.5px; font-weight: 700; font-family: inherit; }
+.rg-group { font-size: 12px; }
+.ml-rowlabel { fill: var(--text); font-size: 12.5px; font-weight: 600; font-family: inherit; }
+
+/* stats tabs and the deeper cards */
+.sh-statstabs .sh-chip { flex: 1 1 0; }
+.sh-verdict { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 600; }
+.sh-best { color: var(--win); }
+.sh-subhead { margin: 8px 0 4px; font-size: 14px; }
+.sh-heatwrap { overflow-x: auto; padding: 0 12px 4px; }
+.sh-heatmap { border-collapse: separate; border-spacing: 4px; width: 100%; font-size: 13px; }
+.sh-heatmap th { font-weight: 600; color: var(--text-dim); text-align: center; padding: 2px 4px; font-size: 12px; }
+.sh-heatmap th.sh-heat-ball { text-align: left; color: var(--text); white-space: nowrap; }
+.sh-heat { text-align: center; border-radius: 8px; padding: 6px 4px; min-width: 56px; }
+.sh-heat strong { display: block; font-size: 16px; }
+.sh-heat small { display: block; font-size: 11px; color: var(--text-dim); }
+.sh-heat.is-thin { opacity: .6; }
+.sh-heat.is-best { box-shadow: inset 0 0 0 2px var(--accent); }
+.sh-heat-empty { text-align: center; color: var(--text-dim); }
+.ml-rowsub { fill: var(--text-dim); font-size: 11px; font-family: inherit; }
+
+/* the forgiveness scorecard: balls across, measures down */
+.sh-scorewrap { overflow-x: auto; padding: 4px 12px 0; }
+.sh-scoretable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sh-scoretable th, .sh-scoretable td { padding: 9px 6px; text-align: center; border-bottom: 1px solid var(--border); }
+.sh-scoretable thead th { font-size: 12px; font-weight: 700; vertical-align: bottom; }
+.sh-scoretable tbody th { text-align: left; font-weight: 600; color: var(--text-dim); font-size: 13px; }
+.sh-scoretable td { font-size: 15px; font-variant-numeric: tabular-nums; }
+.sh-ballhead { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+
+/* these two are real tables, but not the site's header-row style */
+.sh-scoretable th, .sh-heatmap th { text-transform: none; letter-spacing: 0; background: none; white-space: normal; position: static; box-shadow: none; }
+.sh-scoretable tbody th { width: 36%; }
+.sh-scoretable thead th { color: var(--text); }
+.sh-heatmap th.sh-heat-ball { white-space: normal; min-width: 96px; }
+.sh-heatmap thead th { color: var(--text-dim); font-size: 12px; font-weight: 700; }
