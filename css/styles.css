@@ -1611,3 +1611,19 @@ a.sh-score.is-open { font-weight: 500; color: var(--text-dim); font-style: itali
   .sh-entry .sh-pin { width: 54px; height: 54px; }
   .sh-entry .sh-group .sh-chips { flex-wrap: wrap; }
 }
+
+/* league / tournament marker in the list of sets */
+.sh-datecell { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.sh-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.sh-tag.is-league { color: var(--accent); background: var(--accent-soft); }
+.sh-tag.is-tournament { color: var(--gold); background: none; border-color: var(--gold); }

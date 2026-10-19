@@ -423,6 +423,7 @@
       attempts: 0, spares: 0, sparePct: null,
       firstBallAvg: null,
       single: bucket(), cluster: bucket(), split: bucket(),
+      makeable: { attempts: 0, made: 0, pct: null }, makeablePct: null,
       splits: 0, splitPct: null,
       hits: {}, hitsRecorded: 0,
       misses: { left: 0, right: 0, total: 0, leftPct: null, rightPct: null },
@@ -540,6 +541,13 @@
     ['single', 'cluster', 'split'].forEach(function (k) {
       out[k].pct = ratio(out[k].made, out[k].attempts);
     });
+    /* Makeable spares: every spare try that was not a split, since splits are
+       mostly out of your hands and make the plain spare % look worse than the
+       shot-making was. */
+    out.makeable.attempts = out.single.attempts + out.cluster.attempts;
+    out.makeable.made = out.single.made + out.cluster.made;
+    out.makeable.pct = ratio(out.makeable.made, out.makeable.attempts);
+    out.makeablePct = out.makeable.pct;
     HITS.forEach(function (h) {
       var hit = out.hits[h];
       hit.pct = ratio(hit.n, out.hitsRecorded);
