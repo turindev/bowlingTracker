@@ -213,6 +213,32 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('a game with no per-shot balls follows the game ball', S.primaryBall(S.replaceBall(legacy, 'A', 'Z')) === 'Z', '');
 })();
 
+// --- editing a series ---------------------------------------------------------------------
+(() => {
+  const mk = (id, no, extra) => Object.assign({ id, setId: 'S', gameNo: no, setSize: 3, createdAt: '2026-10-16T0' + no, status: 'done', frames: [] }, extra);
+  const set = [mk('a', 1), mk('b', 2), mk('c', 3), mk('d', 4)];
+  const dropped = S.dropFromSet(set, 'b');
+  check('deleting a game marks it deleted', dropped[0].id === 'b' && dropped[0].deleted === true, '');
+  check('and the rest close up to 1..n', dropped.slice(1).map(g => g.id + g.gameNo).join() === 'c2,d3', dropped.slice(1).map(g => g.id + g.gameNo).join());
+  // the double-tap duplicate: two open "game 2"s next to a real one
+  const dupes = [mk('a', 1), mk('x', 2, { status: 'open', createdAt: '2026-10-16T05' }), mk('y', 2, { status: 'open', createdAt: '2026-10-16T06' }), mk('z', 2, { createdAt: '2026-10-16T07' })];
+  check('removing duplicates leaves a clean 1, 2', S.renumber([dupes[0], dupes[3]]).length === 0, '');
+  const left = S.leaveSet(set, 'b');
+  check('leaving a series keeps the game as a single game', left[0].id === 'b' && left[0].setId === null && left[0].gameNo === null && left[0].setSize === null, JSON.stringify(left[0]));
+  check('and renumbers the others', left.slice(1).map(g => g.id + g.gameNo).join() === 'c2,d3', left.slice(1).map(g => g.id + g.gameNo).join());
+  check('renumbering leaves games that are already right alone', S.renumber([mk('a', 1), mk('b', 2)]).length === 0, '');
+  const full = [mk('a', 1), mk('b', 2), mk('c', 3)];
+  const joined = S.joinSet(full, { id: 'x', setId: null, gameNo: null, setSize: null });
+  check('joining a full series makes it one game longer', joined[0].gameNo === 4 && joined[0].setSize === 4 && joined[0].setId === 'S', JSON.stringify(joined[0]));
+  check('and updates the size on every game', joined.length === 4 && joined.slice(1).every(g => g.setSize === 4), '');
+  const roomy = S.joinSet([mk('a', 1), mk('b', 2)], { id: 'x' });
+  check('joining a series with room keeps its size', roomy[0].gameNo === 3 && roomy[0].setSize === 3 && roomy.length === 1, JSON.stringify(roomy));
+  check('resizing changes every game', S.resizeSet(full, 4).length === 3 && S.resizeSet(full, 4).every(g => g.setSize === 4), '');
+  check('a series cannot shrink below its games', (() => { try { S.resizeSet(full, 2); return false; } catch (e) { return true; } })(), '');
+  const shrunk = S.setsOf([mk('a', 1), mk('b', 2)].map(g => Object.assign(g, { setSize: 2 })), { all: true })[0];
+  check('a 2-game series is complete once both are done', shrunk.size === 2 && shrunk.games.length === 2, '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');
