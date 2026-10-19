@@ -14,7 +14,7 @@
   var EXAMPLE = window.Importer.EXAMPLE;
 
   function create(h) {
-    var state = { text: '', name: '', aliases: {}, done: null, defaults: { location: '', pattern: '', event: 'practice', lane: '' }, address: '', loading: false, loadError: '' };
+    var state = { text: '', name: '', aliases: {}, done: null, replace: false, defaults: { location: '', pattern: '', event: 'practice', lane: '' }, address: '', loading: false, loadError: '' };
 
     /* A change event can fire as a field loses focus; redrawing from inside it trips the browser. */
     function later() { setTimeout(h.rerender, 0); }
@@ -34,6 +34,7 @@
         existingKeys: lib.games.map(function (g) { return g.importKey; }).filter(Boolean),
         aliases: state.aliases,
         defaults: state.defaults,
+        replace: state.replace,
         makeId: h.uid,
       });
     }
@@ -78,11 +79,16 @@
     function commit(res) {
       var keys = {};
       return h.getVault().commit(function (lib) {
-        lib.games.forEach(function (g) { if (g.importKey) keys[g.importKey] = true; });
+        lib.games.forEach(function (g, i) { if (g.importKey && !g.deleted) keys[g.importKey] = i; });
         res.newBalls.forEach(function (b) { lib.balls.push({ id: b.id, name: b.name, notes: 'Added by import', updatedAt: h.now() }); });
         res.games.forEach(function (g) {
-          if (keys[g.importKey]) return;                 /* it arrived by another route since the preview */
           g.updatedAt = h.now();
+          if (keys[g.importKey] != null) {
+            if (!state.replace) return;                  /* it arrived by another route since the preview */
+            g.id = lib.games[keys[g.importKey]].id;      /* the corrected game keeps the old game's identity */
+            lib.games[keys[g.importKey]] = g;
+            return;
+          }
           lib.games.push(g);
         });
       }).then(function () {
@@ -141,6 +147,9 @@
         return cards;
       }
       var fresh = res.games.length;
+      var replaceBox = el('input', { type: 'checkbox' });
+      replaceBox.checked = state.replace;
+      replaceBox.addEventListener('change', function () { state.replace = replaceBox.checked; later(); });
       var rows = res.sets.map(function (s) { return s; });
       var table = UI.table({
         columns: [
@@ -154,7 +163,7 @@
         ], rows: rows, state: null, onSort: function () {},
       });
       var summary = fresh
-        ? plural(fresh, 'game') + ' ready to add' + (res.newBalls.length ? ', and ' + plural(res.newBalls.length, 'new ball') : '') + (res.duplicates.length ? '. ' + plural(res.duplicates.length, 'game') + ' already in your vault will be skipped' : '')
+        ? plural(fresh, 'game') + (res.replacing ? ' ready, ' + res.replacing + ' of them replacing games imported before' : ' ready to add') + (res.newBalls.length ? ', and ' + plural(res.newBalls.length, 'new ball') : '') + (res.duplicates.length ? '. ' + plural(res.duplicates.length, 'game') + ' already in your vault will be skipped' : '')
         : 'Everything in this file is already in your vault.';
       var err = el('p', { class: 'sh-error', role: 'alert', hidden: true });
       var go = h.button('Import ' + plural(fresh, 'game'), function () {
@@ -164,6 +173,7 @@
       cards.push(UI.card('What will be added', summary, el('div', null, [
         table,
         el('div', { class: 'card-body sh-stack' }, [
+          el('label', { class: 'sh-check' }, [replaceBox, el('span', { text: 'Replace games I already imported from this file (use after the file was corrected)' })]),
           detailFields(res),
           ballChoices(res),
           res.warnings.length ? el('ul', { class: 'sh-notes-list' }, res.warnings.map(function (w) { return el('li', { text: w }); })) : null,
