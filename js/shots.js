@@ -644,6 +644,50 @@
     return best || set.games[0].ball || null;
   }
 
+  /* ---------- trailing weeks ---------- */
+
+  function dayNumber(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
+  }
+  function isoOf(day) {
+    var d = new Date(day * 86400000);
+    return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+  }
+
+  /* The last `weeks` weeks (Monday to Sunday, ending with the one that holds
+     `today`), oldest first, each with the per-game averages that week. A week
+     with no games has nulls. `window` is the same figures over all of it, which
+     is what each week is compared with. */
+  function weekly(games, opts) {
+    opts = opts || {};
+    var count = opts.weeks || 12;
+    var today = dayNumber(opts.today || new Date().toISOString().slice(0, 10));
+    var monday = today - ((today + 3) % 7);          /* 1970-01-01 was a Thursday */
+    var first = monday - (count - 1) * 7;
+    var pool = finished(games);
+    var rows = [];
+    for (var i = 0; i < count; i++) {
+      rows.push({ start: isoOf(first + i * 7), games: [] });
+    }
+    var inside = [];
+    pool.forEach(function (g) {
+      var d = dayNumber(g.date);
+      if (d == null || d < first || d >= monday + 7) return;
+      rows[Math.floor((d - first) / 7)].games.push(g);
+      inside.push(g);
+    });
+    function figures(list) {
+      if (!list.length) return { games: 0, average: null, strikesPerGame: null, makeablePerGame: null };
+      var a = analyze(list);
+      return { games: a.games, average: a.average, strikesPerGame: a.strikesPerGame, makeablePerGame: a.makeable.made / a.games };
+    }
+    return {
+      weeks: rows.map(function (r) { var f = figures(r.games); f.start = r.start; return f; }),
+      window: figures(inside),
+    };
+  }
+
   /* ---------- editing a set ---------- */
 
   function inOrder(games) {
@@ -820,7 +864,7 @@
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
-    renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
+    weekly: weekly, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;

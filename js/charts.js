@@ -103,6 +103,124 @@
     });
   }
 
+  /* ---- several measures on one set of weeks ----------------------------
+     The measures have different units, so each is indexed to its own average
+     over the window (100). xs: { axis, label } for each week. series:
+     { name, key, values (index or null), actual (text or null), change (text
+     or null), end } with a fixed colour slot per key. Hover or tap a week for a
+     crosshair and the real numbers of all of them. Gaps are not drawn through:
+     a week without games is simply skipped by the line.
+     -------------------------------------------------------------------- */
+  function multiline(options) {
+    var xs = options.xs || [];
+    var series = options.series || [];
+    var any = series.some(function (s) { return s.values.some(function (v) { return v != null; }); });
+    if (!any) return el('div', { class: 'chart' }, UI.empty(options.empty || 'No data to chart yet.'));
+    var keys = series.map(function (s) {
+      return el('span', { class: 'chart-key' }, [el('i', { class: 'chart-swatch ml-' + s.key }), s.name]);
+    });
+    if (options.reference) keys.push(el('span', { class: 'chart-key' }, [el('i', { class: 'chart-swatch is-ref' }), options.reference.label]));
+    var legend = el('div', { class: 'chart-legend' }, keys);
+    return el('div', null, [legend, responsive(function (width, tip) { return drawMulti(width, xs, series, options, tip); })]);
+  }
+
+  function drawMulti(width, xs, series, options, tip) {
+    var height = options.height || 260;
+    var pad = { top: 14, right: 46, bottom: 26, left: 40 };
+    var plotW = Math.max(40, width - pad.left - pad.right);
+    var plotH = height - pad.top - pad.bottom;
+    var ref = options.reference ? options.reference.value : 100;
+
+    var all = [ref];
+    series.forEach(function (s) { s.values.forEach(function (v) { if (v != null) all.push(v); }); });
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    /* Gridlines at the reference and whole steps either side of it, so the dotted 100 is always one. */
+    var reach = Math.max(ref - lo, hi - ref, 8);
+    var stepBy = [5, 10, 20, 25, 50, 100].filter(function (n) { return reach / n <= 3; })[0] || 100;
+    var below = Math.ceil((ref - lo) / stepBy - 1e-9), above = Math.ceil((hi - ref) / stepBy - 1e-9);
+    below = Math.max(1, below); above = Math.max(1, above);
+    var domain = [ref - below * stepBy, ref + above * stepBy];
+    var tickValues = [];
+    for (var tv = domain[0]; tv <= domain[1]; tv += stepBy) tickValues.push(tv);
+    function x(i) { return xs.length === 1 ? pad.left + plotW / 2 : pad.left + (i / (xs.length - 1)) * plotW; }
+    function y(v) { return pad.top + plotH - ((v - domain[0]) / (domain[1] - domain[0] || 1)) * plotH; }
+
+    var svg = node('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': options.label || 'Trend' });
+
+    tickValues.forEach(function (v) {
+      svg.appendChild(node('line', { class: 'chart-grid-line', x1: pad.left, x2: pad.left + plotW, y1: y(v), y2: y(v) }));
+      var t = node('text', { class: 'chart-axis-label', x: pad.left - 8, y: y(v) + 4, 'text-anchor': 'end' });
+      t.textContent = String(v);
+      svg.appendChild(t);
+    });
+    svg.appendChild(node('line', { class: 'chart-ref ml-ref', x1: pad.left, x2: pad.left + plotW, y1: y(ref), y2: y(ref) }));
+
+    var step = Math.ceil(xs.length / Math.max(1, Math.floor(plotW / 46)));
+    xs.forEach(function (p, i) {
+      if (i % step !== 0 && i !== xs.length - 1) return;
+      var t = node('text', { class: 'chart-axis-label', x: x(i), y: height - 8, 'text-anchor': 'middle' });
+      t.textContent = p.axis;
+      svg.appendChild(t);
+    });
+
+    var cross = node('line', { class: 'chart-cross', x1: 0, x2: 0, y1: pad.top, y2: pad.top + plotH, visibility: 'hidden' });
+    svg.appendChild(cross);
+
+    var ends = [];
+    series.forEach(function (s) {
+      var pts = [];
+      s.values.forEach(function (v, i) { if (v != null) pts.push({ i: i, v: v }); });
+      if (pts.length > 1) {
+        svg.appendChild(node('polyline', { class: 'ml-line ml-' + s.key, points: pts.map(function (p) { return x(p.i) + ',' + y(p.v); }).join(' ') }));
+      }
+      pts.forEach(function (p) {
+        svg.appendChild(node('circle', { class: 'ml-dot ml-' + s.key, cx: x(p.i), cy: y(p.v), r: 3.5 }));
+      });
+      if (pts.length && s.end) ends.push({ y: y(pts[pts.length - 1].v), text: s.end, key: s.key, x: x(pts[pts.length - 1].i) });
+    });
+
+    /* End labels: the latest real value, nudged apart so they never overlap. */
+    ends.sort(function (a, b) { return a.y - b.y; });
+    for (var k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 14) ends[k].y = ends[k - 1].y + 14;
+    ends.forEach(function (e) {
+      svg.appendChild(node('circle', { class: 'ml-swatch ml-' + e.key, cx: pad.left + plotW + 10, cy: e.y, r: 3.5 }));
+      var t = node('text', { class: 'ml-end', x: pad.left + plotW + 17, y: e.y + 4 });
+      t.textContent = e.text;
+      svg.appendChild(t);
+    });
+
+    var band = xs.length === 1 ? plotW : plotW / (xs.length - 1);
+    xs.forEach(function (p, i) {
+      var hit = node('rect', { class: 'chart-hit', x: x(i) - band / 2, y: pad.top, width: band, height: plotH });
+      hit.addEventListener('mouseenter', function () { show(p, i); });
+      hit.addEventListener('mouseleave', hide);
+      svg.appendChild(hit);
+    });
+    svg.addEventListener('mouseleave', hide);
+
+    function show(p, i) {
+      cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+      tip.textContent = '';
+      tip.appendChild(el('strong', { text: p.label }));
+      if (p.note) tip.appendChild(el('small', { text: p.note }));
+      series.forEach(function (s) {
+        if (s.actual[i] == null) return;
+        tip.appendChild(el('span', { class: 'chart-tip-row' }, [
+          el('i', { class: 'chart-swatch ml-' + s.key }),
+          el('b', { text: s.actual[i] }), ' ' + s.short + (s.change[i] ? ' \u00b7 ' + s.change[i] : ''),
+        ]));
+      });
+      if (!tip.querySelector('.chart-tip-row')) tip.appendChild(el('small', { text: 'No games' }));
+      tip.classList.add('is-on');
+      var w = tip.offsetWidth;
+      tip.style.left = Math.max(2, Math.min(width - w - 2, x(i) - w / 2)) + 'px';
+      tip.style.top = '4px';
+    }
+    function hide() { cross.setAttribute('visibility', 'hidden'); tip.classList.remove('is-on'); }
+
+    return svg;
+  }
+
   /* ---- columns ---------------------------------------------------------
      points: { label, axis, value, caption } — one bar per point, in order,
      rising from a zero baseline with a rounded data-end. An optional
@@ -521,5 +639,5 @@
     return out;
   }
 
-  window.Charts = { bars: bars, diverging: diverging, line: line, columns: columns, race: race };
+  window.Charts = { bars: bars, diverging: diverging, line: line, columns: columns, race: race, multiline: multiline };
 })();

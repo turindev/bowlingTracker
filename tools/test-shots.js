@@ -259,6 +259,29 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('with no spare tries there is no makeable %', S.analyze([]).makeablePct === null, '');
 })();
 
+// --- trailing weeks -------------------------------------------------------------------------
+(() => {
+  const perfect2 = d => Object.assign(fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX'], { date: d }), { status: 'done' });
+  const normal = d => {                                           // spare every frame with a single-pin leave: 9 + / each
+    let g = S.newGame({ date: d, ball: 'A' });
+    for (let f = 0; f < 9; f++) { g = S.addShot(g, { standing: [10], ball: 'A' }); g = S.addShot(g, { standing: [], ball: 'A' }); }
+    g = S.addShot(g, { standing: [10], ball: 'A' }); g = S.addShot(g, { standing: [], ball: 'A' }); g = S.addShot(g, { standing: [], ball: 'A' });
+    g.status = 'done'; return g;
+  };
+  const nScore = S.score(normal('2026-10-20')).total;
+  const today = '2026-10-21';                                     // a Wednesday: this week starts Mon Oct 19
+  const w = S.weekly([perfect2('2026-10-19'), normal('2026-10-20'), normal('2026-10-14'), perfect2('2026-07-27'), perfect2('2026-07-26')], { today, weeks: 12 });
+  check('weekly returns 12 weeks, oldest first, ending with this one', w.weeks.length === 12 && w.weeks[11].start === '2026-10-19' && w.weeks[0].start === '2026-08-03', w.weeks[0].start + ' ' + w.weeks[11].start);
+  check('this week has the two games and their averages', w.weeks[11].games === 2 && w.weeks[11].average === (300 + nScore) / 2 && w.weeks[11].strikesPerGame === (12 + 1) / 2, JSON.stringify(w.weeks[11]));
+  check('makeable spares per game counts the converted non-split spares', w.weeks[11].makeablePerGame === (0 + 10) / 2, w.weeks[11].makeablePerGame);
+  check('last week has one game', w.weeks[10].games === 1 && w.weeks[10].start === '2026-10-12', JSON.stringify(w.weeks[10]));
+  check('a week with no games has no figures', w.weeks[5].games === 0 && w.weeks[5].average === null, JSON.stringify(w.weeks[5]));
+  check('games before the window are left out', w.window.games === 3, w.window.games);
+  check('the window figures cover everything in it', Math.abs(w.window.average - (300 + 2 * nScore) / 3) < 1e-9, w.window.average);
+  check('an empty list gives empty weeks', S.weekly([], { today }).weeks.every(x => x.games === 0) && S.weekly([], { today }).window.average === null, '');
+  check('a Sunday belongs to the week that began the Monday before', S.weekly([perfect2('2026-10-25')], { today: '2026-10-25' }).weeks[11].games === 1 && S.weekly([perfect2('2026-10-25')], { today: '2026-10-26' }).weeks[10].games === 1, '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

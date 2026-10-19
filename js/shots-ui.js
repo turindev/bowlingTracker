@@ -767,6 +767,33 @@
 
   /* ---------- pin deck ---------- */
 
+  /* A small picture of a leave: the pins left standing are filled, the rest are
+     faint. `key` is the leave as "7-10"; the name goes in the tooltip and label. */
+  function leaveDeck(key, label) {
+    var up = String(key).split('-').map(Number);
+    var NS = 'http://www.w3.org/2000/svg';
+    var gap = 11, r = 4.4;
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'sh-leavedeck');
+    svg.setAttribute('viewBox', '0 0 ' + (gap * 3 + r * 2 + 2) + ' ' + (gap * 3 + r * 2 + 2));
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label);
+    var title = document.createElementNS(NS, 'title');
+    title.textContent = label;
+    svg.appendChild(title);
+    S.DECK.forEach(function (row, ri) {
+      row.forEach(function (pin, ci) {
+        var c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', String(1 + r + (ci + (4 - row.length) / 2) * gap));
+        c.setAttribute('cy', String(1 + r + ri * gap));
+        c.setAttribute('r', String(r));
+        c.setAttribute('class', up.indexOf(pin) !== -1 ? 'ld-up' : 'ld-down');
+        svg.appendChild(c);
+      });
+    });
+    return svg;
+  }
+
   function pinDeck(before, standing, onToggle) {
     return el('div', { class: 'sh-deck', role: 'group', 'aria-label': 'Pin deck' }, S.DECK.map(function (row) {
       return el('div', { class: 'sh-row' }, row.map(function (pin) {
@@ -1471,7 +1498,7 @@
       leaves.length ? el('div', null, [
         UI.table({
           columns: [
-            { key: 'n', label: 'Leave', sortable: false, className: 'col-name', render: function (r) { return r.label; } },
+            { key: 'n', label: 'Leave', sortable: false, className: 'col-name', render: function (r) { return leaveDeck(r.key, r.label); } },
             { key: 's', label: 'Seen', sortable: false, render: function (r) { return String(r.seen); } },
             { key: 'a', label: 'Tries', sortable: false, render: function (r) { return String(r.attempts); } },
             { key: 'm', label: 'Made', sortable: false, render: function (r) { return String(r.made); } },
@@ -1520,6 +1547,7 @@
       subnav('stats'),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [controls])),
       UI.card(null, null, el('div', { class: 'card-body' }, tiles)),
+      weeksCard(filtered, f.ball),
       seriesCard(filtered, f.ball),
       compareCard(filtered),
       hitCard,
@@ -1528,6 +1556,67 @@
       leaveCard,
       UI.card('Scores', 'Every game, in order', el('div', { class: 'card-body' }, trend)),
     ]);
+  }
+
+  /* The last twelve weeks: average score, strikes and makeable spares per game,
+     on one chart. Different units, so each is indexed to its own 12-week
+     average; hovering a week shows the real numbers, and the table has them all. */
+  function weeksCard(games, ballFilter) {
+    var pool = ballFilter ? games.filter(function (g) { return S.primaryBall(g) === ballFilter; }) : games;
+    var w = S.weekly(pool, { weeks: 12, today: today() });
+    if (!w.window.games) {
+      return UI.card('Last 12 weeks', null, UI.empty('No finished games in the last twelve weeks' + (ballFilter ? ' with this ball' : '') + '.'));
+    }
+    var measures = [
+      { key: 's1', name: 'Average score', short: 'avg score', field: 'average', digits: 0 },
+      { key: 's2', name: 'Strikes per game', short: 'strikes / game', field: 'strikesPerGame', digits: 1 },
+      { key: 's3', name: 'Makeable spares per game', short: 'makeable spares / game', field: 'makeablePerGame', digits: 1 },
+    ];
+    var series = measures.map(function (m) {
+      var base = w.window[m.field];
+      var latest = null;
+      var values = w.weeks.map(function (x) {
+        var v = x[m.field];
+        if (v != null) latest = v;
+        return v == null || !base ? null : v / base * 100;
+      });
+      return {
+        key: m.key, name: m.name, short: m.short, values: values,
+        actual: w.weeks.map(function (x) { return x[m.field] == null ? null : x[m.field].toFixed(m.digits); }),
+        change: values.map(function (v) { return v == null ? null : (v >= 100 ? '+' : '\u2212') + Math.abs(Math.round(v - 100)) + '%'; }),
+        end: latest == null ? null : latest.toFixed(m.digits),
+      };
+    });
+    var chart = Charts.multiline({
+      xs: w.weeks.map(function (x) {
+        return { axis: UI.shortDate(x.start), label: 'Week of ' + UI.shortDate(x.start), note: x.games ? plural(x.games, 'game') : '' };
+      }),
+      series: series,
+      reference: { value: 100, label: '12-week average (100)' },
+      label: 'Average score, strikes and makeable spares per game, by week',
+    });
+
+    var rows = w.weeks.filter(function (x) { return x.games; }).map(function (x) {
+      return { name: UI.shortDate(x.start), x: x };
+    }).concat([{ name: '12-week average', x: w.window, total: true }]);
+    var table = UI.table({
+      columns: [
+        { key: 'w', label: 'Week of', sortable: false, className: 'col-name', render: function (r) { return r.total ? el('strong', { text: r.name }) : r.name; } },
+        { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.x.games); } },
+        { key: 'a', label: 'Avg', sortable: false, className: 'num-strong', render: function (r) { return UI.avg(r.x.average); } },
+        { key: 's', label: 'Strikes', sortable: false, render: function (r) { return UI.avg(r.x.strikesPerGame); } },
+        { key: 'm', label: 'Makeable', sortable: false, render: function (r) { return UI.avg(r.x.makeablePerGame); } },
+      ], rows: rows, state: null, onSort: function () {},
+    });
+    return UI.card('Last 12 weeks', plural(w.window.games, 'game') + ', by week',
+      el('div', null, [
+        el('div', { class: 'card-body sh-stack' }, [
+          chart,
+          el('p', { class: 'sh-note', text: 'Score, strikes and makeable spares are different sizes, so each line is shown against its own 12-week average (the dashed 100). Above the line is a better week than usual. Hover or tap a week for the real numbers.' }),
+        ]),
+        el('details', { class: 'sh-details' }, [el('summary', { text: 'Show the numbers' }), table]),
+      ]),
+      'Makeable spares are spares made on leaves that are not splits. A week with no games is skipped. Only finished games count, and the filters above apply.');
   }
 
   /* Games bowled together, measured together. */
