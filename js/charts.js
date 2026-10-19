@@ -528,7 +528,9 @@
     var labelled = [];
     points.forEach(function (point, i) {
       var text = point.axis != null ? point.axis : point.label;
-      if (text !== '' && text != null) labelled.push({ index: i, text: text });
+      if (text === '' || text == null) return;
+      if (labelled.length && labelled[labelled.length - 1].text === text) return;   /* several games on one date: label the first */
+      labelled.push({ index: i, text: text });
     });
     var step = Math.ceil(labelled.length / Math.max(1, Math.floor(plotW / 46)));
     var shown = labelled.filter(function (entry, n) { return n % step === 0; });
@@ -810,21 +812,53 @@
     labelled.forEach(function (entry, n) {
       if (n % step !== 0 && n !== labelled.length - 1) return;
       var text = node('text', {
-        class: 'chart-axis-label', x: x(entry.index), y: height - 8, 'text-anchor': 'middle',
+        class: 'chart-axis-label', x: x(entry.index), y: height - 8, 'text-anchor': x(entry.index) > width - 24 ? 'end' : 'middle',
       });
       text.textContent = entry.text;
       svg.appendChild(text);
     });
 
-    if (points.length > 1) {
+    /* Points with a `group` (a set of games) are coloured by group, the colour changing
+       at each new group and cycling through three, so neighbours always differ. Faint
+       bands behind every other group say the same without colour. */
+    var grouped = points.some(function (p) { return p.group != null; });
+    var slot = [];
+    if (grouped) {
+      var gi = -1, last = null;
+      points.forEach(function (p, i) {
+        if (i === 0 || p.group !== last) { gi++; last = p.group; }
+        slot[i] = { n: gi, color: 's' + (gi % 3 + 1) };
+      });
+      var half = points.length === 1 ? plotW / 2 : plotW / (points.length - 1) / 2;
+      var from = 0;
+      for (var i = 1; i <= points.length; i++) {
+        if (i < points.length && slot[i].n === slot[from].n) continue;
+        if (slot[from].n % 2 === 1) {
+          var left = Math.max(pad.left, x(from) - half), right = Math.min(pad.left + plotW, x(i - 1) + half);
+          svg.appendChild(node('rect', { class: 'chart-groupband', x: left, y: pad.top, width: right - left, height: plotH }));
+        }
+        from = i;
+      }
+    }
+
+    if (points.length > 1 && !grouped) {
       svg.appendChild(node('polyline', {
         class: 'chart-line',
         points: points.map(function (p, i) { return x(i) + ',' + y(p.value); }).join(' '),
       }));
     }
+    if (points.length > 1 && grouped) {
+      for (var j = 0; j < points.length - 1; j++) {
+        var same = slot[j].n === slot[j + 1].n;
+        svg.appendChild(node('line', {
+          class: same ? 'chart-seg ml-' + slot[j].color : 'chart-seg is-link',
+          x1: x(j), y1: y(points[j].value), x2: x(j + 1), y2: y(points[j + 1].value),
+        }));
+      }
+    }
 
     points.forEach(function (point, i) {
-      svg.appendChild(node('circle', { class: 'chart-dot', cx: x(i), cy: y(point.value), r: 4 }));
+      svg.appendChild(node('circle', { class: 'chart-dot' + (grouped ? ' chart-dot-' + slot[i].color : ''), cx: x(i), cy: y(point.value), r: 4 }));
     });
 
     /* Hit targets are wider than the marks so hovering is forgiving. */
