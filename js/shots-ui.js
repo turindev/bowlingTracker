@@ -414,7 +414,12 @@
       { key: 'date', label: 'Date', className: 'col-tight', defaultDir: 'desc', value: function (r) { return r.set.date; },
         render: function (r) {
           var set = r.set;
-          return el('a', { href: set.standalone ? '#/shots/game/' + set.games[0].id : '#/shots/set/' + set.id, text: UI.shortDate(set.date) });
+          var tag = set.event === 'league' || set.event === 'tournament'
+            ? el('span', { class: 'sh-tag is-' + set.event, text: set.event === 'league' ? 'League' : 'Tournament' }) : null;
+          return el('span', { class: 'sh-datecell' }, [
+            el('a', { href: set.standalone ? '#/shots/game/' + set.games[0].id : '#/shots/set/' + set.id, text: UI.shortDate(set.date) }),
+            tag,
+          ]);
         } },
       { key: 'games', label: 'Games', sortable: false, className: 'col-name',
         render: function (r) {
@@ -470,6 +475,7 @@
       UI.stat('Low game', UI.num(a.low)),
       UI.stat('Strike %', pct1(a.strikePct), a.strikes + ' strikes in ' + a.racks + ' first balls.'),
       UI.stat('Spare %', pct1(a.sparePct), a.spares + ' of ' + a.attempts + ' spare tries.'),
+      UI.stat('Makeable spare %', pct1(a.makeablePct), a.makeable.made + ' of ' + a.makeable.attempts + ' tries that were not splits.'),
       UI.stat('Open frames', String(a.opens)),
       UI.stat('First-ball avg', UI.avg(a.firstBallAvg)),
     ]);
@@ -1224,6 +1230,7 @@
       UI.stat('Score', String(sc.total)),
       UI.stat('Strikes', String(s.strikes), 'Strikes out of ' + s.racks + ' first balls, fill balls included.'),
       UI.stat('Spares', s.attempts ? s.spares + ' of ' + s.attempts : '—', 'Spares made out of the spare tries.'),
+      UI.stat('Makeable spares', s.makeable.attempts ? s.makeable.made + ' of ' + s.makeable.attempts : '—', 'Spares made out of the tries that were not splits.'),
       UI.stat('Open frames', String(s.opens)),
       UI.stat('First-ball avg', UI.avg(s.firstBallAvg), 'Pins knocked down by the first ball, on average.'),
       UI.stat('Pocket', pct(s.hits.pocket.pct), 'Share of first balls that hit the pocket.'),
@@ -1385,6 +1392,7 @@
       UI.stat('High game', UI.num(stats.high)),
       UI.stat('Strike %', pct1(stats.strikePct), 'Strikes out of every first ball: ' + stats.strikes + ' of ' + stats.racks + '. A perfect game is twelve strikes in twelve.'),
       UI.stat('Spare %', pct1(stats.sparePct), 'Spares made out of the spare tries: ' + stats.spares + ' of ' + stats.attempts + '.'),
+      UI.stat('Makeable spare %', pct1(stats.makeablePct), 'Spares made out of the tries that were not splits: ' + stats.makeable.made + ' of ' + stats.makeable.attempts + '. The ones you are expected to get.'),
       UI.stat('Pocket %', pct1(h.pocket.pct), 'Share of first balls that hit the pocket, of those where you recorded how it hit.'),
       UI.stat('First-ball avg', UI.avg(stats.firstBallAvg), 'Pins knocked down by the first ball, on average. Ten is a strike.'),
       UI.stat('Opens / game', UI.avg(stats.opensPerGame), 'Frames where the spare was missed. Splits missed count.'),
@@ -1428,6 +1436,10 @@
       spareRow('Single pin', stats.single),
       spareRow('Several pins', stats.cluster),
       spareRow('Splits', stats.split),
+      spareRow('Makeable (no splits)', {
+        attempts: stats.makeable.attempts, made: stats.makeable.made, pct: stats.makeablePct,
+        left: stats.single.left + stats.cluster.left, right: stats.single.right + stats.cluster.right,
+      }),
       spareRow('All spare tries', {
         attempts: stats.attempts, made: stats.spares, pct: stats.sparePct,
         left: stats.misses.left, right: stats.misses.right,
@@ -1591,6 +1603,7 @@
       col('high', 'High', function (r) { return r.s.high; }, function (r) { return UI.num(r.s.high); }),
       col('strike', 'Strike %', function (r) { return r.s.strikePct; }, function (r) { return pct(r.s.strikePct); }),
       col('spare', 'Spare %', function (r) { return r.s.sparePct; }, function (r) { return pct(r.s.sparePct); }),
+      col('makeable', 'Makeable %', function (r) { return r.s.makeablePct; }, function (r) { return pct(r.s.makeablePct); }),
       col('pocket', 'Pocket', function (r) { return r.s.hits.pocket.pct; }, function (r) { return pct(r.s.hits.pocket.pct); }, { optional: true }),
       col('high%', 'High', function (r) { return r.s.hits.high.pct; }, function (r) { return pct(r.s.hits.high.pct); }, { optional: true }),
       col('light', 'Light', function (r) { return r.s.hits.light.pct; }, function (r) { return pct(r.s.hits.light.pct); }, { optional: true }),

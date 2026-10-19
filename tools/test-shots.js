@@ -239,6 +239,26 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('a 2-game series is complete once both are done', shrunk.size === 2 && shrunk.games.length === 2, '');
 })();
 
+// --- makeable spares: splits are left out ---------------------------------------------------
+(() => {
+  let g = S.newGame({ ball: 'A' });
+  const shot = (standing) => { g = S.addShot(g, { standing, ball: 'A' }); };
+  shot([10]); shot([]);          // single pin, made
+  shot([7, 10]); shot([7, 10]);  // a split, missed
+  shot([4, 5]); shot([5]);       // two pins that touch, missed
+  shot([2, 3]); shot([]);        // two pins that touch, made
+  shot([4, 6]); shot([]);        // a split, made
+  for (let f = 5; f < 9; f++) shot([]);
+  shot([]); shot([]); shot([]);
+  g.status = 'done';
+  const a = S.analyze([g]);
+  check('all spare tries are counted for the plain spare %', a.attempts === 5 && a.spares === 3 && Math.abs(a.sparePct - 0.6) < 1e-9, a.attempts + '/' + a.spares);
+  check('makeable leaves out the splits', a.makeable.attempts === 3 && a.makeable.made === 2, JSON.stringify(a.makeable));
+  check('and the makeable % is made over makeable', Math.abs(a.makeablePct - 2 / 3) < 1e-9, a.makeablePct);
+  check('a split that was converted is not a makeable spare', a.split.attempts === 2 && a.split.made === 1, JSON.stringify(a.split));
+  check('with no spare tries there is no makeable %', S.analyze([]).makeablePct === null, '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

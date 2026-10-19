@@ -308,7 +308,7 @@
 
     /* ---- 1. ball cards ---- */
     pieces.push(function (svg, y, dry) {
-      var gap = 18, n = balls.length, cw = (CWID - gap * (n - 1)) / n, h = 330;
+      var gap = 18, n = balls.length, cw = (CWID - gap * (n - 1)) / n, h = 356;
       if (dry) return h;
       balls.forEach(function (b, i) {
         var x = M + i * (cw + gap);
@@ -323,6 +323,7 @@
           ['200+ games', pct(b.over200)],
           ['Strike rate', pct(b.shots.strikePct)],
           ['Spare rate', pct(b.shots.sparePct)],
+          ['Makeable spares', pct(b.shots.makeablePct)],
           ['95% CI', b.ci ? Math.round(b.ci[0]) + '–' + Math.round(b.ci[1]) : '—'],
         ];
         rows.forEach(function (row, k) {
@@ -483,12 +484,13 @@
 
     /* ---- 7. what the ball does: strike, spare, pocket ---- */
     section('What each ball does on the pins',
-      'Shot by shot, not game by game: how often the first ball struck, how often spares were made, and how often the first ball hit the pocket (of the first balls where you recorded it).',
+      'Shot by shot, not game by game: how often the first ball struck, how often spares were made (and the makeable ones, which leave out splits), and how often the first ball hit the pocket (of the first balls where you recorded it).',
       function (svg, x, y, w) {
         var h = 330, pl = 54, top = y + 38, bot = y + h - 50;
         var metrics = [
           ['Strike %', function (b) { return b.shots.strikePct; }],
           ['Spare %', function (b) { return b.shots.sparePct; }],
+          ['Makeable spare %', function (b) { return b.shots.makeablePct; }],
           ['Pocket % of hits', function (b) { return b.shots.hits.pocket.pct; }],
         ];
         var sy = scale(0, 1, bot, top);
