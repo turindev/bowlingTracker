@@ -229,6 +229,7 @@
     if (token !== ui.token) return;
     var p = ui.parts;
     var page = p[0] || 'games';
+    if (page !== 'tidy') ui.tidyDone = null;      /* the "fixed" message belongs to that visit */
     if (page === 'games') return gamesPage();
     if (page === 'new') return newGamePage(p[1]);
     if (page === 'set') return setPage(p[1]);
@@ -237,6 +238,7 @@
     if (page === 'arsenal' || page === 'balls') return arsenalPage();
     if (page === 'settings') return settingsPage();
     if (page === 'import') return getImport().page();
+    if (page === 'tidy') return tidyPage();
     draw([head('Not found'), UI.card(null, null, el('p', { class: 'sh-note' }, [
       'There is no such page. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
     ]))]);
@@ -422,6 +424,13 @@
     ]));
     var line = syncLine();
     if (line) top.push(el('p', { class: 'sh-note', text: line }));
+    var offDates = S.dateMismatches(library().games);
+    if (offDates.length) {
+      top.push(el('div', { class: 'sh-resume' }, [
+        el('span', { text: plural(offDates.length, 'game') + ' dated differently from the first game of their set.' }),
+        el('a', { class: 'sh-btn', href: '#/shots/tidy', text: 'Review' }),
+      ]));
+    }
 
     var rows = shown.map(function (set) { return { name: set.date || '', set: set }; });
     var columns = [
@@ -1507,7 +1516,30 @@
     return el('div', { class: 'control-field' }, [el('span', { class: 'sh-label', text: label }), select]);
   }
 
+  /* The filters fold away: the summary line says which are on, so a collapsed
+     box still tells you what the numbers below are about. */
   function statsControls(pool, showBall) {
+    var f = ui.filters;
+    var periods = { all: 'All time', 30: 'Last 30 days', 90: 'Last 90 days', 365: 'Last year' };
+    var active = [
+      showBall && f.ball ? ballName(f.ball) : null, f.pattern, f.location,
+      f.event ? f.event.charAt(0).toUpperCase() + f.event.slice(1) : null,
+      f.period !== 'all' ? periods[f.period] : null,
+    ].filter(Boolean);
+    var grid = statsFilterGrid(pool, showBall);
+    var box = el('details', { class: 'sh-filterbox' }, [
+      el('summary', null, [
+        el('span', { class: 'sh-filter-title', text: 'Filters' }),
+        el('span', { class: 'sh-filter-active' + (active.length ? ' is-on' : ''), text: active.length ? active.join(' \u00b7 ') : 'none' }),
+      ]),
+      grid,
+    ]);
+    if (ui.filtersOpen) box.setAttribute('open', '');
+    box.addEventListener('toggle', function () { ui.filtersOpen = box.open; });
+    return box;
+  }
+
+  function statsFilterGrid(pool, showBall) {
     var f = ui.filters;
     return el('div', { class: 'sh-filters' }, [
       showBall ? filterSelect('Ball', 'ball', S.ballsUsed(pool), ballName) : null,
@@ -1786,6 +1818,50 @@
         el('details', { class: 'sh-details' }, [el('summary', { text: 'Show the numbers' }), table]),
       ]),
       'Makeable spares are spares made on leaves that are not splits. A week with no games is skipped. Only finished games count, and the filters above apply.');
+  }
+
+  /* Later games of a set that carry a different date from the first game. */
+  function tidyPage() {
+    var found = S.dateMismatches(library().games);
+    var off = ui.tidyOff || (ui.tidyOff = {});
+    var nodes = [head('Tidy up dates', 'Games that disagree with their set'), subnav('games')];
+    if (ui.tidyDone != null) {
+      nodes.push(UI.card('Fixed', null, el('div', { class: 'card-body sh-stack' }, [
+        el('p', { class: 'sh-verdict', text: plural(ui.tidyDone, 'game') + ' moved to the date of their set.' }),
+        el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots', text: 'Back to games' })),
+      ])));
+    }
+    if (!found.length) {
+      if (ui.tidyDone == null) nodes.push(UI.card('Nothing to fix', null, el('p', { class: 'sh-note sh-pad', text: 'Every game in a set has the same date as the first game of that set.' })));
+      return draw(nodes);
+    }
+    var rows = found.map(function (m) {
+      var box = el('input', { type: 'checkbox' });
+      box.checked = !off[m.game.id];
+      box.addEventListener('change', function () { off[m.game.id] = !box.checked; countLabel(); });
+      return el('label', { class: 'sh-check sh-tidyrow' }, [box, el('span', null, [
+        el('strong', { text: UI.shortDate(m.to) + ' set, game ' + m.gameNo }),
+        el('span', { class: 'sh-hint', text: ' is dated ' + UI.shortDate(m.from) + '. Move it to ' + UI.shortDate(m.to) + (m.game.status === 'done' ? ' (scored ' + S.score(m.game).total + ')' : ' (still open)') + '.' }),
+      ])]);
+    });
+    var go = button('', once(function () {
+      var chosen = found.filter(function (m) { return !off[m.game.id]; });
+      if (!chosen.length) return;
+      var changed = chosen.map(function (m) { var g = JSON.parse(JSON.stringify(m.game)); g.date = m.to; return g; });
+      return saveGames(changed).then(function () { ui.tidyOff = {}; ui.tidyDone = chosen.length; backgroundSync(); rerender(); });
+    }), 'primary');
+    function countLabel() {
+      var n = found.filter(function (m) { return !off[m.game.id]; }).length;
+      go.textContent = 'Fix ' + plural(n, 'date');
+      go.disabled = n === 0;
+    }
+    countLabel();
+    nodes.push(UI.card('Dates to fix', plural(found.length, 'game'), el('div', { class: 'card-body sh-stack' }, [
+      el('p', { class: 'sh-note', text: 'A set is one night, so its games should share the first game\u2019s date. An old bug gave later games the day they were entered. Untick any that really were bowled on another day.' }),
+      el('div', { class: 'sh-stack' }, rows),
+      el('div', { class: 'sh-actions' }, [go]),
+    ])));
+    draw(nodes);
   }
 
   /* Games bowled together, measured together. */

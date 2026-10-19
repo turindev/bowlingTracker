@@ -282,6 +282,18 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('a Sunday belongs to the week that began the Monday before', S.weekly([perfect2('2026-10-25')], { today: '2026-10-25' }).weeks[11].games === 1 && S.weekly([perfect2('2026-10-25')], { today: '2026-10-26' }).weeks[10].games === 1, '');
 })();
 
+// --- games dated differently from their set -------------------------------------------------
+(() => {
+  const mk = (id, no, date, extra) => Object.assign({ id, setId: 'S', gameNo: no, setSize: 3, date, createdAt: '2026-10-19T0' + no, status: 'done', frames: [] }, extra);
+  const set = [mk('a', 1, '2026-10-16'), mk('b', 2, '2026-10-19'), mk('c', 3, '2026-10-19')];
+  const m = S.dateMismatches(set);
+  check('later games dated differently from the first game are found', m.length === 2 && m.map(x => x.game.id).join() === 'b,c' && m.every(x => x.to === '2026-10-16' && x.from === '2026-10-19'), JSON.stringify(m.map(x => [x.game.id, x.from, x.to])));
+  check('a set with one date has nothing to fix', S.dateMismatches([mk('a', 1, '2026-10-16'), mk('b', 2, '2026-10-16')]).length === 0, '');
+  check('single games are never touched', S.dateMismatches([Object.assign(mk('z', 1, '2026-10-16'), { setId: null, gameNo: null })]).length === 0, '');
+  check('the first game is the reference even when listed last', S.dateMismatches([set[2], set[1], set[0]]).length === 2, '');
+  check('deleted games are ignored', S.dateMismatches([set[0], Object.assign({}, set[1], { deleted: true })]).length === 0, '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');
