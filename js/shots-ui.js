@@ -785,6 +785,44 @@
 
   /* ---------- pin deck ---------- */
 
+  /* One shot drawn on the deck: pins still standing are filled, pins this ball
+     knocked down are rings, pins already down before it are faint. A shot whose
+     pins are only known by count (from an import) shows them dashed. */
+  function shotDeck(c) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var gap = 11, r = 4.4;
+    var standing = S.cleanPins(c.standing), before = c.before || [];
+    var label = S.describeShot({ fresh: c.fresh, before: before }, standing);
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'sh-leavedeck sh-shotdeck');
+    svg.setAttribute('viewBox', '0 0 ' + (gap * 3 + r * 2 + 2) + ' ' + (gap * 3 + r * 2 + 2));
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label + (c.shot && c.shot.approx ? ' (which pins is not known)' : ''));
+    var title = document.createElementNS(NS, 'title');
+    title.textContent = label;
+    svg.appendChild(title);
+    S.DECK.forEach(function (row, ri) {
+      row.forEach(function (pin, ci) {
+        var dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', String(1 + r + (ci + (4 - row.length) / 2) * gap));
+        dot.setAttribute('cy', String(1 + r + ri * gap));
+        var cls = before.indexOf(pin) === -1 ? 'ld-gone' : standing.indexOf(pin) !== -1 ? (c.shot && c.shot.approx ? 'ld-guess' : 'ld-up') : 'ld-hit';
+        dot.setAttribute('r', String(cls === 'ld-gone' ? 2 : r));
+        dot.setAttribute('class', cls);
+        svg.appendChild(dot);
+      });
+    });
+    return svg;
+  }
+
+  /* "Strike", "Spare" or how many fell, in a word beside the picture. */
+  function shotNote(c) {
+    var standing = S.cleanPins(c.standing), before = c.before || [];
+    if (!standing.length) return c.fresh ? 'Strike' : 'Spare';
+    var down = before.length - standing.length;
+    return down === 0 ? 'Miss' : down + ' down';
+  }
+
   /* A small picture of a leave: the pins left standing are filled, the rest are
      faint. `key` is the leave as "7-10"; the name goes in the tooltip and label. */
   function leaveDeck(key, label) {
@@ -1359,9 +1397,11 @@
     });
     var columns = [
       { key: 'f', label: 'Fr', sortable: false, render: function (r) { return String(r.frame); } },
-      { key: 'r', label: 'Result', sortable: false, className: 'col-name', render: function (r) {
+      { key: 'r', label: 'Pins left', sortable: false, className: 'col-name', render: function (r) {
         var c = r.c;
-        return S.describeShot({ fresh: c.fresh, before: c.before }, c.standing);
+        return el('span', { class: 'sh-shotcell', title: S.describeShot({ fresh: c.fresh, before: c.before }, c.standing) }, [
+          shotDeck(c), el('span', { class: 'sh-shotnote', text: shotNote(c) }),
+        ]);
       } },
       { key: 'h', label: 'How', sortable: false, className: 'col-name', render: function (r) {
         var c = r.c;
