@@ -93,6 +93,7 @@
    * text: the file's contents. opts:
    *   balls: [{ id, name }]            the arsenal as it is now
    *   existingKeys: [..]               importKeys already in the vault
+ *   replace: true                    games already imported are replaced instead of skipped
    *   makeId(prefix)                   makes ids for new balls, sets and games
    * Returns { errors, warnings, sets, games, newBalls, duplicates }. If errors
    * is not empty nothing should be imported.
@@ -114,6 +115,7 @@
     (opts.balls || []).forEach(function (b) { if (!b.deleted) { known[norm(b.name)] = b.id; names[b.id] = b.name; } });
     var aliases = opts.aliases || {};
     var defaults = opts.defaults || {};
+    out.replacing = 0;
     out.ballMap = [];
     out.missing = { location: false, pattern: false, event: false, lane: false };
     var seenKeys = {};
@@ -169,7 +171,9 @@
       played.forEach(function (g, gi) {
         var label = where + ', game ' + (set.games.indexOf(g) + 1);   /* as numbered in the file, warm-up included */
         var importKey = key + '/' + (gi + 1);
-        if (seenKeys[importKey]) {
+        if (seenKeys[importKey] === 'vault' && opts.replace) {
+          out.replacing++;                    /* a corrected file: these take the place of the games imported before */
+        } else if (seenKeys[importKey]) {
           entry.duplicate = true;
           out.duplicates.push(importKey);
           return;

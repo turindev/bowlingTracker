@@ -36,6 +36,13 @@ check('importing the same file again adds nothing', again.games.length === 0 && 
 const part = run(sample, { balls: [{ id: 'b1', name: 'Motiv Supra Sport' }], existingKeys: [r.games[0].importKey] });
 check('a partly imported night only adds the missing games', part.games.length === 2 && part.games[0].setId === r.games[0].setId, '');
 
+// --- replacing games imported before (a corrected file) ---------------------------------------------
+const rep = run(sample, { balls: [{ id: 'b1', name: 'Motiv Supra Sport' }], existingKeys: r.games.map(g => g.importKey), replace: true });
+check('with replace on, games already imported come back to take the old ones\' place', rep.games.length === 3 && rep.replacing === 3 && rep.duplicates.length === 0, JSON.stringify([rep.games.length, rep.replacing, rep.duplicates.length]));
+const repPart = run(sample, { balls: [{ id: 'b1', name: 'Motiv Supra Sport' }], existingKeys: [r.games[0].importKey], replace: true });
+check('and only the ones already there count as replacing', repPart.games.length === 3 && repPart.replacing === 1, JSON.stringify([repPart.games.length, repPart.replacing]));
+check('with replace off nothing changes', again.games.length === 0, '');
+
 // --- balls -------------------------------------------------------------------------------------
 const named = run(doc([{ frames: TEN_STRIKES, total: 300 }]), { balls: [{ id: 'x', name: 'storm  bionic' }] });
 check('names match ignoring case and spacing', named.newBalls.length === 0 && named.games[0].ball === 'x' && named.ballMap[0].how === 'same', JSON.stringify(named.ballMap));
@@ -96,6 +103,7 @@ check('the example file in the app imports cleanly', ex.errors.length === 0 && e
 // --- the history transcribed from LaneTalk screenshots ----------------------------------------
 const hist = run(fs.readFileSync(__dirname + '/../imports/lanetalk-2026.json', 'utf8'), { balls: [] });
 check('the LaneTalk history imports with every total and running total matching', hist.errors.length === 0 && hist.games.length === 13, hist.errors.join(' | '));
+check('all of it was open bowling', hist.games.every(g => g.event === 'practice'), '');
 check('and the series are the ones printed on the screenshots', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join() === '589,599,576,660,233', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join());
 check('the sample and the history agree about the night they share, so importing both adds it once', (() => { const smp = run(sample, { balls: [] }); return smp.games.map(g => g.importKey).join() === hist.games.slice(0, 3).map(g => g.importKey).join(); })(), '');
 

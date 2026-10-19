@@ -93,7 +93,8 @@
       ". 6-10 ."
      ]
     }
-   ]
+   ],
+   "event": "practice"
   },
   {
    "key": "2026-09-12",
@@ -182,7 +183,8 @@
       "9 . ?2"
      ]
     }
-   ]
+   ],
+   "event": "practice"
   },
   {
    "key": "2026-08-18",
@@ -206,16 +208,15 @@
      "frames": [
       "1-2-3-4-5-6-7-8-9-10 1-2-3-4-5-6-7-8-9-10",
       ".",
-      "?1 .",
+      "6 .",
       ".",
       ".",
       ".",
       ".",
       ".",
       ".",
-      ". . ?4"
-     ],
-     "notes": "This game had no pin pictures, only the marks, so spare leaves are recorded as one unknown pin."
+      ". . 3-6-9-10"
+     ]
     },
     {
      "ball": "Bionic",
@@ -274,7 +275,8 @@
      ],
      "notes": "Tenth frame: the first ball's leave was not shown."
     }
-   ]
+   ],
+   "event": "practice"
   },
   {
    "key": "2026-08-05",
@@ -362,7 +364,8 @@
       "4 4"
      ]
     }
-   ]
+   ],
+   "event": "practice"
   },
   {
    "key": "2026-08-05-single",
@@ -397,7 +400,8 @@
       ". 10 10"
      ]
     }
-   ]
+   ],
+   "event": "practice"
   }
  ]
 }
