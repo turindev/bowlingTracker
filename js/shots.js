@@ -206,6 +206,13 @@
     /* Pins known only by how many were left, from an import: kept for the score
        and the pin count, left out of the leave statistics. */
     if (input.approx) shot.approx = true;
+    /* A spare try at a leave whose pins are not known exactly: still a try, but
+       not evidence about that particular leave. */
+    if (!pos.fresh) {
+      var frames0 = game.frames || [];
+      var inFrame = frames0.length ? frames0[frames0.length - 1].shots : [];
+      if (inFrame.length && inFrame[inFrame.length - 1].approx) shot.approxBefore = true;
+    }
 
     var next = copy(game);
     next.frames = next.frames || [];
@@ -484,7 +491,7 @@
           else if (c.shot.miss === 'right') kind.right++;
           else kind.unrecorded++;
 
-          var leaveRow = leaves[leaveKey(c.before)];
+          var leaveRow = c.shot.approxBefore ? null : leaves[leaveKey(c.before)];
           if (leaveRow) {
             leaveRow.attempts++;
             if (made) leaveRow.made++;

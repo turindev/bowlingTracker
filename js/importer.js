@@ -12,7 +12,7 @@
  *     "sets": [{
  *       "key": "2026-10-12",                 // names the night, so importing twice is safe
  *       "date": "2026-10-12", "location": "Leisure Time Bowling",
- *       "pattern": "House", "event": "league", "lane": "23",
+ *       "pattern": "House", "event": "league", "lane": "23",   // all optional; event defaults to practice
  *       "ball": "Motiv Supra Sport",
  *       "games": [
  *         { "warmup": true },                // skipped, not counted
@@ -24,8 +24,11 @@
  *
  * A frame is its balls separated by spaces. A ball is the pins left standing
  * after it: "." for none (a strike or a spare), "10", "7-10", "4-5-7". "?2"
- * means two pins were left but which ones is unknown (the last ball of a
- * frame only); it counts for the score but not for the leave statistics.
+ * means two pins were left but which ones is unknown; it counts for the score
+ * but not for the leave statistics. Outside the last ball of a frame only "?1"
+ * is allowed, because one pin left is a single-pin spare whichever pin it is.
+ * (A game with no pin pictures, only the marks, can still be written down this
+ * way: "9 /" is "?1 .", and a miss of everything is all ten pins.)
  * A strike in frames 1-9 is just ".". The tenth frame lists every ball.
  *
  * "total" and the optional "scores" (the ten running totals) are checked
@@ -73,10 +76,10 @@
         try {
           g = S.addShot(g, Object.assign({ ball: meta.ball }, shot));
         } catch (e) { throw new Error('Frame ' + (f + 1) + ', ball ' + (i + 1) + ': ' + e.message); }
-        /* An unknown leave is only harmless on the last ball of a frame. */
-        if (shot.approx) {
+        /* An unknown leave of two or more pins would hide whether it was a split, so it can only end a frame. */
+        if (shot.approx && shot.standing.length > 1) {
           var after = S.position(g);
-          if (after && after.frame === f && !after.fresh) throw new Error('Frame ' + (f + 1) + ': "?" can only be used on the last ball of a frame.');
+          if (after && after.frame === f && !after.fresh) throw new Error('Frame ' + (f + 1) + ': "?' + shot.standing.length + '" can only be used on the last ball of a frame. Only "?1" can come before another ball.');
         }
       });
       var next = S.position(g);
@@ -110,7 +113,9 @@
     var known = {}, names = {};
     (opts.balls || []).forEach(function (b) { if (!b.deleted) { known[norm(b.name)] = b.id; names[b.id] = b.name; } });
     var aliases = opts.aliases || {};
+    var defaults = opts.defaults || {};
     out.ballMap = [];
+    out.missing = { location: false, pattern: false, event: false, lane: false };
     var seenKeys = {};
     (opts.existingKeys || []).forEach(function (k) { seenKeys[k] = 'vault'; });
 
@@ -143,7 +148,15 @@
       var where = 'Set ' + (si + 1) + (set.date ? ' (' + set.date + ')' : '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(set.date || ''))) { out.errors.push(where + ': date must look like 2026-10-12.'); return; }
       if (!Array.isArray(set.games) || !set.games.length) { out.errors.push(where + ': no games.'); return; }
-      var event = set.event || 'league';
+      /* A night with no event is practice unless the importer was told otherwise: league and tournament should be a decision. */
+      if (!set.event) out.missing.event = true;
+      if (set.location == null || set.location === '') out.missing.location = true;
+      if (set.pattern == null || set.pattern === '') out.missing.pattern = true;
+      if (set.lane == null || set.lane === '') out.missing.lane = true;
+      var event = set.event || defaults.event || 'practice';
+      var location = set.location != null && set.location !== '' ? set.location : (defaults.location || '');
+      var pattern = set.pattern != null && set.pattern !== '' ? set.pattern : (defaults.pattern || '');
+      var lane = set.lane != null && set.lane !== '' ? set.lane : (defaults.lane || '');
       if (S.EVENTS.indexOf(event) === -1) { out.errors.push(where + ': event must be one of ' + S.EVENTS.join(', ') + '.'); return; }
 
       var played = set.games.filter(function (g) { return !g.warmup; });
@@ -151,7 +164,7 @@
       var key = String(set.key || set.date + '#' + (si + 1));
       var setId = null;
       var size = played.length;
-      var entry = { key: key, date: set.date, games: [], location: set.location || '', pattern: set.pattern || '', event: event, duplicate: false };
+      var entry = { key: key, date: set.date, games: [], location: location, pattern: pattern, event: event, duplicate: false };
 
       played.forEach(function (g, gi) {
         var label = where + ', game ' + (set.games.indexOf(g) + 1);   /* as numbered in the file, warm-up included */
@@ -167,7 +180,7 @@
         var game;
         try {
           game = buildGame({
-            date: set.date, location: set.location, pattern: set.pattern, event: event, lane: set.lane == null ? '' : set.lane,
+            date: set.date, location: location, pattern: pattern, event: event, lane: lane,
             ball: ball, spareBall: null, notes: g.notes || set.notes || '',
             setId: size > 1 ? (setId = 'imp_' + key.replace(/[^A-Za-z0-9_-]+/g, '-')) : null, gameNo: gi + 1, setSize: size,
           }, g.frames);
