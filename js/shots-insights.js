@@ -277,9 +277,67 @@
           ])));
       }
 
+      /* strike streaks by ball */
+      cards.push(streakBallCard(all, chosen, key, f));
+
       /* ball x pattern */
       cards.push(patternCard(scoped, pool, label));
       return cards;
+    }
+
+    /* Which balls string strikes together: a hot streak is the plainest sign a ball is reading the lanes. */
+    function streakBallCard(all, chosen, key, f) {
+      var ranked = all.filter(function (b) { return b.streaks.games > 0; }).slice().sort(function (a, b) {
+        return (b.streaks.turkeysPerGame || 0) - (a.streaks.turkeysPerGame || 0) || b.streaks.longest - a.streaks.longest || b.n - a.n;
+      });
+      var scope = f.pattern ? 'on ' + f.pattern : 'on every pattern';
+      var steady = ranked.filter(function (b) { return b.n >= 5; });
+      var lead = steady.length >= 2 && steady[0].streaks.turkeysPerGame > 0 && steady[0].streaks.turkeysPerGame > steady[1].streaks.turkeysPerGame
+        ? steady[0].label + ' strings strikes together most: ' + fix(steady[0].streaks.turkeysPerGame, 2) + ' turkeys or better a game (' + plural(steady[0].streaks.turkeys, 'streak') + ' in ' + plural(steady[0].n, 'game') + '), against ' + fix(steady[1].streaks.turkeysPerGame, 2) + ' for ' + steady[1].label + '.'
+        : null;
+
+      var parts = [];
+      if (lead) parts.push(el('p', { class: 'sh-verdict', text: lead }));
+      parts.push(Charts.bars({
+        wideLabel: true,
+        empty: 'No finished games with these balls yet.',
+        rows: ranked.map(function (b) {
+          var sf = b.streaks;
+          return { label: b.label, value: sf.turkeysPerGame || 0,
+            display: fix(sf.turkeysPerGame, 2),
+            title: b.label + ': ' + plural(sf.turkeys, 'turkey or better') + ' in ' + plural(b.n, 'game') + ', best streak ' + sf.longest };
+        }),
+      }));
+      parts.push(el('p', { class: 'sh-note', text: 'Turkeys or better per game, for every ball. Hover or tap a bar for the count and the longest streak. A streak counts once however long it runs.' }));
+
+      if (chosen.length >= 2) {
+        var lengths = [[3, 'Turkey (3)'], [4, 'Hambone (4)'], [5, '5 or more']];
+        var data = lengths.map(function (L) {
+          return { label: L[1], bars: chosen.map(function (b) {
+            var sf = b.streaks, per10 = sf.games ? sf.byLength[L[0]] / sf.games * 10 : null;
+            return { key: key(b), name: b.label, value: per10, text: per10 == null ? '' : fix(per10, 1), caption: plural(sf.byLength[L[0]], 'time') + ' in ' + plural(sf.games, 'game') };
+          }) };
+        });
+        var top = Math.max.apply(null, data.map(function (g) { return Math.max.apply(null, g.bars.map(function (b) { return b.value || 0; })); }));
+        parts.push(el('h3', { class: 'sh-subhead', text: 'How long the streaks run, balls picked above' }));
+        parts.push(Charts.groups({ groups: data, domain: [0, Math.max(2, Math.ceil(top / (top > 10 ? 5 : 2)) * (top > 10 ? 5 : 2))], formatAxis: function (v) { return String(v); }, label: 'Strike streaks per ten games, by length and ball' }));
+        parts.push(el('p', { class: 'sh-note', text: 'Streaks per ten games. A ball that keeps its strikes going for four and five is carrying well, not just landing the odd three.' }));
+      }
+
+      var table = UI.table({
+        columns: [
+          { key: 'n', label: 'Ball', sortable: false, className: 'col-name', render: function (r) { return el('span', { class: 'sh-ballrow' }, [h.thumb(r.id, 'sm'), r.label]); } },
+          { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.n); } },
+          { key: 't', label: 'Turkeys+', sortable: false, className: 'num-strong', render: function (r) { return String(r.streaks.turkeys); } },
+          { key: 'p', label: 'Per game', sortable: false, render: function (r) { return fix(r.streaks.turkeysPerGame, 2); } },
+          { key: 'w', label: 'Games with one', sortable: false, render: function (r) { return pct(r.streaks.turkeyGamePct); } },
+          { key: 'l', label: 'Longest', sortable: false, render: function (r) { return String(r.streaks.longest || 0); } },
+          { key: 'a', label: 'Strike after strike', sortable: false, render: function (r) { return r.streaks.afterStrikeN >= 5 ? pct(r.streaks.afterStrikePct) : '\u2014'; } },
+        ], rows: ranked, state: null, onSort: function () {},
+      });
+      return UI.card('Strike streaks by ball', scope,
+        el('div', null, [el('div', { class: 'card-body sh-stack' }, parts), detailsTable(table)]),
+        'Streaks are streaky: a few games can fake a hot ball, so lean on balls with five or more games, and remember a ball also gets the fresh oil and the better lanes. Strike after strike is how often a strike followed a strike (shown with at least five such shots).');
     }
 
     /* A plain-language read of who is most forgiving, with its caveats. */

@@ -116,6 +116,29 @@
   }
 
   /*
+   * Strike streaks with one ball: how many runs of each length, per game, and how
+   * often a game had a turkey (three in a row) or better. Hot streaks are the
+   * layman's sign of a ball that reads the lanes well, and also the first thing a
+   * few lucky games will fake, so the counts travel with the number of games.
+   */
+  function streakFigures(a) {
+    var games = a.games || 0;
+    var count = function (min, max) { return a.runs.filter(function (r) { return r >= min && r <= max; }).length; };
+    var turkeys = count(3, Infinity);
+    return {
+      games: games, turkeys: turkeys,
+      turkeysPerGame: ratio(turkeys, games),
+      gamesWithTurkey: a.runGames.filter(function (r) { return r >= 3; }).length,
+      turkeyGamePct: ratio(a.runGames.filter(function (r) { return r >= 3; }).length, games),
+      longest: a.bestStreak,
+      /* occurrences of each length that is a hot streak, per game */
+      byLength: { 3: count(3, 3), 4: count(4, 4), 5: count(5, Infinity) },
+      afterStrikePct: a.afterStrike && a.afterStrike.n ? a.afterStrike.pct : null,
+      afterStrikeN: a.afterStrike ? a.afterStrike.n : 0,
+    };
+  }
+
+  /*
    * One row per ball (by the ball that threw most of each game's first balls):
    * score figures plus shot figures. games must already be filtered (pattern,
    * location, event, period) as wanted. Rows are most-played first.
@@ -142,7 +165,7 @@
         opensPerGame: a.opensPerGame, firstBallAvg: a.firstBallAvg, strikesPerGame: a.strikesPerGame,
         pocketStrikePct: a.hits.pocket.strikePct, pocketN: a.hits.pocket.n,
         offPocketStrikePct: off.pct, offPocketN: off.n, offPocketShare: off.share,
-        hitsRecorded: a.hitsRecorded,
+        hitsRecorded: a.hitsRecorded, streaks: streakFigures(a),
         /* Pins lost between a pocket hit and an off-pocket one, in strike rate. Smaller means more forgiving. */
         carryGap: a.hits.pocket.strikePct != null && off.pct != null ? a.hits.pocket.strikePct - off.pct : null,
       };
