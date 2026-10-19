@@ -415,7 +415,8 @@
         render: function (r) {
           var set = r.set;
           var tag = set.event === 'league' || set.event === 'tournament'
-            ? el('span', { class: 'sh-tag is-' + set.event, text: set.event === 'league' ? 'League' : 'Tournament' }) : null;
+            ? el('span', { class: 'sh-tag is-' + set.event, text: set.event === 'league' ? 'L' : 'T',
+              title: set.event === 'league' ? 'League' : 'Tournament', role: 'img', 'aria-label': set.event === 'league' ? 'League' : 'Tournament' }) : null;
           return el('span', { class: 'sh-datecell' }, [
             el('a', { href: set.standalone ? '#/shots/game/' + set.games[0].id : '#/shots/set/' + set.id, text: UI.shortDate(set.date) }),
             tag,
