@@ -534,6 +534,10 @@
         })),
       ]),
       next ? null : el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn', href: '#/shots/new/' + set.id, text: 'Add another game to this series' })),
+      el('div', { class: 'sh-actions' }, el('a', {
+        class: 'sh-btn', href: '#/shots/game/' + set.games[0].id, text: 'Correct the night\u2019s details',
+        onclick: function () { ui.editDetails = set.games[0].id; },
+      })),
       singles.length ? el('div', { class: 'sh-actions' }, [
         field('Add a game you already entered', pickSingle),
         button('Add to series', once(function () {
@@ -1215,6 +1219,75 @@
 
   /* ---------- a finished game ---------- */
 
+  /* The conditions of a game, which can be corrected: the date, event, place, oil
+     pattern, lane and notes. The night's details (everything but the notes) can
+     be changed for every game in the set at once. */
+  function conditionsCard(game, mySet, detail) {
+    var shared = mySet ? mySet.games.filter(function (g) { return g.id !== game.id; }) : [];
+    var card = UI.card('Conditions', null, null);
+    var head = card.querySelector('.card-head');
+    var body = el('div');
+    card.appendChild(body);
+
+    function show() {
+      UI.clear(body);
+      if (ui.editDetails !== game.id) {
+        if (head && !head.querySelector('.sh-edit-link')) {
+          head.appendChild(el('button', { type: 'button', class: 'link-button sh-edit-link', onclick: function () { ui.editDetails = game.id; show(); } }, 'Edit'));
+        }
+        if (head) head.querySelector('.sh-edit-link').hidden = false;
+        body.appendChild(el('dl', { class: 'sh-detail' }, detail.reduce(function (acc, row) {
+          acc.push(el('dt', { text: row[0] }), typeof row[1] === 'object' ? el('dd', null, row[1]) : el('dd', { text: row[1] }));
+          return acc;
+        }, [])));
+        return;
+      }
+      if (head && head.querySelector('.sh-edit-link')) head.querySelector('.sh-edit-link').hidden = true;
+      var date = el('input', { type: 'date', value: game.date || today(), required: true });
+      var event = el('select', null, S.EVENTS.map(function (e) {
+        return el('option', { value: e, selected: e === game.event }, e.charAt(0).toUpperCase() + e.slice(1));
+      }));
+      var where = el('input', { type: 'text', list: 'sh-edit-locations', value: game.location || '', autocapitalize: 'words', placeholder: 'e.g. Leisure Time Bowling' });
+      var pattern = el('input', { type: 'text', list: 'sh-edit-patterns', value: game.pattern || '', autocapitalize: 'words', placeholder: 'e.g. House' });
+      var lane = el('input', { type: 'text', inputmode: 'numeric', value: game.lane || '', placeholder: 'e.g. 23' });
+      var notes = el('textarea', { rows: 3, placeholder: 'Anything worth remembering' }, game.notes || '');
+      var whole = el('input', { type: 'checkbox' });
+      whole.checked = true;
+      var err = errorLine();
+      body.appendChild(el('form', {
+        class: 'sh-form card-body sh-stack',
+        onsubmit: once(function (e) {
+          e.preventDefault();
+          if (!date.value) return showError(err, 'A game needs a date.');
+          var changed = [];
+          var targets = whole.checked && shared.length ? shared.concat([game]) : [game];
+          targets.forEach(function (g) {
+            var next = JSON.parse(JSON.stringify(g));
+            next.date = date.value; next.event = event.value;
+            next.location = where.value.trim(); next.pattern = pattern.value.trim(); next.lane = lane.value.trim();
+            if (g.id === game.id) next.notes = notes.value.trim();
+            changed.push(next);
+          });
+          return saveGames(changed).then(function () { ui.editDetails = null; backgroundSync(); rerender(); }, function (ex) { showError(err, ex.message); });
+        }),
+      }, [
+        datalist('sh-edit-locations', S.distinct(allGames(), 'location')),
+        datalist('sh-edit-patterns', S.distinct(allGames(), 'pattern')),
+        el('div', { class: 'sh-grid' }, [field('Date', date), field('Event', event), field('Location', where), field('Lane', lane)]),
+        field('Oil pattern', pattern),
+        field('Notes', notes),
+        shared.length ? el('label', { class: 'sh-check' }, [whole, el('span', { text: 'Use the date, event, location, pattern and lane for all ' + (shared.length + 1) + ' games in this set (notes stay with this game)' })]) : null,
+        err,
+        el('div', { class: 'sh-actions' }, [
+          el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Save details' }),
+          button('Cancel', function () { ui.editDetails = null; show(); }),
+        ]),
+      ]));
+    }
+    show();
+    return card;
+  }
+
   /* Picked the wrong ball? Swap it, on this game or every game in the set that used it. */
   function fixBallCard(game, mySet) {
     var used = S.ballsInGame(game);
@@ -1349,10 +1422,7 @@
         ]),
         S.switches(game).length ? el('p', { class: 'sh-note', text: 'A dot over a frame number on the card marks where the ball changed.' }) : null,
       ])),
-      UI.card('Conditions', null, el('dl', { class: 'sh-detail' }, detail.reduce(function (acc, row) {
-        acc.push(el('dt', { text: row[0] }), typeof row[1] === 'object' ? el('dd', null, row[1]) : el('dd', { text: row[1] }));
-        return acc;
-      }, []))),
+      conditionsCard(game, mySet, detail),
       fixBallCard(game, mySet),
       UI.card('Shot by shot', null, UI.table({ columns: columns, rows: rows, state: null, onSort: function () {} })),
       UI.card('Fix or remove', null, el('div', { class: 'card-body sh-stack' }, [
