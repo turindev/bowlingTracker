@@ -173,7 +173,7 @@
       cards.push(UI.card('What will be added', summary, el('div', null, [
         table,
         el('div', { class: 'card-body sh-stack' }, [
-          el('label', { class: 'sh-check' }, [replaceBox, el('span', { text: 'Replace games I already imported from this file (use after the file was corrected)' })]),
+          el('label', { class: 'sh-check' }, [replaceBox, el('span', { text: 'Replace games I already imported from this file. Use this after the file was corrected; it overwrites anything you changed in those games since.' })]),
           detailFields(res),
           ballChoices(res),
           res.warnings.length ? el('ul', { class: 'sh-notes-list' }, res.warnings.map(function (w) { return el('li', { text: w }); })) : null,
