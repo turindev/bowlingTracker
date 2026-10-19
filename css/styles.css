@@ -1719,3 +1719,11 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .sh-code { margin: 0; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.45; background: var(--surface-2); border-radius: var(--radius-sm); }
 .sh-inline summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--accent); padding: 4px 0; }
 .sh-inline.sh-details { border: 0; }
+
+/* shot by shot: the pins that were left, drawn */
+.sh-shotcell { display: inline-flex; align-items: center; gap: 10px; }
+.sh-shotdeck { width: 46px; height: 46px; flex: none; }
+.sh-shotnote { font-size: 13px; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+.sh-shotdeck .ld-hit { fill: var(--border); stroke: none; opacity: .9; }
+.sh-shotdeck .ld-gone { fill: var(--border); opacity: .45; }
+.sh-shotdeck .ld-guess { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 2 1.6; }
