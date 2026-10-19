@@ -481,8 +481,48 @@
         el('div', { class: 'sh-cardwrap' }, [
           scorecard(g, null, { editable: true }),
           el('p', { class: 'sh-hint sh-tapnote' }, el('a', { href: '#/shots/game/' + g.id, text: g.status === 'done' ? 'Open this game' : 'Resume this game' })),
+          el('div', { class: 'sh-actions sh-center' }, [
+            set.games.length > 1 ? button('Remove from series', once(function () {
+              if (!window.confirm('Take game ' + (g.gameNo || i + 1) + ' out of this series? It stays as a single game and the others are renumbered.')) return;
+              return saveGames(S.leaveSet(set.games, g.id)).then(function () { backgroundSync(); rerender(); });
+            })) : null,
+            button('Delete', once(function () {
+              if (!window.confirm('Delete game ' + (g.gameNo || i + 1) + '? This cannot be undone.')) return;
+              return deleteGame(g).then(function () { location.hash = set.games.length > 1 ? '#/shots/set/' + set.id : '#/shots'; rerender(); });
+            }), 'danger'),
+          ]),
         ]));
     });
+    /* Change the length of the series, or bring in a game that was entered on its own. */
+    var sizeSelect = el('select', null, [2, 3, 4, 5, 6, 7, 8].filter(function (n) { return n >= set.games.length; }).map(function (n) {
+      return el('option', { value: String(n), selected: n === set.size }, n + ' games');
+    }));
+    var singles = S.setsOf(allGames(), { all: true }).filter(function (x) { return x.standalone; }).map(function (x) { return x.games[0]; })
+      .sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
+    var pickSingle = el('select', null, singles.map(function (g) {
+      return el('option', { value: g.id }, UI.shortDate(g.date) + ' · ' + (g.status === 'done' ? S.score(g).total : 'open') +
+        (g.lane ? ' · lane ' + g.lane : '') + (S.ballsInGame(g).length ? ' · ' + ballName(S.ballsInGame(g)[0]) : ''));
+    }));
+    var manage = UI.card('Manage this series', 'Games in it, and which games belong', el('div', { class: 'card-body sh-stack' }, [
+      el('div', { class: 'sh-actions' }, [
+        field('Games in the series', sizeSelect),
+        button('Set length', once(function () {
+          var size = Number(sizeSelect.value);
+          if (size === set.size) return;
+          return saveGames(S.resizeSet(set.games, size)).then(function () { backgroundSync(); rerender(); });
+        })),
+      ]),
+      next ? null : el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn', href: '#/shots/new/' + set.id, text: 'Add another game to this series' })),
+      singles.length ? el('div', { class: 'sh-actions' }, [
+        field('Add a game you already entered', pickSingle),
+        button('Add to series', once(function () {
+          var picked = singles.filter(function (g) { return g.id === pickSingle.value; })[0];
+          if (!picked) return;
+          return saveGames(S.joinSet(set.games, picked)).then(function () { backgroundSync(); rerender(); });
+        })),
+      ]) : el('p', { class: 'sh-note', text: 'Games that are not in a series show up here to add. None right now.' }),
+    ]));
+
     draw([
       head(heading, [UI.shortDate(set.date), set.pattern, set.location].filter(Boolean).join(' · ')),
       subnav('games'),
@@ -494,7 +534,7 @@
           return g.status === 'done' ? S.score(g).total : 'open';
         }).join(' · ') }) : null,
       ])),
-    ].concat(blocks));
+    ].concat(blocks).concat([manage]));
   }
 
   /* ---------- starting a game ---------- */
@@ -519,6 +559,13 @@
     return {
       node: field(label, el('div', { class: 'sh-pair' }, [el('div', { class: 'sh-ballrow' }, [pic, select]), input])),
       /* Resolves to { id } or { name } for a ball that still has to be created. */
+      /* Moves the picker to a ball (or "same ball" when there is none). */
+      set: function (id) {
+        var ok = !id || balls.some(function (b) { return b.id === id; });
+        if (!ok) return;
+        select.value = id || (noneLabel ? '' : select.value);
+        sync();
+      },
       read: function () {
         if (select.value === NEW) return input.value.trim() ? { name: input.value.trim() } : { missing: true };
         return { id: select.value || null };
@@ -533,7 +580,7 @@
 
     /* A set with games still to bowl can be carried on. The newest one is the
        default when it is recent, or when the page was opened for it. */
-    var openSets = S.setsOf(all, { all: true }).filter(function (x) { return !x.standalone && x.games.length < x.size; })
+    var openSets = S.setsOf(all, { all: true }).filter(function (x) { return !x.standalone && (x.games.length < x.size || x.id === wanted); })
       .sort(function (a, b) { return (b.games[b.games.length - 1].createdAt || '').localeCompare(a.games[a.games.length - 1].createdAt || ''); });
     var recent = openSets.filter(function (x) {
       var at = Date.parse(x.games[x.games.length - 1].createdAt || '');
@@ -546,10 +593,11 @@
     /* A set is bowled on one date and starts on one lane, so the rest of it follows the first game. */
     var starter = chosen ? chosen.games[0] : null;
     var date = el('input', { type: 'date', value: starter && starter.date ? starter.date : today(), required: true });
-    var where = el('input', { type: 'text', list: 'sh-locations', value: base.location || '', autocapitalize: 'words', placeholder: 'e.g. Leisure Time Bowling' });
-    var pattern = el('input', { type: 'text', list: 'sh-patterns', value: base.pattern || '', autocapitalize: 'words', placeholder: 'e.g. Kegel Flagship, house shot' });
+    var meta0 = starter || base;
+    var where = el('input', { type: 'text', list: 'sh-locations', value: meta0.location || '', autocapitalize: 'words', placeholder: 'e.g. Leisure Time Bowling' });
+    var pattern = el('input', { type: 'text', list: 'sh-patterns', value: meta0.pattern || '', autocapitalize: 'words', placeholder: 'e.g. Kegel Flagship, house shot' });
     var event = el('select', null, S.EVENTS.map(function (e) {
-      return el('option', { value: e, selected: e === (base.event || 'league') }, e.charAt(0).toUpperCase() + e.slice(1));
+      return el('option', { value: e, selected: e === (meta0.event || 'league') }, e.charAt(0).toUpperCase() + e.slice(1));
     }));
     var lane = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 23', value: starter && starter.lane ? starter.lane : '' });
     var strike = ballPicker('Ball', null, carry.strike);
@@ -561,7 +609,7 @@
       el('option', { value: 'new' }, 'A new set'),
       el('option', { value: 'single' }, 'A single game, not in a set'),
     ].concat(openSets.map(function (x) {
-      return el('option', { value: x.id }, 'Game ' + (x.games.length + 1) + ' of ' + x.size + ' in the set from ' + UI.shortDate(x.date) +
+      return el('option', { value: x.id }, (x.games.length < x.size ? 'Game ' + (x.games.length + 1) + ' of ' + x.size + ' in' : 'Add game ' + (x.games.length + 1) + ' to') + ' the set from ' + UI.shortDate(x.date) +
         ' (' + x.games.map(function (g) { return g.status === 'done' ? S.score(g).total : 'open'; }).join(', ') + ')');
     })));
     var sizeSelect = el('select', null, [2, 3, 4, 5, 6].map(function (n) {
@@ -574,25 +622,33 @@
       syncSet();
       var picked = openSets.filter(function (x) { return x.id === setSelect.value; })[0];
       if (picked) {
-        var g = picked.games[picked.games.length - 1];
-        where.value = g.location || where.value;
-        pattern.value = g.pattern || pattern.value;
-        event.value = g.event || event.value;
-        date.value = picked.games[0].date || date.value;
-        lane.value = picked.games[0].lane || '';
+        /* Everything about the night comes from the first game; the ball from the last. */
+        var first = picked.games[0], last = picked.games[picked.games.length - 1];
+        var balls = S.currentBalls(last);
+        where.value = first.location || '';
+        pattern.value = first.pattern || '';
+        event.value = first.event || event.value;
+        date.value = first.date || date.value;
+        lane.value = first.lane || '';
+        strike.set(balls.strike);
+        spare.set(last.spareBall || '');
       }
     });
     syncSet();
 
     var form = el('form', {
       class: 'sh-form',
-      onsubmit: function (e) {
+      onsubmit: once(function (e) {
         e.preventDefault();
+        /* A game in this set that nothing has been bowled in yet is the one to carry on with. */
+        var waiting = (openSets.filter(function (x) { return x.id === setSelect.value; })[0] || { games: [] }).games
+          .filter(function (g) { return g.status === 'open' && !(g.frames || []).length; })[0];
+        if (waiting) { location.hash = '#/shots/game/' + waiting.id; return; }
         var a = strike.read();
         var b = spare.read();
         if (a.missing || (b.missing)) return showError(err, 'Name the new ball, or pick one from the list.');
         var id;
-        getVault().commit(function (lib) {
+        return getVault().commit(function (lib) {
           function resolve(pick) {
             if (pick.name) {
               var ball = { id: uid('b'), name: pick.name, updatedAt: now() };
@@ -612,6 +668,13 @@
             meta.setId = picked.id;
             meta.setSize = picked.size;
             meta.gameNo = Math.max.apply(null, picked.games.map(function (g) { return g.gameNo || 0; })) + 1;
+            /* Adding to a full series makes it one game longer. */
+            if (meta.gameNo > picked.size) {
+              meta.setSize = meta.gameNo;
+              lib.games.forEach(function (x, i) {
+                if (x.setId === picked.id) { x.setSize = meta.gameNo; x.updatedAt = now(); }
+              });
+            }
           } else if (setSelect.value === 'new') {
             meta.setId = uid('s');
             meta.gameNo = 1;
@@ -624,7 +687,7 @@
           ui.draft = null;
           location.hash = '#/shots/game/' + id;
         }, function (ex) { showError(err, ex.message); });
-      },
+      }),
     }, [
       el('div', { class: 'sh-grid' }, [field('Part of', setSelect), sizeField]),
       el('div', { class: 'sh-grid' }, [
@@ -737,6 +800,47 @@
     });
   }
 
+  /* Saves several games at once (a series being edited), each stamped as changed. */
+  function saveGames(changed) {
+    return getVault().commit(function (lib) {
+      changed.forEach(function (g) {
+        g.updatedAt = now();
+        var i = lib.games.map(function (x) { return x.id; }).indexOf(g.id);
+        if (i === -1) lib.games.push(g); else lib.games[i] = g;
+      });
+    });
+  }
+
+  /* All the games of the series this one belongs to, itself included. */
+  function seriesOf(game) {
+    var set = game.setId ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === game.setId; })[0] : null;
+    return set ? set.games : [game];
+  }
+
+  /* Deleting a game from a series closes the gap in its numbering. */
+  function deleteGame(game) {
+    var changed = game.setId ? S.dropFromSet(seriesOf(game), game.id)
+      : [Object.assign(JSON.parse(JSON.stringify(game)), { deleted: true })];
+    return saveGames(changed).then(function () { backgroundSync(); });
+  }
+
+  /* A tap that arrives while the last one is still being saved is ignored, so
+     a slow device cannot record the same thing twice. */
+  function once(fn) {
+    return function (ev) {
+      /* Even a tap that is ignored must not fall through to a native form submit. */
+      if (ev && ev.type === 'submit') ev.preventDefault();
+      if (ui.busy) return;
+      ui.busy = true;
+      var release = function () { ui.busy = false; };
+      var timer = setTimeout(release, 15000);
+      var done = function () { clearTimeout(timer); release(); };
+      var result;
+      try { result = fn.apply(this, arguments); } catch (e) { done(); throw e; }
+      Promise.resolve(result).then(done, done);
+    };
+  }
+
   function shotCount(game) { return S.walk(game).length; }
 
   /* "Game 2 of 3" for a game in a set. */
@@ -783,6 +887,16 @@
       'Saved on this device after every shot, so ',
       el('a', { href: '#/shots', text: 'leave any time' }),
       ' and pick up later.',
+    ]));
+    nodes.push(el('p', { class: 'sh-note sh-leave' }, [
+      button('Delete this game', once(function () {
+        if (!window.confirm('Delete this game and everything entered in it?')) return;
+        var series = game.setId ? seriesOf(game) : [];
+        return deleteGame(game).then(function () {
+          ui.draft = null;
+          location.hash = series.filter(function (g) { return g.id !== game.id; }).length ? '#/shots/set/' + game.setId : '#/shots';
+        });
+      }), 'danger'),
     ]));
     draw(nodes);
   }
@@ -903,7 +1017,7 @@
     function quick(input) {
       var next;
       try { next = S.addShot(work, input); } catch (e) { return showError(err, e.message); }
-      io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
+      return io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
     }
 
     var body = [];
@@ -954,10 +1068,10 @@
       type: 'button',
       class: 'sh-btn is-primary sh-quick',
       disabled: !noPins,
-      onclick: function () {
-        if (pos.fresh) quick({ standing: [], hit: d.hit || undefined, ball: d.ball });
-        else quick({ standing: [], ball: d.ball });
-      },
+      onclick: once(function () {
+        if (pos.fresh) return quick({ standing: [], hit: d.hit || undefined, ball: d.ball });
+        return quick({ standing: [], ball: d.ball });
+      }),
       title: pos.fresh ? 'Saves a strike right now' : 'Saves the spare right now',
     }, [
       el('span', { class: 'sh-bolt', html: BOLT }),
@@ -1010,14 +1124,14 @@
       (!pos.fresh && d.standing.length && d.miss ? ' · missed ' + d.miss : '') }));
     body.push(err);
     body.push(el('div', { class: 'sh-actions sh-saverow' }, [
-      button('Save shot', function () {
+      button('Save shot', once(function () {
         var input = { standing: d.standing, ball: d.ball };
         if (pos.fresh) input.hit = d.hit; else if (d.standing.length && d.miss) input.miss = d.miss;
         var next;
         try { next = S.addShot(work, input); } catch (e) { return showError(err, e.message); }
-        io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
-      }, d.standing.length || !pos.fresh ? 'primary' : null, { disabled: !ready }),
-      button('Undo', function () { io.undo(); }, null, { disabled: !io.canUndo, title: 'Undo the last shot' }),
+        return io.commit(next, pos, d).then(null, function (e) { showError(err, e.message); });
+      }), d.standing.length || !pos.fresh ? 'primary' : null, { disabled: !ready }),
+      button('Undo', once(function () { return io.undo(); }), null, { disabled: !io.canUndo, title: 'Undo the last shot' }),
     ]));
 
     children.push(el('div', { class: 'card-body sh-stack' }, body));
@@ -1033,20 +1147,20 @@
       field('Notes', notes),
       err,
       el('div', { class: 'sh-actions' }, [
-        button('Save game', function () {
+        button('Save game', once(function () {
           var done = JSON.parse(JSON.stringify(game));
           done.status = 'done';
           done.notes = notes.value.trim();
-          saveGame(done).then(function () {
+          return saveGame(done).then(function () {
             ui.draft = null;
             backgroundSync();
             location.hash = '#/shots/game/' + game.id;
             rerender();
           }, function (e) { showError(err, e.message); });
-        }, 'primary'),
-        button('Undo last shot', function () {
-          saveGame(S.undo(game)).then(function () { ui.draft = null; entryPage(gameById(game.id)); });
-        }),
+        }), 'primary'),
+        button('Undo last shot', once(function () {
+          return saveGame(S.undo(game)).then(function () { ui.draft = null; entryPage(gameById(game.id)); });
+        })),
       ]),
     ]));
   }
@@ -1202,12 +1316,14 @@
             reopened.status = 'open';
             saveGame(reopened).then(function () { ui.draft = null; rerender(); });
           }),
-          button('Delete game', function () {
+          mySet ? button('Remove from series', once(function () {
+            if (!window.confirm('Take this game out of its series? It stays as a single game and the others are renumbered.')) return;
+            return saveGames(S.leaveSet(seriesOf(game), game.id)).then(function () { backgroundSync(); rerender(); });
+          })) : null,
+          button('Delete game', once(function () {
             if (!window.confirm('Delete this game? This cannot be undone.')) return;
-            var gone = JSON.parse(JSON.stringify(game));
-            gone.deleted = true;
-            saveGame(gone).then(function () { backgroundSync(); location.hash = '#/shots'; });
-          }, 'danger'),
+            return deleteGame(game).then(function () { location.hash = mySet && mySet.games.length > 1 ? '#/shots/set/' + mySet.id : '#/shots'; });
+          }), 'danger'),
         ]),
       ])),
     ]);

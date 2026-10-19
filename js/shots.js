@@ -636,6 +636,66 @@
     return best || set.games[0].ball || null;
   }
 
+  /* ---------- editing a set ---------- */
+
+  function inOrder(games) {
+    return games.slice().sort(function (a, b) {
+      return (a.gameNo || 0) - (b.gameNo || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    });
+  }
+
+  /* Games 1..n in their current order. Returns copies of just the games whose
+     number had to change. */
+  function renumber(games) {
+    var out = [];
+    inOrder(games.filter(function (g) { return !g.deleted; })).forEach(function (g, i) {
+      if (g.gameNo !== i + 1) { var c = copy(g); c.gameNo = i + 1; out.push(c); }
+    });
+    return out;
+  }
+
+  /* Takes one game out of its series: it stays as a single game and the rest
+     close up. Returns every game that changed. `setGames` is the whole set. */
+  function leaveSet(setGames, id) {
+    var left = setGames.filter(function (g) { return g.id === id; })[0];
+    if (!left) return [];
+    var gone = copy(left);
+    gone.setId = null; gone.gameNo = null; gone.setSize = null;
+    return [gone].concat(renumber(setGames.filter(function (g) { return g.id !== id; })));
+  }
+
+  /* Deletes one game of a series and closes the gap. */
+  function dropFromSet(setGames, id) {
+    var left = setGames.filter(function (g) { return g.id === id; })[0];
+    if (!left) return [];
+    var gone = copy(left);
+    gone.deleted = true;
+    return [gone].concat(renumber(setGames.filter(function (g) { return g.id !== id; })));
+  }
+
+  /* Puts a game into a series as its next game. A full series grows by one. */
+  function joinSet(setGames, game) {
+    var live = setGames.filter(function (g) { return !g.deleted && g.id !== game.id; });
+    var next = copy(game);
+    next.setId = live[0].setId;
+    next.gameNo = live.length + 1;
+    next.setSize = Math.max(Number(live[0].setSize) || 3, live.length + 1);
+    var others = live.filter(function (g) { return Number(g.setSize) !== next.setSize; }).map(function (g) {
+      var c = copy(g); c.setSize = next.setSize; return c;
+    });
+    return [next].concat(others);
+  }
+
+  /* Changes how many games the series is meant to have. */
+  function resizeSet(setGames, size) {
+    var live = setGames.filter(function (g) { return !g.deleted; });
+    size = Number(size);
+    if (!(size >= live.length && size >= 1)) throw new Error('The series already has ' + live.length + ' games.');
+    return live.filter(function (g) { return Number(g.setSize) !== size; }).map(function (g) {
+      var c = copy(g); c.setSize = size; return c;
+    });
+  }
+
   /* Games bowled together, in order. For statistics only finished games count
      and a game with no set is left out; with { all: true } (for the list)
      everything appears, a game with no set standing alone. */
@@ -752,6 +812,7 @@
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
+    renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 
   if (typeof module === 'object' && module.exports) module.exports = api;
