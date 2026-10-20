@@ -1801,3 +1801,17 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .chart-dot-s1 { fill: var(--s1); } .chart-dot-s2 { fill: var(--s2); } .chart-dot-s3 { fill: var(--s3); }
 .chart-ref-label { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .sh-chips.is-inline { padding: 0 0 10px; }
+
+/* the balls of a game, picture and name, at the top of its card on the set page */
+.sh-ballpics { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 4px 4px 8px; }
+.sh-ballpics .sh-ballrow strong { font-size: 15px; }
+
+/* pins left in each frame, above the scorecard of a game on the set page */
+.sh-pinstrip { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)) minmax(0, 1.55fr); padding: 0 1px 4px; }
+.sh-pincell { display: flex; justify-content: center; align-items: center; gap: 2px; min-width: 0; padding: 2px 0; }
+.sh-pincell .sh-rack { width: 100%; max-width: 30px; height: auto; aspect-ratio: 1; }
+.sh-pincell.is-tenth .sh-rack { max-width: 26px; }
+.sh-rack .pd-gone { fill: var(--border); opacity: .8; }
+.sh-rack .pd-spare { fill: var(--win); }
+.sh-rack .pd-left { fill: var(--loss); }
+.sh-rack .pd-guess { fill: none; stroke: var(--text-dim); stroke-width: 1.3; opacity: .7; }
