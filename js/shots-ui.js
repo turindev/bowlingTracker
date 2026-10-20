@@ -73,6 +73,15 @@
     return ids.length ? ids.map(ballName).join(' \u2192 ') : '\u2014';
   }
 
+  /* The balls a game was bowled with, each with its picture. */
+  function ballPics(game) {
+    var ids = S.ballsInGame(game);
+    if (!ids.length) return null;
+    return el('div', { class: 'sh-ballpics' }, ids.map(function (id) {
+      return el('span', { class: 'sh-ballrow' }, [thumb(id, 'md'), el('strong', { text: ballName(id) })]);
+    }));
+  }
+
   function gameById(id) { return allGames().filter(function (g) { return g.id === id; })[0] || null; }
 
   /* A ball's photo, or a plain disc with its initial until it has one. */
@@ -387,6 +396,14 @@
     return seen.length ? seen.map(ballName).join(', ') : '—';
   }
 
+  /* The same balls with their pictures, for the list. */
+  function setBallRow(set) {
+    var seen = [];
+    set.games.forEach(function (g) { S.ballsInGame(g).forEach(function (id) { if (seen.indexOf(id) === -1) seen.push(id); }); });
+    if (!seen.length) return '\u2014';
+    return el('span', { class: 'sh-ballrow' }, seen.map(function (id) { return el('span', { class: 'sh-ballrow', title: ballName(id) }, [thumb(id, 'sm'), seen.length === 1 ? ballName(id) : null]); }));
+  }
+
   function gamesPage() {
     var all = allGames();
     var open = all.filter(function (g) { return g.status === 'open'; })
@@ -466,7 +483,7 @@
             : el('span', { class: 'muted', title: set.finished + ' of ' + set.size + ' games bowled', text: set.total + ' (' + set.finished + '/' + set.size + ')' });
         } },
       { key: 'avg', label: 'Avg', value: function (r) { return r.set.average; }, render: function (r) { return UI.avg(r.set.average); } },
-      { key: 'ball', label: 'Ball', optional: true, value: function (r) { return setBalls(r.set); }, render: function (r) { return setBalls(r.set); } },
+      { key: 'ball', label: 'Ball', optional: true, value: function (r) { return setBalls(r.set); }, render: function (r) { return setBallRow(r.set); } },
       { key: 'pattern', label: 'Pattern', optional: true, value: function (r) { return r.set.pattern || ''; },
         render: function (r) { return r.set.pattern || '—'; } },
       { key: 'location', label: 'Location', optional: true, value: function (r) { return r.set.location || ''; },
@@ -509,9 +526,11 @@
     var blocks = set.games.map(function (g, i) {
       var sc = S.score(g);
       return UI.card('Game ' + (g.gameNo || i + 1) + (g.status === 'done' ? ': ' + sc.total : ' (open)'),
-        [g.lane ? 'lane ' + g.lane : null, ballNames(g)].filter(Boolean).join(' · '),
+        g.lane ? 'lane ' + g.lane : null,
         el('div', { class: 'sh-cardwrap' }, [
+          ballPics(g),
           badgeChips(g),
+          pinStrip(g),
           scorecard(g, null, { editable: true }),
           el('p', { class: 'sh-hint sh-tapnote' }, el('a', { href: '#/shots/game/' + g.id, text: g.status === 'done' ? 'Open this game' : 'Resume this game' })),
           el('div', { class: 'sh-actions sh-center' }, [
@@ -872,6 +891,50 @@
   }
 
   /* ---------- pin deck ---------- */
+
+  /* One rack of ten dots: grey for the pins the first ball took, green for the ones the spare try
+     picked up, red for the ones left standing. Pins known only by count are drawn as plain rings. */
+  function rackSvg(first, attempt) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var gap = 11, r = 4.4;
+    var guess = first.shot.approx || (attempt && attempt.shot.approx);
+    var leave = S.cleanPins(first.standing);
+    var left = attempt ? S.cleanPins(attempt.standing) : leave;
+    var label = leave.length ? (attempt ? (left.length ? 'Left ' + leave.join('-') + ', spare try left ' + left.join('-') : 'Left ' + leave.join('-') + ', spared') : 'Left ' + leave.join('-')) : 'Strike';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'sh-leavedeck sh-rack');
+    svg.setAttribute('viewBox', '0 0 ' + (gap * 3 + r * 2 + 2) + ' ' + (gap * 3 + r * 2 + 2));
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', label + (guess ? ' (which pins is not known)' : ''));
+    var title = document.createElementNS(NS, 'title');
+    title.textContent = label;
+    svg.appendChild(title);
+    S.DECK.forEach(function (row, ri) {
+      row.forEach(function (pin, ci) {
+        var dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', String(1 + r + (ci + (4 - row.length) / 2) * gap));
+        dot.setAttribute('cy', String(1 + r + ri * gap));
+        dot.setAttribute('r', String(r));
+        dot.setAttribute('class', guess ? 'pd-guess' : leave.indexOf(pin) === -1 ? 'pd-gone' : left.indexOf(pin) !== -1 ? 'pd-left' : 'pd-spare');
+        svg.appendChild(dot);
+      });
+    });
+    return svg;
+  }
+
+  /* A row of racks lined up over the scorecard's frames: what the first ball left and how the spare try went. */
+  function pinStrip(game) {
+    var cells = [];
+    for (var f = 0; f < 10; f++) {
+      var racks = [];
+      S.walk({ frames: [(game.frames || [])[f] || { shots: [] }] }).forEach(function (c) {
+        if (c.fresh) racks.push({ first: c, attempt: null });
+        else if (racks.length) racks[racks.length - 1].attempt = c;
+      });
+      cells.push(el('div', { class: 'sh-pincell' + (f === 9 ? ' is-tenth' : '') }, racks.slice(0, 3).map(function (rk) { return rackSvg(rk.first, rk.attempt); })));
+    }
+    return el('div', { class: 'sh-pinstrip', role: 'group', 'aria-label': 'Pins left in each frame' }, cells);
+  }
 
   /* One shot drawn on the deck: pins still standing are filled, pins this ball
      knocked down are rings, pins already down before it are faint. A shot whose
@@ -1534,6 +1597,7 @@
       head('Game: ' + sc.total, [setLabel(game), UI.shortDate(game.date), game.pattern].filter(Boolean).join(' · ')),
       subnav('games'),
       el('section', { class: 'card sh-cardwrap' }, [
+        ballPics(game),
         badgeChips(game),
         scorecard(game, null, { editable: true }),
         el('p', { class: 'sh-hint sh-tapnote', text: 'Tap a frame on the card to correct just that frame.' }),
