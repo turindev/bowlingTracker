@@ -48,6 +48,9 @@
   function handicapBase(player, games, pins, establish) {
     /* Averages are kept as whole pins, dropping the fraction, as on the sheet. */
     if (games >= establish && games > 0) return Math.floor(pins / games);
+    /* No book average: the first night comes off the average they bowled that night
+       (entered as entryAverage), and every night after off the average so far. */
+    if (player.noBook && games > 0) return Math.floor(pins / games);
     if (player.entryAverage != null) return player.entryAverage;
     return player.average;
   }
@@ -57,6 +60,14 @@
     return (player.adjustments || []).reduce(function (total, a) {
       return a.afterWeek < weekNumber ? total + a.pins : total;
     }, 0);
+  }
+
+  /* A game the sheet prints with an `i` (outOfAverage: [3] is game 3) counts on the night, for the
+     series and the team, but not in the bowler's games, pins or average. */
+  function rated(line, games) {
+    var skip = line.outOfAverage || [];
+    var kept = games.filter(function (g, i) { return skip.indexOf(i + 1) === -1; });
+    return { games: kept.length, pins: sum(kept) };
   }
 
   /* The blind nights that are part of a bowler's average. */
@@ -71,8 +82,8 @@
     var pins = 0;
     player.weeks.concat(countedBlinds(player)).forEach(function (w) {
       if (w.number >= weekNumber) return;
-      games += w.games.length;
-      pins += w.series;
+      games += w.ratedGames != null ? w.ratedGames : w.games.length;
+      pins += w.ratedPins != null ? w.ratedPins : w.series;
     });
     pins += adjustedBefore(player, weekNumber);
     return handicapFor(handicapBase(player, games, pins, scoring.establishAfterGames), scoring);
@@ -92,6 +103,7 @@
            real bowlers, so they stay off the individual leaderboard. */
         placeholder: !!p.placeholder,
         substitute: !!p.substitute,
+        noBook: !!p.noBook,
         /* vacant | absentee | substitute — what the page shows beside the
            name. Substitutes bowl for real, so they keep their own flag. */
         role: p.role || (p.substitute ? 'substitute' : null),
@@ -203,9 +215,11 @@
           average: series / games.length,
           /* Who they bowled for that night, when it was not their own team. */
           teamId: line.teamId || player.teamId,
+          ratedGames: rated(line, games).games,
+          ratedPins: rated(line, games).pins,
         });
-        player.games += games.length;
-        player.pins += series;
+        player.games += rated(line, games).games;
+        player.pins += rated(line, games).pins;
         player.highGame = Math.max(player.highGame || 0, Math.max.apply(null, games));
         player.highSeries = Math.max(player.highSeries || 0, series);
       });
@@ -291,8 +305,8 @@
         week.handicap = handicapFor(handicapBase(p, doneGames, pinsSoFar, establish), scoring);
         p.handicapByWeek[week.number] = week.handicap;
         if (week.blind && !week.counted) return;
-        doneGames += week.games.length;
-        donePins += week.series;
+        doneGames += week.ratedGames != null ? week.ratedGames : week.games.length;
+        donePins += week.ratedPins != null ? week.ratedPins : week.series;
       });
 
       /* What the next week will be bowled on, and the number the tables show. */
@@ -448,8 +462,8 @@
         var games = (line.games || []).filter(isScore);
         if (!games.length) return;
         if (line.blind && line.inAverage === false) return;
-        running[line.playerId].pins += sum(games);
-        running[line.playerId].games += games.length;
+        running[line.playerId].pins += rated(line, games).pins;
+        running[line.playerId].games += rated(line, games).games;
         if (!line.blind) bowledThisWeek[line.playerId] = sum(games);
       });
       real.forEach(function (p) {

@@ -120,6 +120,56 @@ for (const [n, h] of [['Marty Tate', 46], ['Jon Boxwell', 34], ['Aaron Jones', 6
         who(n).handicap === h, who(n).handicap);
 }
 
+// And against the week-6 sheet: every bowler's pins, games and the handicap
+// they carry into week 7, as printed in the roster blocks.
+live = upTo(6);
+const ROSTER6 = [
+  ['Ken Grizzard', 52, 2431, 15], ['Ed Curtis', 59, 2314, 15], ['Marty Tate', 47, 2519, 15],
+  ['Rick Goodwin', 63, 2262, 15], ['Paul Presswood', 33, 2199, 12], ['Leon Farmer', 21, 3532, 18],
+  ['Jon Boxwell', 34, 3282, 18], ['Terry Cranfield', 34, 2737, 15], ['Tony Bullington', 14, 1810, 9],
+  ['Wesley Hicks', 36, 1915, 11], ['Toby Crisp', 13, 3078, 15], ['Wendell Defriece', 14, 3681, 18],
+  ['Robbie Defriece', 11, 3731, 18], ['Keith White', 0, 3357, 15], ['Jason Thompson', 52, 2930, 18],
+  ['Ben Deloach', 0, 4051, 18], ['Jason Seda-Haas', 23, 2920, 15], ['Darius Thompson', 0, 4204, 18],
+  ['Michael Eisel', 24, 1171, 6], ['Steven Monroe', 13, 664, 3], ['Aaron Jones', 63, 2712, 18],
+  ['Dale Dutcher', 41, 3139, 18], ['Daryl Blair', 45, 3068, 18], ['Spencer Foutz', 0, 4092, 18],
+  ['Cam Miller', 18, 3614, 18], ['Worm Davis', 10, 3745, 18], ['Alex Davis', 0, 4256, 18],
+  ['Davis Segui', 17, 3016, 15], ['Jim Sedgwick', 57, 2812, 18], ['James Gruver', 29, 2255, 12],
+  ['James Duffee', 27, 2864, 15], ['Steve Smith', 17, 3634, 18], ['Nick Grabe', 47, 3015, 18],
+  ['Mike Davis', 72, 2528, 18], ['Starr Jensen', 60, 2764, 18], ['Rodney Benefield', 47, 3023, 18],
+  ['Tim Charleson', 31, 3336, 18], ['Darrell Smith', 17, 3629, 18], ['Bobby Bryant', 36, 3224, 18],
+  ['Jeremy Malek', 13, 3704, 18], ['Kamus Thompson', 13, 3086, 15], ['John Jenner', 18, 3606, 18],
+  ['Derek Banther', 11, 3742, 18], ['Josh Bomboy', 15, 3664, 18], ['Josh Malek', 32, 2767, 15],
+  ['Jimmy Malek', 18, 3002, 15], ['John Smeltzer', 27, 2850, 15], ['Randy Dockery', 33, 2750, 15],
+  ['Cody LaCroix', 8, 3814, 18], ['Jayson Scoggins', 12, 3099, 15], ['Shayne Terry', 8, 3807, 18],
+  ['Scott Shafer', 11, 621, 3], ['Josh Rodda', 43, 516, 3], ['Chad Green', 5, 3223, 15],
+  ['Lynn Collins', 18, 3604, 18], ['Chris Neal', 0, 2674, 12], ['Steven Adler', 0, 3962, 18],
+  ['Zach Price', 10, 624, 3], ['Yogi Cabrera', 48, 2998, 18], ['Mitchell Mayo', 9, 3795, 18],
+  ['Duane Mayo', 50, 2961, 18], ['Mark Youngblood', 9, 3786, 18], ['Hunter Moffitt', 10, 3754, 18],
+  ['Chris Daughtry', 0, 4010, 18], ['Cameron Compton', 10, 3752, 18], ['Briton Helton', 6, 1280, 6],
+  ['John Linan', 66, 2633, 18], ['Stan Stinnett', 46, 3024, 18], ['Matt Linan', 25, 2892, 15],
+  ['Stonewall Stinnett', 14, 3682, 18], ['Hamilton Hickman', 39, 2117, 12], ['Ken Ellis', 51, 2940, 18],
+  ['Richard Simpson', 36, 2699, 15], ['Joey Zinn', 36, 3232, 18], ['Butch Finkbeiner', 77, 2423, 18],
+  ['Treifor Grant', 69, 2591, 18], ['Paul Queen', 70, 2563, 18], ['Jerry Lance', 48, 1994, 12],
+  ['Bill Rogers', 52, 945, 6], ['Tanner Collins', 29, 2809, 15], ['Chuck Broesche', 59, 2789, 18],
+  ['Mark Thompson', 18, 2409, 12], ['Jared King', 0, 3331, 15], ['Jacob Brown', 11, 729, 3],
+  ['Jesse Cabrera', 53, 2904, 18], ['Thomas Woody', 58, 2806, 18], ['Tim Berthianne', 26, 3453, 18],
+  ['Joe Morgan', 14, 3063, 15], ['Coty Rymer', 0, 4057, 18], ['Sam Hunter', 32, 3321, 18],
+  ['Todd Deluca', 35, 3270, 18], ['Matt Clark', 50, 2462, 15], ['Porky Davis', 13, 3696, 18],
+  ['Bryant Johns', 29, 2812, 15], ['Tanner Kincaid', 13, 580, 3], ['Lenny Kersten', 19, 2982, 15],
+  ['Al Vietor', 54, 2896, 18], ['Matt Rayfield', 82, 2319, 18], ['Jimmy Campbell', 45, 3061, 18],
+  ['Tyler Green', 55, 2848, 18], ['Aaron White', 5, 3218, 15], ['Michael Shipley', 0, 4071, 18],
+  ['Oliver Lawson', 0, 3362, 15], ['Jason Day', 0, 4157, 18], ['Grant Benton', 10, 648, 3],
+  ['Chad Clark', 31, 1646, 9], ['Don Dansby', 37, 1070, 6], ['John Hancock', 0, 2857, 12],
+  ['Michael Kimble', 1, 654, 3], ['Bryan Martin', 11, 2487, 12], ['Jaydon Phan', 20, 591, 3],
+  ['Matthew Spicer', 0, 3388, 15], ['Dave Terhune', 46, 506, 3],
+];
+const off7 = ROSTER6.filter(([n, h, pins, g]) => {
+  const p = who(n);
+  return !p || p.handicap !== h || p.pins !== pins || p.games !== g;
+});
+check('real league, week 6: all ' + ROSTER6.length + ' bowlers\' pins, games and week-7 handicaps match the sheet',
+      !off7.length, off7.map(([n, h, pins, g]) => n + ' ' + (who(n) ? [who(n).handicap, who(n).pins, who(n).games] : 'missing') + ' v ' + [h, pins, g]).join('; '));
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall handicap assertions passed');
