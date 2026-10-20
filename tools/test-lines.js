@@ -185,6 +185,59 @@ const lawson5 = live.players.find(p => p.name === 'Oliver Lawson');
 check('Lawson 2723 over 12 with no blinds in it', lawson5.pins === 2723 && lawson5.games === 12,
       lawson5.pins + '/' + lawson5.games);
 
+// --- week 6: the same checks against the week-6 sheet ----------------------
+live = at(6);
+const STAND6 = {12:[17.5,14607,16104],4:[17,14639,16103],6:[16,15707,16298],16:[16,12834,16035],
+  19:[16,13451,15935],10:[14,14865,16095],22:[14,14759,15959],11:[14,13929,15645],
+  24:[13.5,16098,16206],3:[13,15263,15893],15:[12.5,14638,15844],7:[12,12951,15684],
+  1:[12,11725,15502],23:[12,11124,15348],21:[11,13836,16023],13:[10,15359,15773],
+  14:[10,13540,15682],5:[10,12449,15599],17:[10,12760,15517],2:[10,13449,15432],
+  18:[9,10516,15319],8:[8,11941,15532],9:[7,13212,15765],20:[3.5,12586,15364]};
+const off6 = Object.keys(STAND6).filter(n => {
+  const t = team(n), s = STAND6[n];
+  return through(n, 6) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 6 match the sheet', !off6.length,
+      off6.map(n => n + ': ' + [through(n, 6), team(n).pins, team(n).hdcpPins] + ' v ' + STAND6[n]).join('; '));
+const REV6 = {10:'1006,930,865',18:'816,815,796',20:'876,805,941',12:'858,896,943',22:'905,875,846',14:'856,870,958',
+  16:'957,900,855',24:'821,923,949',17:'801,899,813',1:'776,785,865',19:'830,917,839',3:'819,864,830',
+  5:'1013,911,872',21:'890,768,760',23:'875,815,979',7:'862,846,877',2:'884,842,888',9:'833,931,897',
+  4:'952,839,863',11:'933,901,814',6:'873,795,800',13:'982,883,783',8:'868,900,900',15:'972,857,943'};
+const offGames = Object.keys(REV6).filter(n => games(n, 6) !== REV6[n]);
+check('every team\'s three handicap game totals in week 6 match the sheet', !offGames.length,
+      offGames.map(n => n + ': ' + games(n, 6) + ' v ' + REV6[n]).join('; '));
+check('9 Pin City with Dansby subbing, Eisel and Monroe out = 1013,911,872', games(5, 6) === '1013,911,872', games(5, 6));
+check('Bowling Buddies with Hancock and Terhune subbing = 905,875,846', games(22, 6) === '905,875,846', games(22, 6));
+check('Neal\'s a212 blind is the one in his team total but not in his average: 2674 over 12',
+      (n => n.pins === 2674 && n.games === 12)(live.players.find(p => p.name === 'Chris Neal')), '');
+const hicks = live.players.find(p => p.name === 'Wesley Hicks');
+check('Hicks\' i173 counts on the night (series 520) but not in his average: 1915 over 11, still on book 36',
+      hicks.pins === 1915 && hicks.games === 11 && hicks.handicap === 36 && hicks.weeks.find(w => w.number === 6).series === 520,
+      hicks.pins + '/' + hicks.games + ' h' + hicks.handicap);
+const dansby = live.players.find(p => p.name === 'Don Dansby');
+check('Dansby, with no book, goes from 38 to 37 on his 178 average: 1070 over 6',
+      dansby.pins === 1070 && dansby.games === 6 && dansby.handicap === 37 && dansby.handicapByWeek[6] === 38,
+      dansby.pins + '/' + dansby.games + ' h' + dansby.handicap + ' wk6 h' + dansby.handicapByWeek[6]);
+const speer6 = live.players.find(p => p.name === 'Don Speer');
+check('Speer\'s 463 makes his two records one player: 1384 over 9', speer6.pins === 1384 && speer6.games === 9, speer6.pins + '/' + speer6.games);
+check('Ben Deloach bowled 300', live.players.find(p => p.name === 'Ben Deloach').highGame === 300, '');
+
+// the new rules, on the fixture
+{
+  const fx2 = JSON.parse(JSON.stringify(fx));
+  fx2.players[1].noBook = true;                       // Lent Lou: first night off the 200 he bowled
+  fx2.players[1].entryAverage = 200;
+  fx2.weeks[0].scores[1] = { playerId: 'p2', teamId: 'b', games: [200, 200, 200], outOfAverage: [3] };
+  fx2.weeks.push({ number: 2, date: '2026-09-15', scores: [{ playerId: 'p2', teamId: 'b', games: [150, 150, 150] }], matches: [] });
+  const mm = build(fx2);
+  const lou = mm.players.find(p => p.id === 'p2');
+  check('an outOfAverage game counts in the night\'s series but not in games, pins or average',
+        lou.weeks[0].series === 600 && lou.games === 5 && lou.pins === 400 + 450, lou.games + '/' + lou.pins);
+  check('a noBook bowler is handicapped off their average so far from the second night',
+        lou.handicapByWeek[1] === handicapOf(200) && lou.handicapByWeek[2] === handicapOf(200), JSON.stringify(lou.handicapByWeek));
+}
+function handicapOf(avg) { return Math.max(0, Math.floor((220 - avg) * 0.9)); }
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall line-rule assertions passed');

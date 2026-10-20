@@ -61,6 +61,7 @@ and never reuse one for a different team.
 | `placeholder` | `true` for vacant spots and absentee scores. They count toward team totals but are kept off the bowler leaderboard and get no player page. |
 | `substitute` | `true` for a league substitute. They may have `"teamId": null` — no team of their own — in which case every score line of theirs must carry a `teamId`. Their games are real, so they keep a place on the bowler leaderboard, tagged "sub". |
 | `role` | `"vacant"` or `"absentee"` — why a `placeholder` line exists. It picks the marker shown beside the name and the sentence in the legend under the table. A `substitute` is tagged from its own flag and needs no `role`. |
+| `noBook` | `true` for a bowler with no book average, whose first night was bowled on a handicap taken from the average they bowled that night (so `entryAverage` is that night's average). From the second night the handicap comes off the average they have bowled so far, not off `entryAverage` (Don Dansby: 1070 over 6 is a 178 average and a handicap of 37, where his 177 entry would give 38). |
 | `provisional` | `true` when the sheet prints a bare `120` with no `bk`: a new bowler with no average from last season. `entryAverage` is then `120`, which the league uses (handicap 90) until the bowler establishes one. |
 | `pinAdjustments` | Pins the league added to or took off an earlier week without the sheet saying which game: `[{ "afterWeek": 2, "pins": 20, "note": "…" }]`. They count in the bowler's pins and average (so in the handicap from the week after `afterWeek`) and in their team's season pinfall (or `teamId`'s, if given), but in no game. |
 
@@ -110,6 +111,7 @@ and never reuse one for a different team.
 |---|---|
 | `teamId` | The team this line counts for, when it is not the bowler's own — a substitute, or a rostered bowler filling in for another team that night (John Hancock for Bowling Buddies, week 2). Required for a teamless substitute. |
 | `blind` | `true` for a blind score (rule 7: ten under the bowler's average). It counts toward the team total, with the bowler's handicap, and, as the league software keeps it, toward the bowler's games, pins and average (so toward the average their handicap comes off once established). It never counts as one of their highs, milestones or form. Printed on the sheet with an `a` prefix, e.g. `a220`. |
+| `outOfAverage` | Game numbers (1-based) the sheet prints with an `i` prefix, e.g. `i173` is `"outOfAverage": [3]`. The game counts on the night: in the bowler's series, the team's total and the points. It is left out of the bowler's games, pins and average, and so out of the handicap they are bowled on. |
 | `inAverage` | `false` on a blind the league leaves out of the bowler's average (from week 4 the sheet stopped counting blinds, and took Oliver Lawson's week-2 one back out). Omit it for a blind the league counts. |
 
 ### Match fields
