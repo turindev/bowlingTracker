@@ -370,6 +370,25 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('honor comes first, then the record', S.badges(top, ctx).map(b => b.key).slice(0, 2).join() === 'honor,pr', S.badges(top, ctx).map(b => b.key).join());
 })();
 
+// --- ball changes, counted by night -------------------------------------------------------------
+(() => {
+  const withBall = (g, id, fromFrame) => { g.ball = fromFrame ? g.ball : id; g.frames.forEach((fr, i) => { if (i >= (fromFrame || 0)) fr.shots.forEach(sh => { sh.ball = id; }); }); return g; };
+  const card = ['9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/9'];
+  const mk = (setId, no, ball, date) => withBall(fromCard(card, { date: date || '2026-10-01', setId, gameNo: no, setSize: 3 }), ball);
+  // night one: same ball all night; night two: a different ball for game 3; night three: one game switched halfway
+  const n1 = [mk('a', 1, 'X'), mk('a', 2, 'X'), mk('a', 3, 'X')];
+  const n2 = [mk('b', 1, 'X', '2026-10-08'), mk('b', 2, 'X', '2026-10-08'), mk('b', 3, 'Y', '2026-10-08')];
+  const n3 = [withBall(mk('c', 1, 'X', '2026-10-15'), 'Y', 5), mk('c', 2, 'Y', '2026-10-15')];
+  const c1 = S.ballChanges(n1), c2 = S.ballChanges(n2), c3 = S.ballChanges(n3);
+  check('a night with one ball has no change', c1.nights === 1 && c1.nightsChanged === 0 && c1.changesBetween === 0 && c1.changesWithin === 0, JSON.stringify(c1));
+  check('a different ball for a later game is a change between games', c2.changesBetween === 1 && c2.changesWithin === 0 && c2.nightsChanged === 1, JSON.stringify(c2));
+  check('a switch partway through a game is a change within it, and the next game starts on the new ball', c3.changesWithin === 1 && c3.changesBetween === 0 && c3.nightsChanged === 1, JSON.stringify(c3));
+  const all = S.analyze(n1.concat(n2, n3));
+  check('analyze counts nights and the nights that changed', all.nights === 3 && all.nightsChanged === 2 && all.changesBetween === 1 && all.changesWithin === 1, JSON.stringify([all.nights, all.nightsChanged, all.changesBetween, all.changesWithin]));
+  check('the old count of games switched midway is unchanged', all.switched === 1, String(all.switched));
+  check('games on their own are a night each', S.ballChanges([fromCard(card), fromCard(card)]).nights === 2, '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

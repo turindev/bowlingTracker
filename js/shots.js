@@ -362,6 +362,40 @@
     return best || (game && game.ball) || null;
   }
 
+  /*
+   * Ball changes across a set of games, counted by night (a set, or a game bowled
+   * on its own): between games, where the first ball of a game was thrown with a
+   * different ball than the last of the game before, and within a game, where the
+   * ball was switched partway through.
+   */
+  function ballChanges(games) {
+    var by = {}, order = [];
+    (games || []).forEach(function (g) {
+      var k = g.setId || g.id;
+      if (!by[k]) { by[k] = []; order.push(k); }
+      by[k].push(g);
+    });
+    var out = { nights: order.length, nightsChanged: 0, changesBetween: 0, changesWithin: 0 };
+    order.forEach(function (k) {
+      var gs = by[k].slice().sort(function (a, b) {
+        return (a.gameNo || 0) - (b.gameNo || 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+      var between = 0, within = 0, prev = null;
+      gs.forEach(function (g) {
+        if (switches(g).length) within++;              /* a game switched partway counts once, strike ball and spare ball alike */
+        var strikeBalls = walk(g).filter(function (c) { return c.fresh && c.ball; }).map(function (c) { return c.ball; });
+        var first = strikeBalls.length ? strikeBalls[0] : (g.ball || null);
+        var last = strikeBalls.length ? strikeBalls[strikeBalls.length - 1] : (g.ball || null);
+        if (prev && first && prev !== first) between++;
+        if (last) prev = last;
+      });
+      out.changesBetween += between;
+      out.changesWithin += within;
+      if (between || within) out.nightsChanged++;
+    });
+    return out;
+  }
+
   /* Each time the ball changed: the frame it happened in (1-based), what it
      changed from and to, and whether it was the strike ball or the spare ball. */
   function switches(game) {
@@ -426,9 +460,11 @@
     var ballId = opts.ball || null;
 
     var totals = [];
+    var counted = [];
     var out = {
       games: 0, average: null, high: null, low: null, sd: null,
       over200: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null, switched: 0,
+      nights: 0, nightsChanged: 0, changesBetween: 0, changesWithin: 0,
       racks: 0, strikes: 0, strikePct: null, strikesPerGame: null,
       attempts: 0, spares: 0, sparePct: null,
       firstBallAvg: null,
@@ -511,6 +547,7 @@
         var total = score(game).total;
         totals.push(total);
         if (switches(game).length) out.switched++;
+        counted.push(game);
         if (opensThisGame === 0) out.clean++;
 
         /* Strike streaks run across frames and into the fill balls. */
@@ -557,6 +594,8 @@
     }
 
     out.afterStrike.pct = ratio(out.afterStrike.strikes, out.afterStrike.n);
+    var changes = ballChanges(counted);
+    out.nights = changes.nights; out.nightsChanged = changes.nightsChanged; out.changesBetween = changes.changesBetween; out.changesWithin = changes.changesWithin;
     out.afterOther.pct = ratio(out.afterOther.strikes, out.afterOther.n);
     out.strikePct = ratio(out.strikes, out.racks);
     out.sparePct = ratio(out.spares, out.attempts);
@@ -1075,7 +1114,7 @@
     addShot: addShot, undo: undo, replaceBall: replaceBall, truncate: truncate, replaceFrame: replaceFrame, newGame: newGame,
     score: score, analyze: analyze, compare: compare, filter: filter,
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
-    ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, currentBalls: currentBalls,
+    ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, ballChanges: ballChanges, currentBalls: currentBalls,
     setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
     weekly: weekly, dateMismatches: dateMismatches, ART: ART, strikeRuns: strikeRuns, heatFrames: heatFrames, badges: badges, setBadges: setBadges, context: context, honorLimits: honorLimits, HONOR: HONOR, HONOR_TOP: HONOR_TOP, streakTable: streakTable, runName: runName, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };

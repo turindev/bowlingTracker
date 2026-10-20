@@ -1775,7 +1775,7 @@
       UI.stat('Best strike run', String(stats.bestStreak), 'Most strikes in a row, fill balls included. Three in a row is a turkey: ' + stats.streaks3 + ' so far.'),
       UI.stat('Splits', pct1(stats.splitPct), 'How often the first ball left a split.'),
       UI.stat('Strikes / game', UI.avg(stats.strikesPerGame), 'Strikes in an average game, fill balls included.'),
-      UI.stat('Ball changes', stats.games ? stats.switched + ' of ' + stats.games : '\u2014', 'Games where you switched balls partway through.'),
+      UI.stat('Ball changes', stats.nights ? stats.nightsChanged + ' of ' + stats.nights : '\u2014', 'Nights you changed balls: ' + stats.changesBetween + (stats.changesBetween === 1 ? ' change' : ' changes') + ' between games and ' + stats.changesWithin + ' partway through a game.'),
     ]);
 
     /* first-ball hits */
