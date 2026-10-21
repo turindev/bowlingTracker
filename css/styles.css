@@ -28,19 +28,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f1420;
-    --surface: #171d2b;
-    --surface-2: #1f2637;
-    --border: #2c344a;
-    --text: #e8ecf5;
-    --text-dim: #9aa4bb;
-    --accent: #6ea0ff;
-    --accent-soft: #1d2b47;
-    --win: #4ed58e;
-    --loss: #ff8b80;
-    --gold: #f0c04d;
-    --div-pos: #4a8ae8;
-    --div-neg: #d9634a;
+    --bg: #1e1f1c;
+    --surface: #272822;
+    --surface-2: #33342d;
+    --border: #46473d;
+    --text: #f8f8f2;
+    --text-dim: #a9a58f;
+    --accent: #66d9ef;
+    --accent-soft: #2c3a3c;
+    --win: #a6e22e;
+    --loss: #ff6188;
+    --gold: #e6db74;
+    --div-pos: #66d9ef;
+    --div-neg: #fd971f;
     --s1: #3987e5;
     --s2: #d95926;
     --s3: #199e70;
@@ -50,19 +50,19 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0f1420;
-  --surface: #171d2b;
-  --surface-2: #1f2637;
-  --border: #2c344a;
-  --text: #e8ecf5;
-  --text-dim: #9aa4bb;
-  --accent: #6ea0ff;
-  --accent-soft: #1d2b47;
-  --win: #4ed58e;
-  --loss: #ff8b80;
-  --gold: #f0c04d;
-  --div-pos: #4a8ae8;
-  --div-neg: #d9634a;
+  --bg: #1e1f1c;
+  --surface: #272822;
+  --surface-2: #33342d;
+  --border: #46473d;
+  --text: #f8f8f2;
+  --text-dim: #a9a58f;
+  --accent: #66d9ef;
+  --accent-soft: #2c3a3c;
+  --win: #a6e22e;
+  --loss: #ff6188;
+  --gold: #e6db74;
+  --div-pos: #66d9ef;
+  --div-neg: #fd971f;
   --s1: #3987e5;
   --s2: #d95926;
   --s3: #199e70;
@@ -100,7 +100,7 @@ a { color: var(--accent); }
   position: absolute;
   left: -9999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--surface);
   padding: 10px 16px;
   z-index: 10;
 }
@@ -329,7 +329,7 @@ main { padding: 20px 16px 48px; }
 .card-info[aria-expanded="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--surface);
 }
 
 .card-note {
@@ -1769,9 +1769,9 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 
 /* personal records and honor scores */
 .sh-badge.is-pr { color: #0b57c4; background: #e8f1ff; border-color: #a9c9fb; }
-:root[data-theme="dark"] .sh-badge.is-pr { color: #8cc0ff; background: #12233b; border-color: #28497a; }
+:root[data-theme="dark"] .sh-badge.is-pr { color: #66d9ef; background: #2a3a3d; border-color: #42656c; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .sh-badge.is-pr { color: #8cc0ff; background: #12233b; border-color: #28497a; }
+  :root:not([data-theme="light"]) .sh-badge.is-pr { color: #66d9ef; background: #2a3a3d; border-color: #42656c; }
 }
 .art-trophy { stroke: currentColor; }
 .sh-badge.is-honor {
