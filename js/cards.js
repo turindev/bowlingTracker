@@ -119,6 +119,12 @@
     return text === 'X' ? SC.blue : text === '/' ? SC.amber : text === '-' ? SC.soft : SC.white;
   }
 
+  /* "avg 201 · 14 games" for a ball's reference line, or nothing when the ball has no games. */
+  function ballAvgText(b) {
+    if (!b || b.average == null || !b.games) return '';
+    return 'avg ' + Math.round(b.average) + ' \u00b7 ' + b.games + (b.games === 1 ? ' game' : ' games');
+  }
+
   /* A flame badge icon: the shared 24x24 shapes, scaled and placed. */
   function drawFlame(svg, x, y, size, level) {
     var k = size / 24;
@@ -275,15 +281,22 @@
     if (!series) list.forEach(function (g) { S.ballsInGame(g).forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); }); });
     var info = function (id) { return (opts.ballInfo && opts.ballInfo(id)) || { name: '' }; };
     if (ids.length === 1) {
-      ballDisc(svg, X + 60, 348, 60, info(ids[0]));
-      svg.text(X + 156, 360, info(ids[0]).name || 'Ball', { fontSize: 42, fontWeight: 700, fill: SC.text });
+      var one = info(ids[0]), oneAvg = ballAvgText(one);
+      ballDisc(svg, X + 60, 348, 60, one);
+      svg.text(X + 156, oneAvg ? 344 : 360, one.name || 'Ball', { fontSize: 42, fontWeight: 700, fill: SC.text });
+      if (oneAvg) svg.text(X + 156, 388, oneAvg, { fontSize: 30, fontWeight: 600, fill: SC.sub });
     } else if (ids.length > 1) {
       var shown = ids.slice(0, 3), slot = CW / shown.length;
       shown.forEach(function (id, i) {
         ballDisc(svg, X + slot * i + 42, 346, 42, info(id));
-        wrap(info(id).name || 'Ball', 28, slot - 120).slice(0, 2).forEach(function (l, k) {
-          svg.text(X + slot * i + 100, 346 + (k ? 34 : 0) - (wrap(info(id).name, 28, slot - 120).length > 1 ? 12 : -9), l, { fontSize: 28, fontWeight: 700, fill: SC.text });
+        var lines = wrap(info(id).name || 'Ball', 28, slot - 120).slice(0, 2);
+        var avgLine = ballAvgText(info(id));
+        var rows = lines.length + (avgLine ? 1 : 0);
+        var base = 346 + 9 - (rows - 1) * 17;
+        lines.forEach(function (l, k) {
+          svg.text(X + slot * i + 100, base + k * 34, l, { fontSize: 28, fontWeight: 700, fill: SC.text });
         });
+        if (avgLine) svg.text(X + slot * i + 100, base + lines.length * 34 - 4, avgLine, { fontSize: 22, fontWeight: 600, fill: SC.sub });
       });
     }
 
@@ -293,10 +306,11 @@
         /* the ball or balls this game was bowled with, picture and name */
         var used = S.ballsInGame(g).slice(0, 3), slot = CW / used.length;
         used.forEach(function (id, k) {
-          var label = info(id).name || 'Ball';
+          var label = info(id).name || 'Ball', avgText = ballAvgText(info(id));
           var fs = Math.max(20, Math.min(30, (slot - 84) / (label.length * 0.56)));
-          ballDisc(svg, X + slot * k + 26, y + 22, 26, info(id));
-          svg.text(X + slot * k + 64, y + 22 + fs * 0.35, label, { fontSize: fs, fontWeight: 700, fill: SC.text });
+          ballDisc(svg, X + slot * k + 27, y + 27, 27, info(id));
+          svg.text(X + slot * k + 68, avgText ? y + 22 : y + 27 + fs * 0.35, label, { fontSize: fs, fontWeight: 700, fill: SC.text });
+          if (avgText) svg.text(X + slot * k + 68, y + 50, avgText, { fontSize: Math.min(22, fs * 0.8), fontWeight: 600, fill: SC.sub });
         });
       }
       drawGame(svg, g, g.gameNo || i + 1, X, y + lead[i], CW, opts.context);

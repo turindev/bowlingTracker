@@ -51,12 +51,28 @@
     var b = library().balls.filter(function (x) { return x.id === id; })[0];
     return { name: b ? b.name : '', image: b && b.image ? b.image : null };
   }
+  /* Each ball's average over every finished game it was the main ball in (the same way the ball
+     stats count a game), to print beside the ball on a shared scorecard. */
+  function ballAverages() {
+    var by = {};
+    S.finished(allGames()).forEach(function (g) {
+      var id = S.primaryBall(g);
+      if (!id) return;
+      var e = by[id] = by[id] || { pins: 0, games: 0 };
+      e.pins += S.score(g).total;
+      e.games++;
+    });
+    Object.keys(by).forEach(function (id) { by[id].average = by[id].pins / by[id].games; });
+    return by;
+  }
   function sharePanel(label, games, filename, kind) {
     var done = games.filter(function (g) { return g.status === 'done'; });
     return window.ShotsShare.panel({
       label: label, kind: kind, filename: filename, title: label,
       make: function () {
-        return window.Cards.scorecard(done, { name: shareName(), ballInfo: ballInfo, context: badgeCtx(), set: done.length > 1 ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === done[0].setId; })[0] : null });
+        var avgs = ballAverages();
+        var withAverage = function (id) { var b = ballInfo(id), a = avgs[id]; return a ? Object.assign({}, b, { average: a.average, games: a.games }) : b; };
+        return window.Cards.scorecard(done, { name: shareName(), ballInfo: withAverage, context: badgeCtx(), set: done.length > 1 ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === done[0].setId; })[0] : null });
       },
     });
   }
