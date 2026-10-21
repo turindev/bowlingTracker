@@ -255,7 +255,10 @@
     var list = games.filter(function (g) { return g && g.frames && g.frames.length; });
     var W = 1260, X = 85, CW = W - X * 2;
     var series = list.length > 1;
-    var H = 430 + list.length * 336 + (series ? 314 : 200);
+    /* In a series each game carries its own ball(s) on a line above it; a single game keeps the one at the top. */
+    var LEAD = 72;
+    var lead = list.map(function (g) { return series && S.ballsInGame(g).length ? LEAD : 0; });
+    var H = (series ? 290 : 430) + list.reduce(function (a, g, i) { return a + 336 + lead[i]; }, 0) + (series ? 314 : 200);
     var svg = Svg(W, H);
     svg.rect(0, 0, W, H, { fill: SC.bg });
 
@@ -269,7 +272,7 @@
 
     /* The balls: one large, or a row of up to three. */
     var ids = [];
-    list.forEach(function (g) { S.ballsInGame(g).forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); }); });
+    if (!series) list.forEach(function (g) { S.ballsInGame(g).forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); }); });
     var info = function (id) { return (opts.ballInfo && opts.ballInfo(id)) || { name: '' }; };
     if (ids.length === 1) {
       ballDisc(svg, X + 60, 348, 60, info(ids[0]));
@@ -284,10 +287,20 @@
       });
     }
 
-    var y = 430;
+    var y = series ? 290 : 430;
     list.forEach(function (g, i) {
-      drawGame(svg, g, g.gameNo || i + 1, X, y, CW, opts.context);
-      y += 336;
+      if (lead[i]) {
+        /* the ball or balls this game was bowled with, picture and name */
+        var used = S.ballsInGame(g).slice(0, 3), slot = CW / used.length;
+        used.forEach(function (id, k) {
+          var label = info(id).name || 'Ball';
+          var fs = Math.max(20, Math.min(30, (slot - 84) / (label.length * 0.56)));
+          ballDisc(svg, X + slot * k + 26, y + 22, 26, info(id));
+          svg.text(X + slot * k + 64, y + 22 + fs * 0.35, label, { fontSize: fs, fontWeight: 700, fill: SC.text });
+        });
+      }
+      drawGame(svg, g, g.gameNo || i + 1, X, y + lead[i], CW, opts.context);
+      y += 336 + lead[i];
     });
 
     var total = list.reduce(function (a, g) { return a + (S.score(g).total || 0); }, 0);
