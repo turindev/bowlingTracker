@@ -95,10 +95,13 @@
 
   /* One colour per pin for a rack: its first ball's leave, then what the spare
      try did with it. */
-  function rackColors(first, attempt) {
+  function rackColors(first, attempt, bonus) {
     var colors = {};
+    /* The balls thrown after a strike or spare in the tenth are bonus balls: pins they leave are
+       not an open frame, so they are shown plain, not red. A spare picked up is still green. */
+    var left = bonus ? SC.soft : SC.red;
     (first ? first.standing : []).forEach(function (p) {
-      colors[p] = attempt ? (attempt.standing.indexOf(p) === -1 ? SC.green : SC.red) : SC.red;
+      colors[p] = attempt ? (attempt.standing.indexOf(p) === -1 ? SC.green : left) : left;
     });
     return colors;
   }
@@ -219,7 +222,7 @@
         var shown = racks.slice(0, 3);
         var scale = shown.length > 2 ? 0.8 : 1;
         shown.forEach(function (rk, i) {
-          drawDeck(svg, fx + fw * (i + 0.5) / shown.length, top + 126, rackColors(rk.first, rk.attempt), scale);
+          drawDeck(svg, fx + fw * (i + 0.5) / shown.length, top + 126, rackColors(rk.first, rk.attempt, i > 0), scale);
         });
       }
       svg.line(fx, top + h - 56, fx + fw, top + h - 56, { stroke: SC.line, strokeWidth: 2 });
