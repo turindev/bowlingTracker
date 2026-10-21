@@ -389,6 +389,28 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('games on their own are a night each', S.ballChanges([fromCard(card), fromCard(card)]).nights === 2, '');
 })();
 
+// --- sets of different lengths are not mixed -----------------------------------------------------
+(() => {
+  const spares = ['9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/', '9/9'];                   // 190
+  const nines = ['9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-', '9-'];                     // 90
+  const mk = (card, setId, no, size, date) => fromCard(card, { date, setId, gameNo: no, setSize: size });
+  const three = (id, card, date) => [1, 2, 3].map(n => mk(card, id, n, 3, date));
+  const four = (id, card, date) => [1, 2, 3, 4].map(n => mk(card, id, n, 4, date));
+  const gs = [].concat(three('a', spares, '2026-10-01'), three('b', nines, '2026-10-08'), four('c', spares, '2026-10-15'));
+  const sets = S.setsOf(gs);
+  check('sizes are counted among complete sets, the usual three first', JSON.stringify(S.seriesSizes(sets)) === JSON.stringify([{ size: 3, count: 2 }, { size: 4, count: 1 }]), JSON.stringify(S.seriesSizes(sets)));
+  const mixed = S.seriesStats(sets);
+  check('mixed together the 4-game set pulls the high series up to 760', mixed.high === 760 && mixed.count === 3, JSON.stringify([mixed.high, mixed.count]));
+  const threes = S.seriesStats(sets, { size: 3 });
+  check('3-game sets on their own: 570 high, 270 low, 420 average', threes.count === 2 && threes.high === 570 && threes.low === 270 && threes.average === 420, JSON.stringify([threes.count, threes.high, threes.low, threes.average]));
+  const fours = S.seriesStats(sets, { size: 4 });
+  check('4-game sets on their own: one series of 760', fours.count === 1 && fours.high === 760 && fours.slots.length === 4, JSON.stringify([fours.count, fours.high, fours.slots.length]));
+  const per3 = S.seriesStats(sets, { perGames: 3 });
+  check('scaled to three games a 760 over four is 570', per3.count === 3 && per3.high === 570 && per3.sets.some(x => x.scaledFrom === 4 && x.rawTotal === 760 && x.total === 570), JSON.stringify(per3.sets.map(x => [x.total, x.scaledFrom])));
+  check('scaled, every set weighs the same whatever its length: 470 over 3 games', Math.abs(per3.perGame - 470 / 3) < 1e-9 && Math.abs(per3.average - 470) < 1e-9, String(per3.perGame));
+  check('the 600+/700+ lines hold for either length: a 4-game 800 is a 700+', (() => { const e = S.seriesStats(S.setsOf(four('d', ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX'], '2026-10-22')), { size: 4 }); return e.high === 1200 && e.over700 === 1; })(), '');
+})();
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

@@ -1036,16 +1036,37 @@
     });
   }
 
+  /* How many complete sets of each length there are, most common first (a tie goes to the
+     usual three). A series is only comparable with series of its own length. */
+  function seriesSizes(sets) {
+    var count = {};
+    (sets || []).filter(function (x) { return !x.standalone && x.complete; }).forEach(function (x) { count[x.size] = (count[x.size] || 0) + 1; });
+    return Object.keys(count).map(Number).map(function (n) { return { size: n, count: count[n] }; }).sort(function (a, b) {
+      return b.count - a.count || (a.size === 3 ? -1 : b.size === 3 ? 1 : b.size - a.size);
+    });
+  }
+
   /* Series figures over finished sets. A series is only counted once every game
-     in it is bowled, so a half-finished night never drags an average down. */
-  function seriesStats(sets) {
-    var done = (sets || []).filter(function (x) { return !x.standalone && x.complete; });
+     in it is bowled, so a half-finished night never drags an average down.
+     opts.size keeps only sets of that many games; opts.perGames scales every set's
+     total to that many games (a 4-game 800 is 600 per 3) so sets of different
+     lengths can be put on one scale. */
+  function seriesStats(sets, opts) {
+    opts = opts || {};
+    sets = sets || [];
+    if (opts.size) sets = sets.filter(function (x) { return x.size === opts.size; });
+    if (opts.perGames) {
+      sets = sets.map(function (x) {
+        return Object.assign({}, x, { total: x.total * opts.perGames / x.size, size: opts.perGames, scaledFrom: x.size, rawTotal: x.total });
+      });
+    }
+    var done = sets.filter(function (x) { return !x.standalone && x.complete; });
     var out = {
       count: done.length, average: null, perGame: null, high: null, low: null,
       over600: 0, over700: 0, spread: null, slots: [], fade: null, sets: done,
     };
     var slotGames = {};
-    (sets || []).filter(function (x) { return !x.standalone; }).forEach(function (x) {
+    sets.filter(function (x) { return !x.standalone; }).forEach(function (x) {
       x.games.forEach(function (g, i) {
         if (g.status === 'done' && isComplete(g)) (slotGames[i + 1] = slotGames[i + 1] || []).push(g);
       });
@@ -1059,7 +1080,7 @@
     out.average = totals.reduce(function (a, b) { return a + b; }, 0) / totals.length;
     out.high = Math.max.apply(null, totals);
     out.low = Math.min.apply(null, totals);
-    var gamesTotal = done.reduce(function (a, x) { return a + x.totals.length; }, 0);
+    var gamesTotal = done.reduce(function (a, x) { return a + (x.scaledFrom ? x.size : x.totals.length); }, 0);
     out.perGame = done.reduce(function (a, x) { return a + x.total; }, 0) / gamesTotal;
     /* Scaled to the set's length, so 600 and 700 mean 200 and 233 a game. */
     out.over600 = done.filter(function (x) { return x.total >= x.size * 200; }).length;
@@ -1115,7 +1136,7 @@
     score: score, analyze: analyze, compare: compare, filter: filter,
     distinct: distinct, finished: finished, ballsUsed: ballsUsed, describeShot: describeShot,
     ballsInGame: ballsInGame, primaryBall: primaryBall, switches: switches, ballChanges: ballChanges, currentBalls: currentBalls,
-    setsOf: setsOf, seriesStats: seriesStats, setBall: setBall,
+    setsOf: setsOf, seriesStats: seriesStats, seriesSizes: seriesSizes, setBall: setBall,
     weekly: weekly, dateMismatches: dateMismatches, ART: ART, strikeRuns: strikeRuns, heatFrames: heatFrames, badges: badges, setBadges: setBadges, context: context, honorLimits: honorLimits, HONOR: HONOR, HONOR_TOP: HONOR_TOP, streakTable: streakTable, runName: runName, renumber: renumber, leaveSet: leaveSet, dropFromSet: dropFromSet, joinSet: joinSet, resizeSet: resizeSet,
   };
 

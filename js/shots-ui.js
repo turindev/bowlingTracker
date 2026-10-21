@@ -2077,14 +2077,27 @@
   /* Games bowled together, measured together. */
   function seriesCard(games, ballFilter) {
     var sets = S.setsOf(games).filter(function (x) { return !ballFilter || S.setBall(x) === ballFilter; });
-    var ser = S.seriesStats(sets);
+    var sizes = S.seriesSizes(sets);
+    /* A series only compares with series of its own length: show one length at a time (the usual one
+       to start with), or every set scaled to three games. */
+    var view = ui.seriesView;
+    var scaled = view === 'all' && sizes.length > 1;
+    var size = sizes.length ? (sizes.filter(function (x) { return x.size === view; })[0] || sizes[0]).size : 3;
+    var ser = S.seriesStats(sets, scaled ? { perGames: 3 } : { size: size });
+    var lengthChips = sizes.length > 1 ? el('div', { class: 'sh-chips is-inline sh-pad', role: 'group', 'aria-label': 'Length of the sets' },
+      sizes.slice().sort(function (a, b) { return a.size - b.size; }).map(function (x) {
+        var on = !scaled && x.size === size;
+        return el('button', { type: 'button', class: 'sh-chip' + (on ? ' is-on' : ''), 'aria-pressed': on ? 'true' : 'false',
+          onclick: function () { ui.seriesView = x.size; rerender(); } }, x.size + ' games \u00b7 ' + x.count);
+      }).concat([el('button', { type: 'button', class: 'sh-chip' + (scaled ? ' is-on' : ''), 'aria-pressed': scaled ? 'true' : 'false',
+        onclick: function () { ui.seriesView = 'all'; rerender(); } }, 'All, per 3 games')])) : null;
     if (!ser.count) {
       return UI.card('Series', 'Games bowled together', UI.empty(
         ser.slots.length ? 'Finish every game of a set and its series figures appear here.' : 'Start a game as part of a set to see series figures.'));
     }
     var tiles = UI.statGrid([
       UI.stat('Series bowled', String(ser.count)),
-      UI.stat('Average series', UI.num(ser.average), 'The total of a set, averaged over every complete set shown. Only sets with every game bowled count.'),
+      UI.stat('Average series', UI.num(ser.average), 'The total of a set, averaged over every complete set shown' + (scaled ? ', each scaled to three games (a 4-game set is its total times 3/4)' : (sizes.length > 1 ? ', of ' + size + ' games' : '')) + '. Only sets with every game bowled count.'),
       UI.stat('High series', UI.num(ser.high)),
       UI.stat('Low series', UI.num(ser.low)),
       UI.stat('600+ series', String(ser.over600), 'Sets averaging 200 or more a game, which is 600 over three.'),
@@ -2106,18 +2119,19 @@
     var trend = Charts.line({
       points: ser.sets.map(function (x) {
         return { label: UI.shortDate(x.date) + (x.pattern ? ' \u00b7 ' + x.pattern : ''), axis: UI.shortDate(x.date),
-          value: x.total, caption: x.totals.join(' \u00b7 ') };
+          value: x.total, caption: x.totals.join(' \u00b7 ') + (x.scaledFrom ? ' \u00b7 ' + x.rawTotal + ' over ' + x.scaledFrom + ' games' : '') };
       }),
       reference: { value: ser.average, label: 'avg ' + UI.num(ser.average) },
       label: 'Series over time',
     });
-    return UI.card('Series', plural(ser.count, 'set') + ' of games bowled together',
+    return UI.card('Series', scaled ? plural(ser.count, 'set') + ', each scaled to 3 games' : plural(ser.count, 'set') + ' of ' + size + ' games bowled together',
       el('div', null, [
+        lengthChips,
         el('div', { class: 'card-body' }, tiles),
         slotTable,
         ser.sets.length > 1 ? el('div', { class: 'card-body' }, trend) : null,
       ]),
-      'Games bowled in one sitting, added up. A set only counts once every game in it is bowled, so a half-finished night never pulls the average down. The table shows whether you start strong or tire as the night goes on.');
+      'Games bowled in one sitting, added up. A set only counts once every game in it is bowled, so a half-finished night never pulls the average down. Sets of different lengths are never mixed: pick a length, or put them all on a per-3-games scale. The table shows whether you start strong or tire as the night goes on.');
   }
 
   function compareCard(games) {
