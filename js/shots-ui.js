@@ -894,7 +894,7 @@
 
   /* One rack of ten dots: grey for the pins the first ball took, green for the ones the spare try
      picked up, red for the ones left standing. Pins known only by count are drawn as plain rings. */
-  function rackSvg(first, attempt) {
+  function rackSvg(first, attempt, bonus) {
     var NS = 'http://www.w3.org/2000/svg';
     var gap = 11, r = 4.4;
     var guess = first.shot.approx || (attempt && attempt.shot.approx);
@@ -915,7 +915,7 @@
         dot.setAttribute('cx', String(1 + r + (ci + (4 - row.length) / 2) * gap));
         dot.setAttribute('cy', String(1 + r + ri * gap));
         dot.setAttribute('r', String(r));
-        dot.setAttribute('class', guess ? 'pd-guess' : leave.indexOf(pin) === -1 ? 'pd-gone' : left.indexOf(pin) !== -1 ? 'pd-left' : 'pd-spare');
+        dot.setAttribute('class', guess ? 'pd-guess' : leave.indexOf(pin) === -1 ? 'pd-gone' : left.indexOf(pin) !== -1 ? (bonus ? 'pd-bonus' : 'pd-left') : 'pd-spare');
         svg.appendChild(dot);
       });
     });
@@ -931,7 +931,7 @@
         if (c.fresh) racks.push({ first: c, attempt: null });
         else if (racks.length) racks[racks.length - 1].attempt = c;
       });
-      cells.push(el('div', { class: 'sh-pincell' + (f === 9 ? ' is-tenth' : '') }, racks.slice(0, 3).map(function (rk) { return rackSvg(rk.first, rk.attempt); })));
+      cells.push(el('div', { class: 'sh-pincell' + (f === 9 ? ' is-tenth' : '') }, racks.slice(0, 3).map(function (rk, i) { return rackSvg(rk.first, rk.attempt, f === 9 && i > 0); })));
     }
     return el('div', { class: 'sh-pinstrip', role: 'group', 'aria-label': 'Pins left in each frame' }, cells);
   }

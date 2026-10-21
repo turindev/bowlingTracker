@@ -1815,3 +1815,5 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .sh-rack .pd-spare { fill: var(--win); }
 .sh-rack .pd-left { fill: var(--loss); }
 .sh-rack .pd-guess { fill: none; stroke: var(--text-dim); stroke-width: 1.3; opacity: .7; }
+
+.sh-rack .pd-bonus { fill: var(--text-dim); opacity: .75; }
