@@ -202,7 +202,8 @@
       return el('a', { href: href, 'aria-current': active === key ? 'page' : null }, text);
     }
     return el('nav', { class: 'tabs', 'aria-label': 'Shot tracker sections' }, [
-      link('games', '#/shots', 'Games'),
+      link('glance', '#/shots', 'At a glance'),
+      link('games', '#/shots/games', 'Games'),
       link('stats', '#/shots/stats', 'Stats'),
       link('arsenal', '#/shots/arsenal', 'Arsenal'),
       link('settings', '#/shots/settings', 'Settings'),
@@ -254,8 +255,9 @@
   function route(token) {
     if (token !== ui.token) return;
     var p = ui.parts;
-    var page = p[0] || 'games';
+    var page = p[0] || 'glance';
     if (page !== 'tidy') ui.tidyDone = null;      /* the "fixed" message belongs to that visit */
+    if (page === 'glance') return getGlance().glance();
     if (page === 'games') return gamesPage();
     if (page === 'new') return newGamePage(p[1]);
     if (page === 'set') return setPage(p[1]);
@@ -266,7 +268,7 @@
     if (page === 'import') return getImport().page();
     if (page === 'tidy') return tidyPage();
     draw([head('Not found'), UI.card(null, null, el('p', { class: 'sh-note' }, [
-      'There is no such page. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
+      'There is no such page. ', el('a', { href: '#/shots/games', text: 'Back to games' }), '.',
     ]))]);
   }
 
@@ -293,7 +295,7 @@
       ui.status = e.message;
     }).then(function () {
       ui.syncing = false;
-      var page = ui.parts[0] || 'games';
+      var page = ui.parts[0] || 'glance';
       var open = page === 'game' && gameById(ui.parts[1]) && gameById(ui.parts[1]).status === 'open';
       if (!open && getVault().isUnlocked() && page !== 'settings') rerender();
     });
@@ -520,7 +522,7 @@
     var set = S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === id; })[0];
     if (!set || set.standalone) {
       draw([head('Set not found'), subnav('games'), UI.card(null, null, el('p', { class: 'sh-note' }, [
-        'That set is not in your vault. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
+        'That set is not in your vault. ', el('a', { href: '#/shots/games', text: 'Back to games' }), '.',
       ]))]);
       return;
     }
@@ -556,7 +558,7 @@
             })) : null,
             button('Delete', once(function () {
               if (!window.confirm('Delete game ' + (g.gameNo || i + 1) + '? This cannot be undone.')) return;
-              return deleteGame(g).then(function () { location.hash = set.games.length > 1 ? '#/shots/set/' + set.id : '#/shots'; rerender(); });
+              return deleteGame(g).then(function () { location.hash = set.games.length > 1 ? '#/shots/set/' + set.id : '#/shots/games'; rerender(); });
             }), 'danger'),
           ]),
         ]));
@@ -774,7 +776,7 @@
       err,
       el('div', { class: 'sh-actions' }, [
         el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Start game' }),
-        el('a', { class: 'sh-btn', href: '#/shots', text: 'Cancel' }),
+        el('a', { class: 'sh-btn', href: '#/shots/games', text: 'Cancel' }),
       ]),
     ]);
 
@@ -1040,7 +1042,7 @@
     var game = gameById(id);
     if (!game) {
       draw([head('Game not found'), subnav('games'), UI.card(null, null, el('p', { class: 'sh-note' }, [
-        'That game is not in your vault. ', el('a', { href: '#/shots', text: 'Back to games' }), '.',
+        'That game is not in your vault. ', el('a', { href: '#/shots/games', text: 'Back to games' }), '.',
       ]))]);
       return;
     }
@@ -1122,7 +1124,7 @@
        and Save stay on screen without scrolling. */
     var nodes = [
       el('div', { class: 'sh-minihead' }, [
-        el('a', { href: '#/shots', class: 'sh-back', text: '\u2039 Games' }),
+        el('a', { href: '#/shots/games', class: 'sh-back', text: '\u2039 Games' }),
         el('span', { class: 'sh-minititle', text: [game.pattern, setLabel(game), UI.shortDate(game.date), game.lane ? 'lane ' + game.lane : null]
           .filter(Boolean).join(' \u00b7 ') }),
       ]),
@@ -1142,7 +1144,7 @@
     nodes.push(el('p', { class: 'sh-note sh-leave' }, [
       shotCount(game) ? 'Tap a frame on the card to correct it. ' : null,
       'Saved on this device after every shot, so ',
-      el('a', { href: '#/shots', text: 'leave any time' }),
+      el('a', { href: '#/shots/games', text: 'leave any time' }),
       ' and pick up later.',
     ]));
     nodes.push(el('p', { class: 'sh-note sh-leave' }, [
@@ -1151,7 +1153,7 @@
         var series = game.setId ? seriesOf(game) : [];
         return deleteGame(game).then(function () {
           ui.draft = null;
-          location.hash = series.filter(function (g) { return g.id !== game.id; }).length ? '#/shots/set/' + game.setId : '#/shots';
+          location.hash = series.filter(function (g) { return g.id !== game.id; }).length ? '#/shots/set/' + game.setId : '#/shots/games';
         });
       }), 'danger'),
     ]));
@@ -1650,7 +1652,7 @@
           })) : null,
           button('Delete game', once(function () {
             if (!window.confirm('Delete this game? This cannot be undone.')) return;
-            return deleteGame(game).then(function () { location.hash = mySet && mySet.games.length > 1 ? '#/shots/set/' + mySet.id : '#/shots'; });
+            return deleteGame(game).then(function () { location.hash = mySet && mySet.games.length > 1 ? '#/shots/set/' + mySet.id : '#/shots/games'; });
           }), 'danger'),
         ]),
       ])),
@@ -1720,13 +1722,25 @@
   function statsTabs() {
     var tab = ui.statsTab || 'overview';
     return el('div', { class: 'sh-chips sh-statstabs', role: 'group', 'aria-label': 'Stats views' }, [
-      ['overview', 'Overview'], ['progress', 'Progress'], ['balls', 'Balls'],
+      ['overview', 'Overview'], ['progress', 'Progress'], ['balls', 'Balls'], ['calendar', 'Calendar'],
     ].map(function (t) {
       return el('button', {
         type: 'button', class: 'sh-chip' + (tab === t[0] ? ' is-on' : ''), 'aria-pressed': tab === t[0] ? 'true' : 'false',
         onclick: function () { ui.statsTab = t[0]; rerender(); },
       }, t[1]);
     }));
+  }
+
+  var glance = null;
+  function getGlance() {
+    if (!glance) {
+      glance = window.ShotsGlance.create({
+        ui: ui, allGames: allGames, library: library, ballName: ballName, thumb: thumb, leaveDeck: leaveDeck, badgeCtx: badgeCtx,
+        badgeIcons: badgeIcons, setBadgeChips: setBadgeChips, scorecard: scorecard, head: head, subnav: subnav, draw: draw,
+        rerender: rerender, shareName: shareName, periodRange: periodRange, today: today,
+      });
+    }
+    return glance;
   }
 
   var insights = null;
@@ -1743,16 +1757,18 @@
     var scoped = S.filter(pool, Object.assign({}, base, range));
     var patterned = S.filter(pool, Object.assign({ pattern: f.pattern }, base, range));
     var cards;
-    if (tab === 'progress') {
-      var games = f.ball ? patterned.filter(function (g) { return S.primaryBall(g) === f.ball; }) : patterned;
+    var games = f.ball ? patterned.filter(function (g) { return S.primaryBall(g) === f.ball; }) : patterned;
+    if (tab === 'calendar') {
+      cards = getGlance().calendarCards({ pool: games });
+    } else if (tab === 'progress') {
       cards = [weeksCard(patterned, f.ball)].concat(getInsights().progress({ games: games }));
     } else {
       cards = getInsights().balls({ pool: pool, f: f, scoped: scoped, patterned: patterned });
     }
     draw([
-      head('Stats', tab === 'progress' ? 'How you are improving' : 'Ball against ball, pattern by pattern'),
+      head('Stats', tab === 'progress' ? 'How you are improving' : tab === 'calendar' ? 'Every session, day by day' : 'Ball against ball, pattern by pattern'),
       subnav('stats'),
-      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), statsControls(pool, tab === 'progress')])),
+      UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [statsTabs(), statsControls(pool, tab === 'progress' || tab === 'calendar')])),
     ].concat(cards));
   }
 
@@ -2054,7 +2070,7 @@
     if (ui.tidyDone != null) {
       nodes.push(UI.card('Fixed', null, el('div', { class: 'card-body sh-stack' }, [
         el('p', { class: 'sh-verdict', text: plural(ui.tidyDone, 'game') + ' moved to the date of their set.' }),
-        el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots', text: 'Back to games' })),
+        el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots/games', text: 'Back to games' })),
       ])));
     }
     if (!found.length) {

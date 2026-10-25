@@ -44,6 +44,7 @@ against offline. Use four or more unrelated words.
 | `js/ballstats.js` | The ball report's statistics: confidence intervals, ANOVA, Kruskal–Wallis, Levene, Welch with Holm, bootstrap odds, shrinkage. Pure; tested by `tools/test-ballstats.js`. |
 | `js/trends.js` | Rolling averages, score distribution, balls and ball-by-pattern figures, forgiveness measures. Pure; tested by `tools/test-trends.js`. |
 | `js/shots-insights.js` | The Progress and Balls tabs of Stats: draws the figures from `trends.js`. |
+| `js/shots-glance.js` | The "At a glance" landing page (`#/shots`) and the performance calendar (Stats > Calendar): sessions coloured against your average, a day opened into its scores, balls and pins left. |
 | `js/importer.js` | The games-file format (see the header comment), its checks, ball matching and repeat-import safety. Pure; tested by `tools/test-importer.js` against `tools/import-sample.json`. |
 | `js/shots-import.js` | The Import games page. |
 | `js/cards.js` | Draws the series scorecard and the ball report as SVG, and turns a picture into PNG, PDF or a share-sheet file. |
