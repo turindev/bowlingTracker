@@ -200,7 +200,7 @@
         nodes.push(UI.card('Imported', null, el('div', { class: 'card-body sh-stack' }, [
           el('p', { class: 'sh-verdict', text: plural(state.done.games, 'game') + ' added' + (state.done.balls ? ' with ' + plural(state.done.balls, 'new ball') : '') + '.' }),
           el('div', { class: 'sh-actions' }, [
-            el('a', { class: 'sh-btn is-primary', href: '#/shots', text: 'See your games' }),
+            el('a', { class: 'sh-btn is-primary', href: '#/shots/games', text: 'See your games' }),
             h.button('Import another file', function () { state.done = null; h.rerender(); }),
           ]),
         ])));
