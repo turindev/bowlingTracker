@@ -248,11 +248,56 @@
     return compare(a.name, b.name);
   }
 
+  /*
+   * A month-by-month grid: one row per month, and for Games, Average, High game and Low game a
+   * rounded cell whose coloured fill is that month's share of the column's best, with a small
+   * tab in the corner of the best month. rows: { key: 'YYYY-MM', games, average, high, low },
+   * oldest first; the last `limit` months are shown.
+   */
+  function monthGrid(options) {
+    var rows = (options.rows || []).slice(-(options.limit || 12));
+    if (!rows.length) return empty(options.empty || 'No games yet.');
+    var cols = [
+      { cls: 'mg-1', label: 'Games', get: function (r) { return r.games; }, text: function (v) { return String(v); } },
+      { cls: 'mg-2', label: 'Average', get: function (r) { return r.average; }, text: function (v) { return v.toFixed(1); } },
+      { cls: 'mg-3', label: 'High game', get: function (r) { return r.high; }, text: function (v) { return String(v); } },
+      { cls: 'mg-4', label: 'Low game', get: function (r) { return r.low; }, text: function (v) { return String(v); } },
+    ];
+    var best = cols.map(function (c) {
+      return rows.reduce(function (m, r) { var v = c.get(r); return v != null && v > m ? v : m; }, 0);
+    });
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var years = {};
+    rows.forEach(function (r) { years[String(r.key).slice(0, 4)] = true; });
+    var manyYears = Object.keys(years).length > 1;
+    function label(key) {
+      var m = months[Number(String(key).slice(5, 7)) - 1] || key;
+      return manyYears ? m + ' \u2019' + String(key).slice(2, 4) : m;
+    }
+    return el('div', { class: 'mg-wrap' }, el('table', { class: 'mg' }, [
+      el('thead', null, el('tr', null, [el('th', { class: 'mg-month', scope: 'col', text: '' })].concat(cols.map(function (c) {
+        return el('th', { class: 'mg-head', scope: 'col' }, [el('i', { class: 'mg-dot ' + c.cls, 'aria-hidden': 'true' }), c.label]);
+      })))),
+      el('tbody', null, rows.map(function (r) {
+        return el('tr', null, [el('th', { class: 'mg-month', scope: 'row', text: label(r.key) })].concat(cols.map(function (c, i) {
+          var v = c.get(r);
+          if (v == null) return el('td', null, el('span', { class: 'mg-cell ' + c.cls }, el('span', { class: 'mg-val muted', text: '\u2014' })));
+          var isBest = best[i] > 0 && v === best[i];
+          return el('td', null, el('span', {
+            class: 'mg-cell ' + c.cls + (isBest ? ' is-best' : ''),
+            style: '--fill:' + (best[i] ? Math.max(4, v / best[i] * 100) : 0).toFixed(1) + '%',
+            title: label(r.key) + ' \u00b7 ' + c.label + ' ' + c.text(v) + (isBest ? ' (best month)' : ''),
+          }, [el('span', { class: 'mg-fill', 'aria-hidden': 'true' }), el('span', { class: 'mg-val', text: c.text(v) })]));
+        })));
+      })),
+    ]));
+  }
+
   window.UI = {
     el: el, clear: clear, append: append,
     avg: avg, num: num, big: big, points: points,
     shortDate: shortDate, longDate: longDate,
     stat: stat, statGrid: statGrid, card: card, empty: empty,
-    table: table,
+    table: table, monthGrid: monthGrid,
   };
 })();
