@@ -1680,7 +1680,8 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .ml-rowlabel { fill: var(--text); font-size: 12.5px; font-weight: 600; font-family: inherit; }
 
 /* stats tabs and the deeper cards */
-.sh-statstabs .sh-chip { flex: 1 1 0; }
+.sh-statstabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(8em, 1fr)); }
+.sh-statstabs .sh-chip { min-width: 0; padding: 0 8px; white-space: nowrap; }
 .sh-verdict { margin: 0; font-size: 15px; line-height: 1.45; font-weight: 600; }
 .sh-best { color: var(--win); }
 .sh-subhead { margin: 8px 0 4px; font-size: 14px; }
