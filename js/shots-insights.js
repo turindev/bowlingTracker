@@ -159,7 +159,10 @@
           { key: 'o', label: 'Opens', sortable: false, render: function (r) { return fix(r.a.opensPerGame, 1); } },
         ], rows: monthRows, state: null, onSort: function () {},
       });
-      cards.push(UI.card('Month by month', plural(monthRows.length, 'month'), monthTable));
+      var gridRows = monthRows.slice().reverse().map(function (r) { return { key: r.name, games: r.a.games, average: r.a.average, high: r.a.high, low: r.a.low }; });
+      cards.push(UI.card('Month by month', plural(monthRows.length, 'month') + (monthRows.length > 12 ? ', the last 12 shown' : ''),
+        el('div', null, [UI.monthGrid({ rows: gridRows, empty: 'No finished games yet.' }), detailsTable(monthTable)]),
+        'Each figure is shaded in proportion to your best month for it, and the tab in a corner marks that best month. The numbers below it add strike, spare and makeable-spare percentages and open frames for every month.'));
       return cards;
     }
 

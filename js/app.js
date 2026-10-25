@@ -2017,6 +2017,9 @@
         UI.card('League rank by week', 'Against every bowler with a score', cardBody(rankChart),
               "Where this bowler ranked among everyone in the league after each week. Higher on the chart is a better rank.")
       ),
+      UI.card('Month by month', 'Games, average, high and low game for each month',
+              UI.monthGrid({ rows: monthRows(player.weeks), empty: 'No scores recorded yet.' }),
+              "Each figure is shaded in proportion to this bowler's best month for it, and the tab in a corner marks that best month. Blind scores for missed nights are left out; only games actually bowled count."),
       UI.card('Scores by week',
               games + ' games per week · scratch unless marked Hdcp', body,
               "Every week this bowler has bowled, with each game, the series, that night's average, and the season average as it stood afterwards."),
@@ -2038,6 +2041,25 @@
   }
 
   /* ---------- shared bits ---------- */
+
+  /* A bowler's nights grouped by calendar month, oldest first, for the month-by-month grid. */
+  function monthRows(weeks) {
+    var by = {};
+    weeks.forEach(function (w) {
+      var key = String(w.date || '').slice(0, 7);
+      if (!key) return;
+      var m = by[key] = by[key] || { key: key, games: 0, pins: 0, high: null, low: null };
+      w.games.forEach(function (g) {
+        m.games++; m.pins += g;
+        m.high = m.high == null ? g : Math.max(m.high, g);
+        m.low = m.low == null ? g : Math.min(m.low, g);
+      });
+    });
+    return Object.keys(by).sort().map(function (k) {
+      var m = by[k];
+      return { key: k, games: m.games, average: m.games ? m.pins / m.games : null, high: m.high, low: m.low };
+    });
+  }
 
   /* Signed numbers read better with an explicit +. */
   function signed(value, digits) {
