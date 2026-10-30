@@ -184,6 +184,59 @@
     };
   }
 
+  /* The ball spec inputs: weight, core, RG, differentials, coverstock, finish, layout. */
+  function specFields(initial, nameInput) {
+    initial = initial || {};
+    function numInput(key, step, ph) {
+      return el('input', { type: 'number', inputmode: 'decimal', step: String(step), min: '0', placeholder: ph || '', value: initial[key] != null ? String(initial[key]) : '' });
+    }
+    function textInput(key, ph) { return el('input', { type: 'text', placeholder: ph || '', value: initial[key] || '' }); }
+    var ctl = {
+      weight: numInput('weight', 1, '15'),
+      core: el('select', null, [['', 'Not sure'], ['sym', 'Symmetric'], ['asym', 'Asymmetric']].map(function (o) { return el('option', { value: o[0], selected: (initial.core || '') === o[0] }, o[1]); })),
+      coreName: textInput('coreName', 'e.g. Overload'),
+      rg: numInput('rg', 0.001, '2.48'),
+      diff: numInput('diff', 0.001, '0.050'),
+      intDiff: numInput('intDiff', 0.001, '0.015'),
+      coverstock: textInput('coverstock', 'e.g. Hybrid reactive'),
+      finish: textInput('finish', 'e.g. 4000 Abralon'),
+      layout: textInput('layout', 'e.g. 4 x 5 x 3'),
+    };
+    var msg = el('p', { class: 'sh-note', hidden: true });
+    var fillBtn = button('Fill in factory specs', function () { set(window.BallSpecs.find(nameInput && nameInput.value)); }, null, { hidden: true });
+    function set(specs) {
+      if (!specs) return;
+      Object.keys(ctl).forEach(function (k) { ctl[k].value = specs[k] != null ? String(specs[k]) : ''; });
+      msg.textContent = 'Filled in with the 15 lb figures the maker publishes. Change anything that is different for your ball.';
+      msg.hidden = false;
+    }
+    function refreshFill() {
+      var found = nameInput ? window.BallSpecs.find(nameInput.value) : null;
+      fillBtn.hidden = !found;
+    }
+    if (nameInput) { nameInput.addEventListener('input', refreshFill); refreshFill(); }
+    return {
+      node: el('details', { class: 'sh-details sh-inline sh-specform', open: window.BallSpecs.has(initial) ? '' : null }, [
+        el('summary', { text: 'Ball specs (optional)' }),
+        el('div', { class: 'sh-stack' }, [
+          el('div', { class: 'sh-grid' }, [
+            field('Weight (lb)', ctl.weight), field('Core', ctl.core), field('Core name', ctl.coreName),
+            field('RG', ctl.rg, 'Radius of gyration, about 2.4 to 2.7.'), field('Differential', ctl.diff, 'Total, about 0.015 to 0.060.'),
+            field('Intermediate diff', ctl.intDiff, 'Asymmetric cores only.'),
+            field('Coverstock', ctl.coverstock), field('Factory finish', ctl.finish), field('Layout', ctl.layout),
+          ]),
+          el('div', { class: 'sh-actions' }, [fillBtn]),
+          msg,
+        ]),
+      ]),
+      value: function () {
+        var raw = {};
+        Object.keys(ctl).forEach(function (k) { raw[k] = ctl[k].value; });
+        return window.BallSpecs.clean(raw);
+      },
+    };
+  }
+
   function draw(children) {
     badgeMemo = null;
     UI.clear(ui.root);
@@ -2215,6 +2268,36 @@
 
   /* ---------- arsenal ---------- */
 
+  /* A ball's specs as small labelled facts. */
+  function specChips(b) {
+    var facts = window.BallSpecs.facts(b.specs);
+    if (!facts.length) return null;
+    return el('dl', { class: 'sh-specs' }, facts.map(function (f) {
+      return el('div', { class: 'sh-spec' }, [el('dt', { text: f[0] }), el('dd', { text: f[1] })]);
+    }));
+  }
+
+  /* Every ball's specs in one table. */
+  function specsCard(balls) {
+    var withSpecs = balls.filter(function (b) { return window.BallSpecs.has(b.specs); });
+    if (!withSpecs.length) return null;
+    function v(b, k, fmt) { var x = (b.specs || {})[k]; return x == null || x === '' ? el('span', { class: 'muted', text: '\u2014' }) : (fmt ? fmt(x) : String(x)); }
+    return UI.card('Specs side by side', plural(withSpecs.length, 'ball') + ' with specs',
+      UI.table({
+        columns: [
+          { key: 'n', label: 'Ball', sortable: false, className: 'col-name', render: function (b) { return el('span', { class: 'sh-ballrow' }, [thumb(b.id, 'sm'), b.name]); } },
+          { key: 'w', label: 'Wt', sortable: false, render: function (b) { return v(b, 'weight', function (x) { return x + ' lb'; }); } },
+          { key: 'c', label: 'Core', sortable: false, render: function (b) { return v(b, 'core', function (x) { return x === 'asym' ? 'Asym' : 'Sym'; }); } },
+          { key: 'r', label: 'RG', sortable: false, className: 'num-strong', render: function (b) { return v(b, 'rg', function (x) { return x.toFixed(3).replace(/0$/, ''); }); } },
+          { key: 'd', label: 'Diff', sortable: false, render: function (b) { return v(b, 'diff', function (x) { return x.toFixed(3); }); } },
+          { key: 'i', label: 'Int diff', sortable: false, render: function (b) { return v(b, 'intDiff', function (x) { return x.toFixed(3); }); } },
+          { key: 'cs', label: 'Cover', sortable: false, className: 'col-name', render: function (b) { return v(b, 'coverstock'); } },
+          { key: 'f', label: 'Finish', sortable: false, className: 'col-name', render: function (b) { return v(b, 'finish'); } },
+        ], rows: withSpecs, state: null, onSort: function () {},
+      }),
+      'Weight, core type, RG (how early the ball revs up), differential (how much it can flare) and, on asymmetric cores, the intermediate differential. Factory figures change a little with ball weight, so check them against your own ball.');
+  }
+
   function arsenalPage() {
     var pool = S.finished(allGames());
     var balls = library().balls.filter(function (b) { return !b.deleted; });
@@ -2224,21 +2307,26 @@
     var name = el('input', { type: 'text', placeholder: 'e.g. Storm Bionic', autocapitalize: 'words', required: true });
     var notes = el('input', { type: 'text', placeholder: 'Weight, coverstock, surface (optional)' });
     var photo = photoField(null);
+    var addSpecs = specFields(null, name);
     var err = errorLine();
     var add = el('form', {
       class: 'sh-form',
       onsubmit: function (e) {
         e.preventDefault();
         if (!name.value.trim()) return showError(err, 'Give the ball a name.');
+        var cleaned = addSpecs.value();
+        if (cleaned.problems.length) return showError(err, cleaned.problems.join('. ') + '.');
         var image = photo.value();
         getVault().commit(function (lib) {
           var ball = { id: uid('b'), name: name.value.trim(), notes: notes.value.trim(), updatedAt: now() };
           if (image) ball.image = image;
+          if (window.BallSpecs.has(cleaned.specs)) ball.specs = cleaned.specs;
           lib.balls.push(ball);
         }).then(rerender, function (ex) { showError(err, ex.message); });
       },
     }, [
       el('div', { class: 'sh-grid' }, [field('Ball', name), field('Notes', notes)]),
+      addSpecs.node,
       photo.node,
       err,
       el('div', { class: 'sh-actions' }, el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Add to arsenal' })),
@@ -2257,19 +2345,26 @@
         var n = el('input', { type: 'text', value: b.name });
         var m = el('input', { type: 'text', value: b.notes || '' });
         var pic = photoField(b.image || null);
+        var editSpecs = specFields(b.specs || null, n);
+        var editErr = errorLine();
         return el('div', { class: 'sh-ball is-editing' }, [
           el('div', { class: 'sh-stack' }, [
             el('div', { class: 'sh-grid' }, [field('Name', n), field('Notes', m)]),
+            editSpecs.node,
             pic.node,
+            editErr,
             el('div', { class: 'sh-actions' }, [
               button('Save', function () {
                 if (!n.value.trim()) return;
+                var cleaned = editSpecs.value();
+                if (cleaned.problems.length) return showError(editErr, cleaned.problems.join('. ') + '.');
                 var image = pic.value();
                 ui.editingBall = null;
                 update(b.id, function (x) {
                   x.name = n.value.trim();
                   x.notes = m.value.trim();
                   if (image === null) delete x.image; else if (image) x.image = image;
+                  if (window.BallSpecs.has(cleaned.specs)) x.specs = cleaned.specs; else delete x.specs;
                 });
               }, 'primary'),
               button('Cancel', function () { ui.editingBall = null; rerender(); }),
@@ -2281,6 +2376,7 @@
         thumb(b.id),
         el('div', { class: 'sh-ball-main' }, [
           el('strong', { text: b.name }),
+          specChips(b),
           b.notes ? el('span', { class: 'sh-hint', text: b.notes }) : null,
           el('span', { class: 'sh-hint', text: s.racks
             ? plural(s.games, 'game') + ' as main ball · strike ' + pct(s.strikePct) + ' · spare ' + pct(s.sparePct) + (s.average != null ? ' · avg ' + UI.avg(s.average) : '')
@@ -2297,6 +2393,7 @@
       head('Arsenal', 'Everything you bowl with'),
       subnav('arsenal'),
       UI.card('Your arsenal', 'Retiring a ball hides it from the pickers but keeps its history', el('div', { class: 'card-body sh-stack' }, [list])),
+      specsCard(balls),
       reportCard(pool),
       UI.card('Add to your arsenal', null, el('div', { class: 'card-body' }, add)),
     ]);
