@@ -1904,3 +1904,10 @@ i.chart-swatch.ml-s4, circle.ml-swatch.ml-s4 { background: var(--s4); fill: var(
 .gl-leaves { display: grid; gap: 8px; }
 .gl-leave { display: flex; align-items: center; gap: 12px; }
 .gl-leave > div { display: flex; flex-direction: column; }
+
+/* ball specs */
+.sh-specs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; padding: 0; }
+.sh-spec { display: flex; flex-direction: column; padding: 4px 9px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border); min-width: 0; }
+.sh-spec dt { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-dim); }
+.sh-spec dd { margin: 0; font-size: 13.5px; font-weight: 650; }
+.sh-specform .sh-grid { margin-top: 8px; }

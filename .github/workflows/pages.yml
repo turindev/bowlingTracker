@@ -48,6 +48,9 @@ jobs:
       - name: Check importing games from a file
         run: node tools/test-importer.js
 
+      - name: Check ball specs
+        run: node tools/test-ballspecs.js
+
       - name: Check the private vault's encryption and sync
         run: node tools/test-vault.js
 
