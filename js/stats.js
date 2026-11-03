@@ -45,9 +45,12 @@
   /* Which average a bowler's handicap comes off, given the games already
      behind them. Before the league establishes an average it is the book one;
      after, it is what they have bowled. */
-  function handicapBase(player, games, pins, establish) {
+  function handicapBase(player, games, pins, establish, weekNumber) {
     /* Averages are kept as whole pins, dropping the fraction, as on the sheet. */
     if (games >= establish && games > 0) return Math.floor(pins / games);
+    /* A book average the league gave the bowler part way through: from the week after it. */
+    var changed = (player.bookChanges || []).filter(function (b) { return weekNumber != null && b.afterWeek < weekNumber; }).pop();
+    if (changed) return changed.average;
     /* No book average: the first night comes off the average they bowled that night
        (entered as entryAverage), and every night after off the average so far. */
     if (player.noBook && games > 0) return Math.floor(pins / games);
@@ -70,6 +73,13 @@
     return { games: kept.length, pins: sum(kept) };
   }
 
+  /* Games the league added to the books with those pins. */
+  function adjustedGamesBefore(player, weekNumber) {
+    return (player.adjustments || []).reduce(function (total, a) {
+      return a.afterWeek < weekNumber ? total + (a.games || 0) : total;
+    }, 0);
+  }
+
   /* The blind nights that are part of a bowler's average. */
   function countedBlinds(player) {
     return (player.blinds || []).filter(function (b) { return b.counted; });
@@ -86,7 +96,8 @@
       pins += w.ratedPins != null ? w.ratedPins : w.series;
     });
     pins += adjustedBefore(player, weekNumber);
-    return handicapFor(handicapBase(player, games, pins, scoring.establishAfterGames), scoring);
+    games += adjustedGamesBefore(player, weekNumber);
+    return handicapFor(handicapBase(player, games, pins, scoring.establishAfterGames, weekNumber), scoring);
   }
 
   function build(raw) {
@@ -104,6 +115,7 @@
         placeholder: !!p.placeholder,
         substitute: !!p.substitute,
         noBook: !!p.noBook,
+        bookChanges: (p.bookChanges || []).slice().sort(function (a, b) { return a.afterWeek - b.afterWeek; }),
         /* vacant | absentee | substitute — what the page shows beside the
            name. Substitutes bowl for real, so they keep their own flag. */
         role: p.role || (p.substitute ? 'substitute' : null),
@@ -113,7 +125,7 @@
         /* Pins the league added to or took off an earlier week without the
            sheet saying which game: { afterWeek, pins, teamId?, note }. */
         adjustments: (p.pinAdjustments || []).map(function (a) {
-          return { afterWeek: a.afterWeek, pins: a.pins, teamId: a.teamId || p.teamId, note: a.note || '' };
+          return { afterWeek: a.afterWeek, pins: a.pins, games: a.games || 0, inTeam: !!a.inTeam, teamId: a.teamId || p.teamId, note: a.note || '' };
         }),
         games: 0,
         pins: 0,
@@ -215,6 +227,7 @@
           average: series / games.length,
           /* Who they bowled for that night, when it was not their own team. */
           teamId: line.teamId || player.teamId,
+          slots: line.games || [],
           ratedGames: rated(line, games).games,
           ratedPins: rated(line, games).pins,
         });
@@ -226,14 +239,15 @@
     });
 
     players.forEach(function (p) {
-      p.adjustments.forEach(function (a) { p.pins += a.pins; });
+      p.adjustments.forEach(function (a) { p.pins += a.pins; p.games += a.games; });
       if (p.games > 0) p.average = p.pins / p.games;
 
       /* Average per game slot — does this bowler start hot or finish strong? */
       var slotPins = [];
       var slotCount = [];
       p.weeks.forEach(function (week) {
-        week.games.forEach(function (score, i) {
+        (week.slots || week.games).forEach(function (score, i) {
+          if (!isScore(score)) return;
           slotPins[i] = (slotPins[i] || 0) + score;
           slotCount[i] = (slotCount[i] || 0) + 1;
         });
@@ -302,7 +316,8 @@
       var nights = p.weeks.concat(p.blinds).sort(function (a, b) { return a.number - b.number; });
       nights.forEach(function (week) {
         var pinsSoFar = donePins + adjustedBefore(p, week.number);
-        week.handicap = handicapFor(handicapBase(p, doneGames, pinsSoFar, establish), scoring);
+        var gamesSoFar = doneGames + adjustedGamesBefore(p, week.number);
+        week.handicap = handicapFor(handicapBase(p, gamesSoFar, pinsSoFar, establish, week.number), scoring);
         p.handicapByWeek[week.number] = week.handicap;
         if (week.blind && !week.counted) return;
         doneGames += week.ratedGames != null ? week.ratedGames : week.games.length;
@@ -311,7 +326,8 @@
 
       /* What the next week will be bowled on, and the number the tables show. */
       donePins += adjustedBefore(p, Infinity);
-      p.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish), scoring);
+      doneGames += adjustedGamesBefore(p, Infinity);
+      p.handicap = handicapFor(handicapBase(p, doneGames, donePins, establish, Infinity), scoring);
       p.established = doneGames >= establish;
       p.gamesToEstablish = Math.max(establish - doneGames, 0);
       p.handicapAverage = p.average == null ? null : p.average + p.handicap;
@@ -325,7 +341,7 @@
     weeks.forEach(function (week) {
       var byTeam = {};
       teams.forEach(function (t) {
-        byTeam[t.id] = { lines: [], gameTotals: [], handicap: 0 };
+        byTeam[t.id] = { lines: [], gameTotals: [], gameHandicaps: [], handicap: 0 };
       });
 
       (week.scores || []).forEach(function (line) {
@@ -350,6 +366,7 @@
           role: line.blind ? 'absentee'
             : teamId !== player.teamId ? 'substitute' : player.role,
           games: games,
+          slots: line.games || [],
           series: sum(games),
           handicap: hdcp,
           hdcpSeries: sum(games) + hdcp * games.length,
@@ -359,15 +376,18 @@
 
       Object.keys(byTeam).forEach(function (teamId) {
         var bucket = byTeam[teamId];
+        /* A line may leave a game blank (null) when the bowler only bowled some of the night, and
+           the handicap for that game is then only that of the bowlers who threw it. */
         var gameCount = bucket.lines.reduce(function (max, l) {
-          return Math.max(max, l.games.length);
+          return Math.max(max, l.slots.length);
         }, 0);
         for (var g = 0; g < gameCount; g++) {
-          var total = 0;
+          var total = 0, hdcpTotal = 0;
           for (var i = 0; i < bucket.lines.length; i++) {
-            if (isScore(bucket.lines[i].games[g])) total += bucket.lines[i].games[g];
+            if (isScore(bucket.lines[i].slots[g])) { total += bucket.lines[i].slots[g]; hdcpTotal += bucket.lines[i].handicap; }
           }
           bucket.gameTotals.push(total);
+          bucket.gameHandicaps.push(hdcpTotal);
         }
       });
 
@@ -413,7 +433,7 @@
     players.forEach(function (p) {
       p.adjustments.forEach(function (a) {
         var team = teamsById[a.teamId];
-        if (!team) return;
+        if (!team || a.inTeam) return;
         team.pins += a.pins;
         team.hdcpPins += a.pins;
       });
@@ -468,7 +488,7 @@
       });
       real.forEach(function (p) {
         p.adjustments.forEach(function (a) {
-          if (a.afterWeek === week.number) running[p.id].pins += a.pins;
+          if (a.afterWeek === week.number) { running[p.id].pins += a.pins; running[p.id].games += a.games; }
         });
       });
 
@@ -729,23 +749,21 @@
       return { home: match.homePoints, away: match.awayPoints };
     }
 
-    var homeHdcp = scoring.useHandicap ? homeBucket.handicap : 0;
-    var awayHdcp = scoring.useHandicap ? awayBucket.handicap : 0;
     var gameCount = Math.max(homeBucket.gameTotals.length, awayBucket.gameTotals.length);
     if (!gameCount) return { home: null, away: null };
 
     var home = 0;
     var away = 0;
     for (var g = 0; g < gameCount; g++) {
-      var h = (homeBucket.gameTotals[g] || 0) + homeHdcp;
-      var a = (awayBucket.gameTotals[g] || 0) + awayHdcp;
+      var h = (homeBucket.gameTotals[g] || 0) + hdcpAt(homeBucket, g, scoring);
+      var a = (awayBucket.gameTotals[g] || 0) + hdcpAt(awayBucket, g, scoring);
       if (h > a) home += scoring.pointsPerGame;
       else if (a > h) away += scoring.pointsPerGame;
       else { home += scoring.pointsPerGame / 2; away += scoring.pointsPerGame / 2; }
     }
 
-    var homeSeries = sum(homeBucket.gameTotals) + homeHdcp * gameCount;
-    var awaySeries = sum(awayBucket.gameTotals) + awayHdcp * gameCount;
+    var homeSeries = sum(homeBucket.gameTotals) + hdcpSum(homeBucket, scoring);
+    var awaySeries = sum(awayBucket.gameTotals) + hdcpSum(awayBucket, scoring);
     if (homeSeries > awaySeries) home += scoring.pointsForSeries;
     else if (awaySeries > homeSeries) away += scoring.pointsForSeries;
     else { home += scoring.pointsForSeries / 2; away += scoring.pointsForSeries / 2; }
@@ -753,13 +771,20 @@
     return { home: home, away: away };
   }
 
+  /* The handicap a team carried into one game, and over the night. */
+  function hdcpAt(bucket, g, scoring) {
+    return scoring.useHandicap ? (bucket.gameHandicaps[g] || 0) : 0;
+  }
+  function hdcpSum(bucket, scoring) {
+    return scoring.useHandicap ? sum(bucket.gameHandicaps) : 0;
+  }
+
   /* Scratch and handicap series for one team's night. */
   function totalsOf(bucket, scoring) {
     var series = sum(bucket.gameTotals);
-    var handicap = scoring.useHandicap ? bucket.handicap : 0;
     return {
       series: series,
-      hdcpSeries: series + handicap * bucket.gameTotals.length,
+      hdcpSeries: series + hdcpSum(bucket, scoring),
     };
   }
 
@@ -780,9 +805,9 @@
       date: week.date,
       /* Points are decided on handicap totals, so carry them alongside
          scratch — that is also what the printed league sheet reports. */
-      hdcpSeries: series + bucket.handicap * gamesBowled,
-      hdcpGameTotals: bucket.gameTotals.map(function (total) {
-        return total + bucket.handicap;
+      hdcpSeries: series + sum(bucket.gameHandicaps),
+      hdcpGameTotals: bucket.gameTotals.map(function (total, g) {
+        return total + bucket.gameHandicaps[g];
       }),
       opponentId: opponent ? opponent.id : null,
       opponentName: opponent ? opponent.name : null,
@@ -795,7 +820,7 @@
       lanes: lanes,
       opponentSeries: oppTotals ? oppTotals.series : null,
       opponentHdcpSeries: oppTotals ? oppTotals.hdcpSeries : null,
-      margin: oppTotals ? series + bucket.handicap * gamesBowled - oppTotals.hdcpSeries : null,
+      margin: oppTotals ? series + sum(bucket.gameHandicaps) - oppTotals.hdcpSeries : null,
       /* Won the points despite being out-pinned on scratch — the handicap
          did the work. */
       wonOnHandicap: !!(oppTotals && result === 'W' && series < oppTotals.series),
@@ -806,14 +831,14 @@
     team.games += bucket.gameTotals.length;
     team.pins += series;
     if (gamesBowled) {
-      var hdcpGames = bucket.gameTotals.map(function (total) {
-        return total + bucket.handicap;
+      var hdcpGames = bucket.gameTotals.map(function (total, g) {
+        return total + bucket.gameHandicaps[g];
       });
       team.highGame = Math.max(team.highGame || 0, Math.max.apply(null, bucket.gameTotals));
       team.highSeries = Math.max(team.highSeries || 0, series);
       team.highHdcpGame = Math.max(team.highHdcpGame || 0, Math.max.apply(null, hdcpGames));
-      team.highHdcpSeries = Math.max(team.highHdcpSeries || 0, series + bucket.handicap * gamesBowled);
-      team.hdcpPins += series + bucket.handicap * gamesBowled;
+      team.highHdcpSeries = Math.max(team.highHdcpSeries || 0, series + sum(bucket.gameHandicaps));
+      team.hdcpPins += series + sum(bucket.gameHandicaps);
     }
   }
 

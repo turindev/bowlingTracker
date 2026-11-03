@@ -91,7 +91,17 @@ const rctx = { window: {} };
 vm.createContext(rctx);
 vm.runInContext(real, rctx);
 const raw = rctx.window.LEAGUE_DATA;
-const upTo = n => build(Object.assign({}, raw, { weeks: raw.weeks.filter(w => w.number <= n) }));
+// Later corrections (pin adjustments, book changes) stay out of earlier sheets.
+const upTo = n => build(Object.assign({}, raw, {
+  weeks: raw.weeks.filter(w => w.number <= n),
+  players: raw.players.map(p => {
+    if (!p.pinAdjustments && !p.bookChanges) return p;
+    const q = Object.assign({}, p);
+    if (p.pinAdjustments) q.pinAdjustments = p.pinAdjustments.filter(a => a.afterWeek < n);
+    if (p.bookChanges) q.bookChanges = p.bookChanges.filter(b => b.afterWeek < n - 1);
+    return q;
+  }),
+}));
 let live = upTo(4);
 const who = n => live.players.find(x => x.name === n);
 check('real league: under 12 games is still on book',
@@ -169,6 +179,56 @@ const off7 = ROSTER6.filter(([n, h, pins, g]) => {
 });
 check('real league, week 6: all ' + ROSTER6.length + ' bowlers\' pins, games and week-7 handicaps match the sheet',
       !off7.length, off7.map(([n, h, pins, g]) => n + ' ' + (who(n) ? [who(n).handicap, who(n).pins, who(n).games] : 'missing') + ' v ' + [h, pins, g]).join('; '));
+
+// And against the week-7 sheet.
+live = upTo(7);
+const ROSTER7 = [
+  ['Ken Grizzard', 51, 2947, 18], ['Ed Curtis', 59, 2314, 15], ['Marty Tate', 51, 2948, 18],
+  ['Rick Goodwin', 62, 2733, 18], ['Paul Presswood', 38, 2667, 15], ['Leon Farmer', 23, 4090, 21],
+  ['Jon Boxwell', 33, 3844, 21], ['Terry Cranfield', 36, 3225, 18], ['Tony Bullington', 14, 1810, 9],
+  ['Wesley Hicks', 40, 2635, 15], ['Toby Crisp', 13, 3696, 18], ['Wendell Defriece', 14, 4297, 21],
+  ['Robbie Defriece', 14, 4290, 21], ['Keith White', 0, 4070, 18], ['Jason Thompson', 52, 3409, 21],
+  ['Ben Deloach', 0, 4749, 21], ['Jason Seda-Haas', 18, 3616, 18], ['Darius Thompson', 0, 4738, 21],
+  ['Michael Eisel', 24, 1171, 6], ['Aaron Jones', 63, 2712, 18], ['Dale Dutcher', 44, 3600, 21],
+  ['Daryl Blair', 45, 3565, 21], ['Spencer Foutz', 0, 4786, 21], ['Cam Miller', 22, 4104, 21],
+  ['Worm Davis', 12, 4343, 21], ['Alex Davis', 0, 4983, 21], ['Davis Segui', 18, 3610, 18],
+  ['Jim Sedgwick', 55, 3318, 21], ['James Gruver', 34, 2743, 15], ['James Duffee', 27, 2864, 15],
+  ['Steve Smith', 17, 3634, 18], ['Nick Grabe', 46, 3534, 21], ['Mike Davis', 70, 2999, 21],
+  ['Starr Jensen', 59, 3251, 21], ['Rodney Benefield', 50, 3460, 21], ['Tim Charleson', 35, 3810, 21],
+  ['Darrell Smith', 21, 4125, 21], ['Bobby Bryant', 35, 3801, 21], ['Jeremy Malek', 16, 4249, 21],
+  ['Kamus Thompson', 11, 3735, 18], ['John Jenner', 18, 4218, 21], ['Derek Banther', 10, 4376, 21],
+  ['Josh Bomboy', 13, 4319, 21], ['Josh Malek', 39, 3185, 18], ['Jimmy Malek', 15, 3664, 18],
+  ['John Smeltzer', 23, 3509, 18], ['Randy Dockery', 36, 3233, 18], ['Cody LaCroix', 8, 4433, 21],
+  ['Jayson Scoggins', 10, 3761, 18], ['Shayne Terry', 8, 4443, 21], ['Scott Shafer', 11, 621, 3],
+  ['Josh Rodda', 43, 516, 3], ['Chad Green', 5, 3861, 18], ['Lynn Collins', 10, 4375, 21],
+  ['Chris Neal', 0, 3165, 14], ['Steven Adler', 0, 4240, 19], ['Zach Price', 10, 624, 3],
+  ['Yogi Cabrera', 46, 3534, 21], ['Mitchell Mayo', 7, 4468, 21], ['Duane Mayo', 48, 3492, 21],
+  ['Mark Youngblood', 10, 4373, 21], ['Hunter Moffitt', 11, 4359, 21], ['Chris Daughtry', 0, 4622, 21],
+  ['Cameron Compton', 6, 4493, 21], ['Briton Helton', 6, 1894, 9], ['John Linan', 64, 3109, 21],
+  ['Stan Stinnett', 45, 3554, 21], ['Matt Linan', 25, 2892, 15], ['Stonewall Stinnett', 13, 4312, 21],
+  ['Hamilton Hickman', 45, 2559, 15], ['Ken Ellis', 48, 3503, 21], ['Richard Simpson', 35, 3258, 18],
+  ['Joey Zinn', 38, 3723, 21], ['Butch Finkbeiner', 75, 2859, 21], ['Treifor Grant', 69, 3003, 21],
+  ['Paul Queen', 72, 2936, 21], ['Jerry Lance', 46, 2522, 15], ['Bill Rogers', 52, 945, 6],
+  ['Tanner Collins', 26, 3455, 18], ['Chuck Broesche', 60, 3226, 21], ['Mark Thompson', 15, 3049, 15],
+  ['Jared King', 5, 3864, 18], ['Jacob Brown', 11, 729, 3], ['Jesse Cabrera', 53, 3394, 21],
+  ['Thomas Woody', 56, 3307, 21], ['Tim Berthianne', 26, 3453, 18], ['Joe Morgan', 18, 3607, 18],
+  ['Keith Jackson', 14, 613, 3], ['Coty Rymer', 0, 4729, 21], ['Sam Hunter', 29, 3935, 21],
+  ['Todd Deluca', 35, 3813, 21], ['Matt Clark', 51, 2934, 18], ['Porky Davis', 14, 4297, 21],
+  ['Bryant Johns', 30, 3355, 18], ['Dave Terhune', 19, 1102, 6], ['Lenny Kersten', 16, 3649, 18],
+  ['John Hancock', 0, 2857, 12], ['Al Vietor', 51, 3423, 21], ['Matt Rayfield', 80, 2760, 21],
+  ['Jimmy Campbell', 45, 3586, 21], ['Tyler Green', 58, 3271, 21], ['Aaron White', 9, 3786, 18],
+  ['Michael Shipley', 0, 4777, 21], ['Jason Day', 0, 4821, 21], ['Oliver Lawson', 0, 4076, 18],
+  ['Grant Benton', 10, 1283, 6], ['John Brogdon', 21, 588, 3], ['Chad Clark', 31, 1646, 9],
+  ['Don Dansby', 28, 1692, 9], ['Michael Kimble', 1, 654, 3], ['Tanner Kincaid', 13, 580, 3],
+  ['Bryan Martin', 11, 2487, 12], ['Steven Monroe', 13, 664, 3], ['Jaydon Phan', 20, 591, 3],
+  ['Matthew Spicer', 0, 3968, 18],
+];
+const offR7 = ROSTER7.filter(([n, h, pins, g]) => {
+  const p = who(n);
+  return !p || p.handicap !== h || p.pins !== pins || p.games !== g;
+});
+check('real league, week 7: all ' + ROSTER7.length + ' bowlers\' pins, games and week-8 handicaps match the sheet',
+      !offR7.length, offR7.map(([n, h, pins, g]) => n + ' ' + (who(n) ? [who(n).handicap, who(n).pins, who(n).games] : 'missing') + ' v ' + [h, pins, g]).join('; '));
 
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
