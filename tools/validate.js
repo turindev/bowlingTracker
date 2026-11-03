@@ -84,6 +84,7 @@ var weekNumbers = {};
 
   var seen = {};
   var lines = {};
+  var slotLines = {};      /* per team and game slot, how many bowlers threw it */
   (week.scores || []).forEach(function (line) {
     var who = line.playerId;
     if (!playerIds[who]) {
@@ -103,6 +104,10 @@ var weekNumbers = {};
       err(label + ': ' + name + ' has no team of their own, so the line needs a teamId.');
     } else {
       lines[forTeam] = (lines[forTeam] || 0) + 1;
+      var slots = slotLines[forTeam] = slotLines[forTeam] || [];
+      (Array.isArray(line.games) ? line.games : []).forEach(function (score, g) {
+        if (typeof score === 'number') slots[g] = (slots[g] || 0) + 1;
+      });
     }
     if (line.blind != null && typeof line.blind !== 'boolean') {
       err(label + ': ' + name + ' has blind set to something other than true/false.');
@@ -119,6 +124,7 @@ var weekNumbers = {};
       return;
     }
     line.games.forEach(function (score, g) {
+      if (score === null) return;      /* a game the bowler did not bowl, when two share a slot */
       if (typeof score !== 'number' || !isFinite(score)) {
         err(label + ': ' + name + ' game ' + (g + 1) + ' is not a number (' + JSON.stringify(score) + ').');
       } else if (score < 0 || score > 300) {
@@ -127,6 +133,9 @@ var weekNumbers = {};
         warn(label + ': ' + name + ' game ' + (g + 1) + ' is ' + score + '. Nice, but double-check it.');
       }
     });
+    if (!line.games.some(function (score) { return typeof score === 'number'; })) {
+      err(label + ': ' + name + ' has no scores in the games array.');
+    }
     if (line.games.length !== expectedGames) {
       warn(label + ': ' + name + ' has ' + line.games.length + ' games, expected ' + expectedGames + '.');
     }
@@ -165,9 +174,10 @@ var weekNumbers = {};
   /* Four-man teams (rule 1). More lines than that almost always means a
      bowler counted for the wrong team — a sub who needs a teamId. */
   Object.keys(lines).forEach(function (id) {
-    if (lines[id] > 4) {
-      warn(label + ': ' + (teamIds[id] || {}).name + ' has ' + lines[id] +
-           ' score lines; a team bowls four.');
+    var most = (slotLines[id] || []).reduce(function (m, n) { return Math.max(m, n || 0); }, 0);
+    if (most > 4) {
+      warn(label + ': ' + (teamIds[id] || {}).name + ' has ' + most +
+           ' bowlers in one game; a team bowls four.');
     }
   });
 

@@ -82,7 +82,20 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'data', 'league.js'),
 // The season as it stood after a given week, so older assertions keep
 // describing the sheet they were written from as new weeks are added.
 const raw = rctx.window.LEAGUE_DATA;
-const at = n => build(Object.assign({}, raw, { weeks: raw.weeks.filter(w => w.number <= n) }));
+// Corrections the league made on a later sheet are left out too: a pin adjustment
+// "afterWeek" n first shows on the sheet for week n + 1, and a book change "afterWeek"
+// n re-figures week n + 1, which the following sheet prints.
+const asOf = (data, n) => Object.assign({}, data, {
+  weeks: data.weeks.filter(w => w.number <= n),
+  players: data.players.map(p => {
+    if (!p.pinAdjustments && !p.bookChanges) return p;
+    const q = Object.assign({}, p);
+    if (p.pinAdjustments) q.pinAdjustments = p.pinAdjustments.filter(a => a.afterWeek < n);
+    if (p.bookChanges) q.bookChanges = p.bookChanges.filter(b => b.afterWeek < n - 1);
+    return q;
+  }),
+});
+const at = n => build(asOf(raw, n));
 let live = at(4);
 const team = n => live.teams.find(t => t.id === 't' + n);
 const night = (n, wk) => team(n).weeks.find(w => w.number === wk);
@@ -221,6 +234,53 @@ check('Dansby, with no book, goes from 38 to 37 on his 178 average: 1070 over 6'
 const speer6 = live.players.find(p => p.name === 'Don Speer');
 check('Speer\'s 463 makes his two records one player: 1384 over 9', speer6.pins === 1384 && speer6.games === 9, speer6.pins + '/' + speer6.games);
 check('Ben Deloach bowled 300', live.players.find(p => p.name === 'Ben Deloach').highGame === 300, '');
+
+// --- week 7: the same checks against the week-7 sheet ----------------------
+live = at(7);
+const STAND7 = {12:[19.5,17007,18687],4:[18,17046,18735],16:[18,15016,18670],6:[17.5,18216,18891],19:[17,15707,18509],11:[17,16323,18315],24:[16.5,18750,18873],3:[16,17769,18513],
+  10:[15,17305,18700],22:[15,17166,18525],15:[15,17210,18494],23:[15,13040,17972],21:[14,16137,18675],14:[14,15867,18357],13:[13,18172,18685],7:[13,15079,18202],
+  5:[13,14617,18199],1:[13,13609,17971],8:[11,13998,18126],17:[11,14815,18058],2:[11,15604,17977],18:[11,12265,17860],9:[8,15196,18142],20:[4.5,14734,17929]};
+const off7 = Object.keys(STAND7).filter(n => {
+  const t = team(n), s = STAND7[n];
+  return through(n, 7) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 7 match the sheet', !off7.length,
+      off7.map(n => n + ': ' + [through(n, 7), team(n).pins, team(n).hdcpPins] + ' v ' + STAND7[n]).join('; '));
+// [game 1, game 2, game 3, series, points], as in "Review of Last Week's Bowling"
+const REV7 = { 22:[895,872,880,2647,2], 16:[901,834,900,2635,2], 10:[876,849,880,2605,1], 24:[955,800,912,2667,3], 12:[956,864,763,2583,2], 18:[865,892,784,2541,2],
+  20:[861,830,874,2565,1], 14:[829,929,917,2675,3], 7:[889,802,827,2518,1], 21:[834,899,919,2652,3], 1:[809,861,799,2469,1], 23:[857,841,926,2624,3],
+  17:[825,850,866,2541,1], 3:[830,848,942,2620,3], 5:[842,884,874,2600,3], 19:[832,850,892,2574,1], 15:[855,887,908,2650,2.5], 6:[858,887,848,2593,1.5],
+  9:[819,738,820,2377,1], 8:[798,895,901,2594,3], 11:[915,829,926,2670,3], 2:[852,833,860,2545,1], 13:[986,984,942,2912,3], 4:[699,1006,927,2632,1] };
+const offRev7 = Object.keys(REV7).filter(n => {
+  const w = night(n, 7);
+  return w.hdcpGameTotals.concat([w.hdcpSeries, w.points]).join(',') !== REV7[n].join(',');
+});
+check('every team\'s three handicap game totals, series and points in week 7 match the sheet', !offRev7.length,
+      offRev7.map(n => n + ': ' + night(n, 7).hdcpGameTotals.concat([night(n, 7).hdcpSeries, night(n, 7).points]) + ' v ' + REV7[n]).join('; '));
+// each bowler's printed "HDCP total" for the night
+const HT7 = { 'Ken Grizzard':672,'Marty Tate':570,'Rick Goodwin':660,'Paul Presswood':567,'Leon Farmer':621,'Jon Boxwell':664,'Terry Cranfield':590,'Wesley Hicks':670,'Toby Crisp':657,'Wendell Defriece':658,'Robbie Defriece':592,'Keith White':713,
+ 'Jason Thompson':635,'Ben Deloach':698,'Jason Seda-Haas':765,'Darius Thompson':534,'Dale Dutcher':584,'Daryl Blair':632,'John Brogdon':651,'Don Dansby':733,'Spencer Foutz':694,'Cam Miller':544,'Worm Davis':628,'Alex Davis':727,
+ 'Davis Segui':645,'Jim Sedgwick':677,'James Gruver':575,'James Duffee':621,'Nick Grabe':660,'Mike Davis':687,'Starr Jensen':667,'Rodney Benefield':578,'Tim Charleson':567,'Darrell Smith':547,'Bobby Bryant':685,
+ 'Jeremy Malek':584,'Kamus Thompson':688,'John Jenner':666,'Derek Banther':667,'Josh Bomboy':700,'Josh Malek':514,'Jimmy Malek':716,'John Smeltzer':740,'Randy Dockery':582,'Cody LaCroix':643,'Jayson Scoggins':698,'Shayne Terry':660,
+ 'Chad Green':653,'Lynn Collins':825,'Chris Neal':491,'Steven Adler':278,'Grant Benton':665,'Yogi Cabrera':680,'Mitchell Mayo':700,'Duane Mayo':681,'Mark Youngblood':614,'Hunter Moffitt':635,'Chris Daughtry':612,'Cameron Compton':771,'Briton Helton':632,
+ 'John Linan':674,'Stan Stinnett':668,'Matt Linan':621,'Stonewall Stinnett':672,'Hamilton Hickman':559,'Ken Ellis':716,'Richard Simpson':667,'Joey Zinn':599,'Butch Finkbeiner':667,'Treifor Grant':619,'Paul Queen':583,'Jerry Lance':672,
+ 'Tanner Collins':733,'Chuck Broesche':614,'Mark Thompson':694,'Jared King':533,'Jesse Cabrera':649,'Thomas Woody':675,'Joe Morgan':586,'Keith Jackson':655,'Coty Rymer':672,'Sam Hunter':710,'Todd Deluca':648,'Matt Clark':622,
+ 'Porky Davis':640,'Bryant Johns':630,'Dave Terhune':653,'Lenny Kersten':724,'Al Vietor':689,'Matt Rayfield':687,'Jimmy Campbell':660,'Tyler Green':588,'Aaron White':583,'Michael Shipley':706,'Jason Day':664,'Oliver Lawson':714 };
+const offHt7 = [];
+live.teams.forEach(t => t.weeks.filter(w => w.number === 7).forEach(w => w.lines.forEach(l => {
+  if (HT7[l.name] != null && l.hdcpSeries !== HT7[l.name]) offHt7.push(l.name + ' ' + l.hdcpSeries + ' v ' + HT7[l.name]);
+})));
+check('all ' + Object.keys(HT7).length + ' printed bowler handicap totals for week 7 match', !offHt7.length, offHt7.join('; '));
+const hicks7 = live.players.find(p => p.name === 'Wesley Hicks');
+check('Hicks\' i173 is back in his average on the week-7 sheet (handicap 41 into week 7, 2635 over 15 after it) without counting twice for the team',
+      hicks7.handicapByWeek[7] === 41 && hicks7.pins === 2635 && hicks7.games === 15 && hicks7.handicap === 40 && team(2).pins === 15604,
+      hicks7.handicapByWeek[7] + ' ' + hicks7.pins + '/' + hicks7.games + ' h' + hicks7.handicap + ' team ' + team(2).pins);
+const terhune7 = live.players.find(p => p.name === 'Dave Terhune');
+check('Terhune\'s book of 198 re-figures his week-6 night: handicap 27 lower that night, 19 now',
+      terhune7.handicap === 19 && terhune7.handicapByWeek[6] === 19 && terhune7.handicapByWeek[7] === 19,
+      terhune7.handicap + ' ' + JSON.stringify(terhune7.handicapByWeek));
+check('Neal and Adler each bowled only some of the three games, with the handicap per game: Armenian Noodle Dippers 986,984,942',
+      games(13, 7) === '986,984,942', games(13, 7));
 
 // the new rules, on the fixture
 {
