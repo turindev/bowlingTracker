@@ -280,12 +280,63 @@
           ])));
       }
 
+      /* strike percentage by ball, every ball */
+      cards.push(strikeBallCard(all, f));
+
       /* strike streaks by ball */
       cards.push(streakBallCard(all, chosen, key, f));
 
       /* ball x pattern */
       cards.push(patternCard(scoped, pool, label));
       return cards;
+    }
+
+    /* How often each ball strikes: strikes out of every first ball thrown with it. */
+    function strikeBallCard(all, f) {
+      var THIN = 30;                                    /* first balls before a share is worth reading */
+      var ranked = all.filter(function (b) { return b.racks > 0; }).slice().sort(function (a, b) {
+        return b.strikePct - a.strikePct || b.racks - a.racks;
+      });
+      var scope = f.pattern ? 'on ' + f.pattern : 'on every pattern';
+      function range(b) { return b.strikeRange ? Math.round(b.strikeRange[0] * 100) + '–' + Math.round(b.strikeRange[1] * 100) + '%' : '—'; }
+      var steady = ranked.filter(function (b) { return b.racks >= THIN; });
+      var lead = null;
+      if (steady.length >= 2) {
+        var a = steady[0], b = steady[1];
+        var apart = a.strikeRange[0] > b.strikeRange[1];
+        lead = a.label + ' strikes most often: ' + pct(a.strikePct) + ' (' + a.strikes + ' of ' + plural(a.racks, 'first ball') + '), against ' + pct(b.strikePct) + ' for ' + b.label + '. ' +
+          (apart ? 'Their 95% ranges do not overlap, so that gap is probably real.' : 'Their 95% ranges overlap, so with this many shots the gap could still be luck.');
+      } else if (steady.length === 1) {
+        lead = steady[0].label + ' is the only ball with ' + THIN + ' or more first balls so far: ' + pct(steady[0].strikePct) + ' strikes (' + steady[0].strikes + ' of ' + steady[0].racks + ').';
+      }
+
+      var parts = [];
+      if (lead) parts.push(el('p', { class: 'sh-verdict', text: lead }));
+      parts.push(Charts.bars({
+        wideLabel: true,
+        empty: 'No finished games with these balls yet.',
+        rows: ranked.map(function (b) {
+          var thin = b.racks < THIN;
+          return { label: b.label, value: b.strikePct * 100, display: pct(b.strikePct) + (thin ? '*' : ''),
+            title: b.label + ': ' + b.strikes + ' strikes in ' + plural(b.racks, 'first ball') + ', 95% range ' + range(b) + (thin ? ' (few shots, a hint only)' : '') };
+        }),
+      }));
+      parts.push(el('p', { class: 'sh-note', text: 'Strikes out of every first ball thrown with the ball, all of its games.' + (ranked.some(function (b) { return b.racks < THIN; }) ? ' A star marks a ball with fewer than ' + THIN + ' first balls: a hint, not a result.' : '') }));
+
+      var table = UI.table({
+        columns: [
+          { key: 'n', label: 'Ball', sortable: false, className: 'col-name', render: function (r) { return el('span', { class: 'sh-ballrow' }, [h.thumb(r.id, 'sm'), r.label]); } },
+          { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.n); } },
+          { key: 'f', label: 'First balls', sortable: false, className: 'muted', render: function (r) { return String(r.racks); } },
+          { key: 'k', label: 'Strikes', sortable: false, className: 'muted', render: function (r) { return String(r.strikes); } },
+          { key: 'p', label: 'Strike %', sortable: false, className: 'num-strong', render: function (r) { return pct(r.strikePct); } },
+          { key: 'c', label: '95% range', sortable: false, render: range },
+          { key: 'a', label: 'Per game', sortable: false, render: function (r) { return fix(r.strikesPerGame, 1); } },
+        ], rows: ranked, state: null, onSort: function () {},
+      });
+      return UI.card('Strike % by ball', scope,
+        el('div', null, [el('div', { class: 'card-body sh-stack' }, parts), detailsTable(table)]),
+        'Strike % is strikes out of first balls, so every rack counts, including the extra racks in the tenth. The 95% range is how far the true rate could plausibly sit from the one measured: wide for a ball with few shots, narrow with many. A ball also gets the fresh oil, the better lanes and the patterns you chose for it, so use the oil pattern filter above to compare balls on the same pattern.');
     }
 
     /* Which balls string strikes together: a hot streak is the plainest sign a ball is reading the lanes. */
@@ -381,7 +432,7 @@
         return dir === 'low' ? Math.min.apply(null, vals) : Math.max.apply(null, vals);
       }
       var marks = {
-        off: best('offPocketStrikePct'), floor: best('p10'), sd: best('sd', 'low'), mk: best('makeablePct'),
+        strike: best('strikePct'), off: best('offPocketStrikePct'), floor: best('p10'), sd: best('sd', 'low'), mk: best('makeablePct'),
         sp: best('sparePct'), opens: best('opensPerGame', 'low'), gap: best('carryGap', 'low'),
       };
       function cell(text, v, mark) {
@@ -389,6 +440,7 @@
       }
       /* Balls across, measures down: it stays readable on a phone. */
       var measures = [
+        ['Strike %', 'k', function (r) { return pct(r.strikePct); }, 'strikePct', 'strike', 'Strikes out of every first ball thrown with the ball.'],
         ['Off-pocket strike %', 'o', function (r) { return pct(r.offPocketStrikePct); }, 'offPocketStrikePct', 'off', 'Strike rate on first balls that were high, light or across.'],
         ['Carry gap', 'g', function (r) { return r.carryGap == null ? '\u2014' : Math.round(r.carryGap * 100) + ' pts'; }, 'carryGap', 'gap', 'Pocket strike % minus off-pocket strike %. Smaller is more forgiving.'],
         ['Bad night', 'f', function (r) { return r.p10 == null ? '\u2014' : String(Math.round(r.p10)); }, 'p10', 'floor', 'The score you beat 9 games in 10.'],
