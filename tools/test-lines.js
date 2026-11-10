@@ -282,6 +282,67 @@ check('Terhune\'s book of 198 re-figures his week-6 night: handicap 27 lower tha
 check('Neal and Adler each bowled only some of the three games, with the handicap per game: Armenian Noodle Dippers 986,984,942',
       games(13, 7) === '986,984,942', games(13, 7));
 
+// --- week 8: the same checks against the week-8 sheet ----------------------
+live = at(8);
+const STAND8 = {12:[21.5,19652,21488],24:[20.5,21453,21603],11:[20,18727,20965],6:[19.5,20761,21538],19:[19,18252,21372],4:[19,19390,21289],
+  23:[19,15002,20534],16:[18,17027,21122],15:[18,19734,21057],22:[17,19614,21168],3:[17,20265,21132],21:[16,18601,21484],
+  10:[16,19670,21230],14:[16,18255,21078],13:[15,20737,21325],5:[15,16643,20765],2:[15,17993,20735],7:[14,17197,20722],
+  17:[14,16866,20607],1:[14,15423,20391],9:[11,17393,20762],8:[11,16009,20713],18:[11,13901,20297],20:[7.5,16870,20488]};
+const off8 = Object.keys(STAND8).filter(n => {
+  const t = team(n), s = STAND8[n];
+  return through(n, 8) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 8 match the sheet', !off8.length,
+      off8.map(n => n + ': ' + [through(n, 8), team(n).pins, team(n).hdcpPins] + ' v ' + STAND8[n]).join('; '));
+const REV8 = { 9:[823,952,845,2620,3], 1:[846,789,785,2420,1], 11:[876,871,903,2650,3], 3:[875,829,915,2619,1],
+  13:[883,846,911,2640,2], 5:[914,864,788,2566,2], 15:[816,876,871,2563,3], 7:[762,911,847,2520,1],
+  2:[884,929,945,2758,4], 18:[834,790,813,2437,0], 4:[858,861,835,2554,1], 20:[869,816,874,2559,3],
+  6:[909,891,847,2647,2], 22:[937,830,876,2643,2], 8:[858,828,901,2587,0], 24:[901,909,920,2730,4],
+  10:[769,930,831,2530,1], 17:[901,805,843,2549,3], 12:[922,977,902,2801,2], 19:[891,952,1020,2863,2],
+  14:[923,822,976,2721,2], 21:[915,922,972,2809,2], 16:[856,801,795,2452,0], 23:[866,838,858,2562,4] };
+const offRev8 = Object.keys(REV8).filter(n => {
+  const w = night(n, 8);
+  return w.hdcpGameTotals.concat([w.hdcpSeries, w.points]).join(',') !== REV8[n].join(',');
+});
+check('every team\'s three handicap game totals, series and points in week 8 match the sheet', !offRev8.length,
+      offRev8.map(n => n + ': ' + night(n, 8).hdcpGameTotals.concat([night(n, 8).hdcpSeries, night(n, 8).points]) + ' v ' + REV8[n]).join('; '));
+// the printed places: ties in points go to pins plus handicap (Bowling Buddies over Old School, Big Orange over Team 4)
+const PLACES8 = [12, 24, 11, 6, 19, 4, 23, 16, 15, 22, 3, 21, 10, 14, 13, 5, 2, 7, 17, 1, 9, 8, 18, 20];
+const rank8 = live.teams.slice().sort((a, b) => a.trend[a.trend.length - 1].rank - b.trend[b.trend.length - 1].rank).map(t => +t.id.slice(1));
+const half8 = live.halves[0].standings.map(r => +r.team.id.slice(1));
+check('the team standings place all 24 teams as the week-8 sheet does, in the season and in the first half',
+      rank8.join(' ') === PLACES8.join(' ') && half8.join(' ') === PLACES8.join(' '), rank8.join(' ') + ' | ' + half8.join(' '));
+const HT8 = { 'Ken Grizzard':611,'Marty Tate':604,'Rick Goodwin':556,'Paul Presswood':649,'Jon Boxwell':715,'Terry Cranfield':659,'Tony Bullington':664,'Wesley Hicks':720,
+ 'Toby Crisp':655,'Wendell Defriece':591,'Robbie Defriece':682,'Keith White':691,'Jason Thompson':638,'Ben Deloach':643,'Jason Seda-Haas':686,'Darius Thompson':587,
+ 'Aaron Jones':720,'Dale Dutcher':653,'Daryl Blair':564,'Don Dansby':629,'Spencer Foutz':674,'Cam Miller':599,'Worm Davis':663,'Alex Davis':711,
+ 'Davis Segui':651,'Jim Sedgwick':605,'James Gruver':643,'James Duffee':621,'Steve Smith':641,'Nick Grabe':588,'Mike Davis':644,'Starr Jensen':714,
+ 'Rodney Benefield':632,'Tim Charleson':700,'Darrell Smith':601,'Bobby Bryant':687,'Jeremy Malek':694,'Kamus Thompson':670,'John Jenner':594,'Derek Banther':572,
+ 'Josh Bomboy':726,'Jimmy Malek':674,'John Smeltzer':675,'Chad Clark':575,'Randy Dockery':714,'Cody LaCroix':726,'Shayne Terry':716,'Matthew Spicer':645,
+ 'Chad Green':733,'Lynn Collins':731,'Chris Neal':651,'Grant Benton':525,'Yogi Cabrera':676,'Mitchell Mayo':746,'Duane Mayo':623,'Mark Youngblood':676,
+ 'Chris Daughtry':658,'Cameron Compton':657,'Briton Helton':685,'Michael Kimble':563,'John Linan':642,'Stan Stinnett':605,'Matt Linan':641,'Stonewall Stinnett':564,
+ 'Hamilton Hickman':655,'Ken Ellis':613,'Richard Simpson':664,'Joey Zinn':617,'Shane Armstrong':642,'Tanner Collins':802,'Chuck Broesche':648,'Mark Thompson':669,'Jared King':744,
+ 'Jesse Cabrera':636,'Thomas Woody':652,'Joe Morgan':599,'Keith Jackson':672,'Coty Rymer':811,'Sam Hunter':621,'Todd Deluca':663,'Matt Clark':714,
+ 'Bryant Johns':633,'Dave Terhune':603,'Lenny Kersten':651,'John Hancock':756,'Al Vietor':637,'Matt Rayfield':710,'Tyler Green':638,'Bryan Martin':577,
+ 'Aaron White':699,'Michael Shipley':635,'Jason Day':702,'Oliver Lawson':694 };
+const offHt8 = [];
+live.teams.forEach(t => t.weeks.filter(w => w.number === 8).forEach(w => w.lines.forEach(l => {
+  if (HT8[l.name] != null && l.hdcpSeries !== HT8[l.name]) offHt8.push(l.name + ' ' + l.hdcpSeries + ' v ' + HT8[l.name]);
+})));
+check('all ' + Object.keys(HT8).length + ' printed bowler handicap totals for week 8 match', !offHt8.length, offHt8.join('; '));
+// the six subs each fit their team's printed game totals to the pin
+check('six teams with a sub: 9 Pin City + Dansby, We The People + Chad Clark, Hookers + Spicer, Armenian Noodle + Benton, Nutz + Kimble, Stars & Strikes + Martin',
+      games(5, 8) === '914,864,788' && games(11, 8) === '876,871,903' && games(12, 8) === '922,977,902' &&
+      games(13, 8) === '883,846,911' && games(15, 8) === '816,876,871' && games(23, 8) === '866,838,858',
+      [5, 11, 12, 13, 15, 23].map(n => games(n, 8)).join(' | '));
+const armstrong = live.players.find(p => p.name === 'Shane Armstrong');
+check('Shane Armstrong\'s first night is on a handicap off the 163 he bowled (51), for Team 18',
+      armstrong.handicapByWeek[8] === 51 && armstrong.pins === 489 && armstrong.games === 3 && night(18, 8).lines.some(l => l.name === 'Shane Armstrong'),
+      armstrong.handicapByWeek[8] + ' ' + armstrong.pins + '/' + armstrong.games);
+const spicer8 = live.players.find(p => p.name === 'Matthew Spicer');
+check('Spicer\'s week-8 night confirms week 7: 4613 over 21 less 645 is the 3968 over 18 entered then',
+      spicer8.pins === 4613 && spicer8.games === 21 && spicer8.handicap === 0 && at(7).players.find(p => p.name === 'Matthew Spicer').pins === 3968,
+      spicer8.pins + '/' + spicer8.games);
+
 // the new rules, on the fixture
 {
   const fx2 = JSON.parse(JSON.stringify(fx));
