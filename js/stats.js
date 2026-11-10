@@ -523,9 +523,10 @@
         if (!entry) return;
         thisWeek[team.id] = entry;
         if (entry.points != null) running[team.id].points += entry.points;
-        running[team.id].pins += entry.series;
+        running[team.id].pins += entry.hdcpSeries;
       });
 
+      /* Ties in points go to pins plus handicap, the way the sheet places teams. */
       var standing = teams.slice().sort(function (a, b) {
         return running[b.id].points - running[a.id].points || running[b.id].pins - running[a.id].pins;
       });
@@ -872,12 +873,13 @@
           losses: mine.filter(function (w) { return w.result === 'L'; }).length,
           ties: mine.filter(function (w) { return w.result === 'T'; }).length,
           pins: mine.reduce(function (t, w) { return t + w.series; }, 0),
+          hdcpPins: mine.reduce(function (t, w) { return t + w.hdcpSeries; }, 0),
         };
       });
 
       /* Points first, then handicap pinfall, the way the sheet breaks ties. */
       standings.sort(function (a, b) {
-        return b.points - a.points || b.pins - a.pins ||
+        return b.points - a.points || b.hdcpPins - a.hdcpPins ||
                a.team.name.localeCompare(b.team.name);
       });
       standings.forEach(function (row, at) {

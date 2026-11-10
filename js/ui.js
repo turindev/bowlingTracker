@@ -179,6 +179,7 @@
      columns: { key, label, className, optional, sortable, defaultDir,
                 value(row) -> sort key, render(row) -> cell content }
      `state` is owned by the caller so a sort survives a re-render.
+     `tieBreak(a, b)` (optional) settles equal sort values before the name does.
      `limit` trims the rendered rows after sorting, for a collapsed list.
      `rowClass(row, i)` marks individual rows — a scoreboard uses it to keep
      the two sides of a match visually paired.
@@ -193,7 +194,8 @@
       if (column) {
         var dir = state.dir === 'asc' ? 1 : -1;
         rows.sort(function (a, b) {
-          return compare(column.value(a), column.value(b)) * dir || tieBreak(a, b);
+          return compare(column.value(a), column.value(b)) * dir ||
+                 (options.tieBreak && options.tieBreak(a, b)) || tieBreak(a, b);
         });
       }
     }

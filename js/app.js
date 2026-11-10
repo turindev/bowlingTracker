@@ -280,7 +280,7 @@
 
     var TEAM_PREVIEW = 12;
     var ranked = model.teams.slice()
-      .sort(function (a, b) { return b.points - a.points || b.pins - a.pins; });
+      .sort(function (a, b) { return b.points - a.points || b.hdcpPins - a.hdcpPins; });
     var standings = (state.showAllTeams ? ranked : ranked.slice(0, TEAM_PREVIEW))
       .map(function (t) {
         return {
@@ -1331,7 +1331,7 @@
         rows = rows.map(function (t) {
           var r = byTeam[t.id] || { points: 0, wins: 0, losses: 0, ties: 0, weeks: 0 };
           return Object.assign(Object.create(t), {
-            points: r.points, wins: r.wins, losses: r.losses, ties: r.ties,
+            points: r.points, wins: r.wins, losses: r.losses, ties: r.ties, tiePins: r.hdcpPins || 0,
           });
         });
       }
@@ -1384,7 +1384,13 @@
       ]);
 
       var body = rows.length
-        ? UI.table({ columns: columns, rows: rows, state: state.teams, onSort: render })
+        ? UI.table({
+          columns: columns, rows: rows, state: state.teams, onSort: render,
+          /* Teams level on points are placed on pins plus handicap, as the sheet does. */
+          tieBreak: state.teams.key === 'points'
+            ? function (a, b) { return (b.tiePins != null ? b.tiePins : b.hdcpPins) - (a.tiePins != null ? a.tiePins : a.hdcpPins); }
+            : null,
+        })
         : UI.empty(state.search ? 'No team matches “' + state.search + '”.' : 'No teams yet.');
 
       draw([
