@@ -138,6 +138,15 @@
     };
   }
 
+  /* The 95% range for a share of `n` (Wilson score interval), as [low, high] fractions, or null. */
+  function wilson(successes, n) {
+    if (!n) return null;
+    var z = 1.96, p = successes / n, d = 1 + z * z / n;
+    var centre = (p + z * z / (2 * n)) / d;
+    var half = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+    return [Math.max(0, centre - half), Math.min(1, centre + half)];
+  }
+
   /*
    * One row per ball (by the ball that threw most of each game's first balls):
    * score figures plus shot figures. games must already be filtered (pattern,
@@ -161,7 +170,8 @@
       return {
         id: id, label: label(id), games: list, scores: scores,
         n: f.n, mean: f.mean, sd: f.sd, median: f.median, p10: f.p10, p90: f.p90, low: f.low, high: f.high, ci: f.ci,
-        strikePct: a.strikePct, sparePct: a.sparePct, makeablePct: a.makeablePct,
+        strikePct: a.strikePct, strikes: a.strikes, racks: a.racks, strikeRange: wilson(a.strikes, a.racks),
+        sparePct: a.sparePct, makeablePct: a.makeablePct,
         opensPerGame: a.opensPerGame, firstBallAvg: a.firstBallAvg, strikesPerGame: a.strikesPerGame,
         pocketStrikePct: a.hits.pocket.strikePct, pocketN: a.hits.pocket.n,
         offPocketStrikePct: off.pct, offPocketN: off.n, offPocketShare: off.share,

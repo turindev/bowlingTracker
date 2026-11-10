@@ -97,6 +97,14 @@ check('the longest streak and the runs by length', sA.longest === 8 && sA.byLeng
 check('a ball that never strings strikes has none', sC.turkeys === 0 && sC.turkeysPerGame === 0 && sC.longest <= 1 && sC.turkeyGamePct === 0, JSON.stringify(sC));
 check('strike after strike is reported with its sample', sA.afterStrikeN > 0 && sA.afterStrikePct >= 0.9, JSON.stringify(sA));
 
+// strike percentage by ball: strikes out of first balls, with its 95% range
+check('each ball row carries strikes, first balls and strike %', rA.racks > 0 && rB.racks > 0 && rA.strikes <= rA.racks && Math.abs(rA.strikePct - rA.strikes / rA.racks) < 1e-12, JSON.stringify([rA.strikes, rA.racks, rA.strikePct]));
+check('the forgiving ball strikes more often than the one that leaves pins', rA.strikePct > rB.strikePct, JSON.stringify([rA.strikePct, rB.strikePct]));
+check('the 95% range holds the measured rate and narrows with more shots', rA.strikeRange[0] < rA.strikePct && rA.strikePct < rA.strikeRange[1] &&
+      (() => { const few = T.balls(A.slice(0, 2), {})[0]; return few.strikeRange[1] - few.strikeRange[0] > rA.strikeRange[1] - rA.strikeRange[0]; })(),
+      JSON.stringify([rA.strikeRange]));
+check('a ball with no shots has no range', T.balls([], {}).length === 0, '');
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n') : '\nall trends assertions passed');
 process.exit(fails.length ? 1 : 0);
