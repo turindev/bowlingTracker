@@ -355,11 +355,11 @@
 
   function drawRanges(width, rows, options, tip) {
     var rowH = 46;
-    var pad = { top: 8, right: 14, bottom: 28, left: Math.max(96, Math.min(150, Math.round(width * 0.36))) };
+    var pad = { top: 8, right: 30, bottom: 28, left: Math.max(96, Math.min(150, Math.round(width * 0.36))) };
     var height = pad.top + rows.length * rowH + pad.bottom;
     var plotW = Math.max(40, width - pad.left - pad.right);
     var vs = [];
-    rows.forEach(function (r) { vs.push(r.lo, r.hi, r.mean); });
+    rows.forEach(function (r) { vs.push(r.lo, r.hi, r.mean); if (r.min != null) vs.push(r.min); if (r.max != null) vs.push(r.max); });
     var domain = options.domain || niceDomain(Math.min.apply(null, vs), Math.max.apply(null, vs));
     function x(v) { return pad.left + ((v - domain[0]) / (domain[1] - domain[0] || 1)) * plotW; }
     var svg = node('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': options.label || 'Ranges' });
@@ -385,6 +385,18 @@
         svg.appendChild(st);
       }
       var g = node('g', { class: 'rg-row' });
+      /* A thin whisker from the lowest to the highest game, behind the band, so a single best
+         game outside the typical range is still drawn. */
+      if (r.min != null && r.max != null) {
+        g.appendChild(node('line', { class: 'rg-whisker', x1: x(r.min), x2: x(r.max), y1: cy, y2: cy }));
+        g.appendChild(node('line', { class: 'rg-whisker', x1: x(r.min), x2: x(r.min), y1: cy - 5, y2: cy + 5 }));
+        g.appendChild(node('line', { class: 'rg-whisker', x1: x(r.max), x2: x(r.max), y1: cy - 5, y2: cy + 5 }));
+        var lowT = node('text', { class: 'rg-end', x: x(r.min) - 5, y: cy + 4, 'text-anchor': 'end' });
+        lowT.textContent = String(Math.round(r.min));
+        var highT = node('text', { class: 'rg-end', x: x(r.max) + 5, y: cy + 4, 'text-anchor': 'start' });
+        highT.textContent = String(Math.round(r.max));
+        g.appendChild(lowT); g.appendChild(highT);
+      }
       g.appendChild(node('rect', { class: 'rg-band fill-' + r.key, x: x(r.lo), y: cy - 9, width: Math.max(3, x(r.hi) - x(r.lo)), height: 18, rx: 9 }));
       if (r.mid != null) g.appendChild(node('line', { class: 'rg-mid', x1: x(r.mid), x2: x(r.mid), y1: cy - 12, y2: cy + 12 }));
       g.appendChild(node('circle', { class: 'ml-dot ml-' + r.key, cx: x(r.mean), cy: cy, r: 5.5 }));
