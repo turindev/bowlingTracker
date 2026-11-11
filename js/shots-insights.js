@@ -226,7 +226,7 @@
             { key: 'n', label: 'Ball', sortable: false, className: 'col-name', render: function (r) { return el('span', { class: 'sh-ballrow' }, [h.thumb(r.id, 'sm'), r.label]); } },
             { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.n); } },
             { key: 'a', label: 'Avg', sortable: false, className: 'num-strong', render: function (r) { return fix(r.mean, 1); } },
-            { key: 'c', label: '95% range', sortable: false, render: function (r) { return r.ci ? Math.round(r.ci[0]) + '–' + Math.round(r.ci[1]) : '—'; } },
+            { key: 'c', label: 'Avg 95% range', sortable: false, render: function (r) { return r.ci ? Math.round(r.ci[0]) + '–' + Math.round(r.ci[1]) : '—'; } },
             { key: 'l', label: 'Bad night', sortable: false, render: function (r) { return r.p10 != null ? String(Math.round(r.p10)) : '—'; } },
             { key: 'd', label: 'Spread', sortable: false, render: function (r) { return fix(r.sd, 1); } },
             { key: 'h', label: 'High', sortable: false, render: function (r) { return String(r.high); } },
@@ -240,7 +240,7 @@
             ]),
             detailsTable(rangeTable),
           ]),
-          'Bad and good nights need at least five games with a ball; with fewer the band runs from the lowest to the highest game. Treat balls with few games as a hint.'));
+          'Bad and good nights need at least five games with a ball; with fewer the band runs from the lowest to the highest game. Treat balls with few games as a hint. In the table, Avg 95% range is where your true average with the ball probably sits, not a range of scores: with only a few games it is wide and can run past your best game.'));
 
         /* carry by how the ball hit */
         var perHit = {};
@@ -330,7 +330,7 @@
           { key: 'f', label: 'First balls', sortable: false, className: 'muted', render: function (r) { return String(r.racks); } },
           { key: 'k', label: 'Strikes', sortable: false, className: 'muted', render: function (r) { return String(r.strikes); } },
           { key: 'p', label: 'Strike %', sortable: false, className: 'num-strong', render: function (r) { return pct(r.strikePct); } },
-          { key: 'c', label: '95% range', sortable: false, render: range },
+          { key: 'c', label: 'Strike % range', sortable: false, render: range },
           { key: 'a', label: 'Per game', sortable: false, render: function (r) { return fix(r.strikesPerGame, 1); } },
         ], rows: ranked, state: null, onSort: function () {},
       });
