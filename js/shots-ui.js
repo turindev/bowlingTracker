@@ -287,7 +287,46 @@
     node.hidden = !message;
   }
 
-  function rerender() { mount(ui.root, ui.parts); }
+  /* Redraw the page where it is. The page is emptied and refilled, which would drop the reader
+     back at the top after every chip, sort or toggle. Instead the card that was clicked is put
+     back at the same height on the screen (the page can be shorter or longer afterwards, so
+     the old scroll position alone is not enough), and failing that the old position is
+     restored. Charts size themselves a moment after they are drawn, so it is done again on
+     the next frame. */
+  var anchor = null;
+  var touchedAt = 0;                       /* when the reader last scrolled by hand */
+  function cardKey(card) {
+    var t = card.querySelector('.card-title');
+    return t && t.firstElementChild ? t.firstElementChild.textContent : '';
+  }
+  document.addEventListener('click', function (e) {
+    var card = e.target && e.target.closest && ui.root && ui.root.contains(e.target) ? e.target.closest('.card') : null;
+    anchor = card ? { key: cardKey(card), top: card.getBoundingClientRect().top, at: Date.now() } : null;
+  }, true);
+  ['wheel', 'touchmove', 'keydown'].forEach(function (name) {
+    document.addEventListener(name, function () { touchedAt = Date.now(); }, { passive: true, capture: true });
+  });
+
+  function rerender() {
+    var y = window.pageYOffset || 0;
+    var a = anchor && anchor.key && Date.now() - anchor.at < 2000 ? anchor : null;
+    var started = Date.now();
+    mount(ui.root, ui.parts);
+    function restore() {
+      if (touchedAt > started + 30) return;            /* they have moved on: leave them be */
+      var target = null;
+      if (a) {
+        var cards = document.querySelectorAll('.card');
+        for (var i = 0; i < cards.length; i++) if (cardKey(cards[i]) === a.key) { target = cards[i]; break; }
+      }
+      if (target) window.scrollTo(0, window.pageYOffset + target.getBoundingClientRect().top - a.top);
+      else if (y) window.scrollTo(0, y);
+    }
+    restore();
+    if (window.requestAnimationFrame) window.requestAnimationFrame(restore);
+    setTimeout(restore, 120);                           /* charts finish sizing themselves about now */
+    setTimeout(restore, 400);
+  }
 
   /* ---------- entry point ---------- */
 
