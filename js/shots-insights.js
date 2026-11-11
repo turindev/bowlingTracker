@@ -216,9 +216,9 @@
         /* ranges */
         var rangeRows = chosen.map(function (b) {
           var floor = b.p10 != null ? b.p10 : b.low, ceil = b.p90 != null ? b.p90 : b.high;
-          return { key: key(b), label: b.label, lo: floor, hi: ceil, mid: b.median, mean: b.mean,
+          return { key: key(b), label: b.label, lo: floor, hi: ceil, min: b.low, max: b.high, mid: b.median, mean: b.mean,
             sub: 'avg ' + fix(b.mean, 0) + ' \u00b7 ' + plural(b.n, 'game'),
-            text: 'avg ' + fix(b.mean, 1) + ' · ' + (b.p10 != null ? 'bad nights ' + Math.round(floor) : 'lowest ' + Math.round(floor)) + ' · good nights ' + Math.round(ceil),
+            text: 'avg ' + fix(b.mean, 1) + ' · ' + (b.p10 != null ? 'bad nights ' + Math.round(floor) : 'lowest ' + Math.round(floor)) + ' · good nights ' + Math.round(ceil) + ' · best game ' + Math.round(b.high) + ' · lowest ' + Math.round(b.low),
             caption: plural(b.n, 'game') + (b.sd == null ? '' : ' · spread ' + fix(b.sd, 1)) };
         });
         var rangeTable = UI.table({
@@ -236,7 +236,7 @@
           el('div', null, [
             el('div', { class: 'card-body sh-stack' }, [
               Charts.ranges({ rows: rangeRows, label: 'Typical score range for each ball' }),
-              el('p', { class: 'sh-note', text: 'The band runs from a bad night (the worst 1 game in 10) to a good one (the best 1 in 10). The black tick is the median and the dot is the average. A narrow band that sits high is a forgiving ball: it keeps you out of trouble when you are off.' }),
+              el('p', { class: 'sh-note', text: 'The band runs from a bad night (the worst 1 game in 10) to a good one (the best 1 in 10), so one standout game can sit past its end. The thin line runs from your lowest game to your best, with both scores at its ends. The black tick is the median and the dot is the average. A narrow band that sits high is a forgiving ball: it keeps you out of trouble when you are off.' }),
             ]),
             detailsTable(rangeTable),
           ]),
