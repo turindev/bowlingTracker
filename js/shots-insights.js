@@ -288,6 +288,9 @@
 
       /* ball x pattern */
       cards.push(patternCard(scoped, pool, label));
+
+      /* every game with a ball, to dive into its history */
+      cards.push(historyCard(patterned, f));
       return cards;
     }
 
@@ -337,6 +340,86 @@
       return UI.card('Strike % by ball', scope,
         el('div', null, [el('div', { class: 'card-body sh-stack' }, parts), detailsTable(table)]),
         'Strike % is strikes out of first balls, so every rack counts, including the extra racks in the tenth. The 95% range is how far the true rate could plausibly sit from the one measured: wide for a ball with few shots, narrow with many. A ball also gets the fresh oil, the better lanes and the patterns you chose for it, so use the oil pattern filter above to compare balls on the same pattern.');
+    }
+
+    /* Every game with one ball (or all of them), newest first, each linking to the game itself. */
+    function historyCard(patterned, f) {
+      var fin = S.finished(patterned);
+      var by = {};
+      fin.forEach(function (g) { var id = S.primaryBall(g); if (id) (by[id] = by[id] || []).push(g); });
+      var ids = Object.keys(by).sort(function (a, b) {
+        return by[b].length - by[a].length || String(h.ballName(a)).localeCompare(String(h.ballName(b)));
+      });
+      var scope = f.pattern ? 'on ' + f.pattern : 'on every pattern';
+      if (!ids.length) return UI.card('Games by ball', scope, UI.empty('Finish a game with a ball and its history appears here.'));
+
+      var sel = h.state.historyBall;
+      if (sel == null || (sel !== 'all' && ids.indexOf(sel) === -1)) sel = ids[0];
+      var list = sel === 'all' ? ids.reduce(function (all, id) { return all.concat(by[id]); }, []) : by[sel];
+      if (!h.state.historySort) h.state.historySort = { key: 'date', dir: 'desc' };
+
+      var chips = el('div', { class: 'sh-chips sh-pad', role: 'group', 'aria-label': 'Ball to list' },
+        [['all', null, 'All balls', fin.filter(function (g) { return S.primaryBall(g); }).length]].concat(ids.map(function (id) { return [id, id, h.ballName(id), by[id].length]; })).map(function (c) {
+          var on = sel === c[0];
+          return el('button', { type: 'button', class: 'sh-chip sh-ballchip' + (on ? ' is-on' : ''), 'aria-pressed': on ? 'true' : 'false',
+            onclick: function () { h.state.historyBall = c[0]; h.state.historyAll = false; h.rerender(); } },
+            [c[1] ? h.thumb(c[1], 'sm') : null, el('span', { text: c[2] + ' · ' + c[3] })]);
+        }));
+
+      var a = S.analyze(list);
+      var tiles = UI.statGrid([
+        UI.stat('Games', String(a.games)),
+        UI.stat('Average', UI.avg(a.average)),
+        UI.stat('High game', UI.num(a.high)),
+        UI.stat('Low game', UI.num(a.low)),
+        UI.stat('Strike %', pct1(a.strikePct)),
+        UI.stat('Opens per game', fix(a.opensPerGame, 1)),
+      ]);
+
+      function dateText(iso) {
+        var d = String(iso || '').split('-');
+        var dt = new Date(Date.UTC(+d[0], +d[1] - 1, +d[2]));
+        return d.length === 3 && !isNaN(dt.getTime()) ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : (iso || '—');
+      }
+      function cap(s) { return s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '—'; }
+      var rows = list.map(function (g) {
+        var ga = S.analyze([g]);
+        var id = S.primaryBall(g);
+        return { g: g, a: ga, id: id, name: h.ballName(id), score: S.score(g).total, when: String(g.date || '') + ' ' + String(g.createdAt || '') };
+      });
+      var href = function (r) { return '#/shots/game/' + r.g.id; };
+      var columns = [
+        { key: 'date', label: 'Date', className: 'col-name', value: function (r) { return r.when; },
+          render: function (r) { return el('a', { href: href(r), text: dateText(r.g.date) }); } },
+        { key: 'score', label: 'Score', className: 'num-strong', value: function (r) { return r.score; },
+          render: function (r) { return el('a', { class: 'sh-score', href: href(r), text: String(r.score) }); } },
+      ];
+      if (sel === 'all') {
+        columns.push({ key: 'ball', label: 'Ball', className: 'col-name', defaultDir: 'asc', value: function (r) { return r.name; },
+          render: function (r) { return el('span', { class: 'sh-ballrow' }, [h.thumb(r.id, 'sm'), r.name]); } });
+      }
+      columns = columns.concat([
+        { key: 'game', label: 'Game', className: 'muted', defaultDir: 'asc', value: function (r) { return r.g.gameNo || null; },
+          render: function (r) { return r.g.gameNo ? r.g.gameNo + (r.g.setSize ? ' of ' + r.g.setSize : '') : '\u2014'; } },
+        { key: 'strikes', label: 'Strikes', value: function (r) { return r.a.strikes; }, render: function (r) { return String(r.a.strikes); } },
+        { key: 'spares', label: 'Spares', value: function (r) { return r.a.spares; }, render: function (r) { return String(r.a.spares); } },
+        { key: 'opens', label: 'Opens', defaultDir: 'asc', value: function (r) { return r.a.opens; }, render: function (r) { return String(r.a.opens); } },
+        { key: 'fb', label: '1st ball', optional: true, value: function (r) { return r.a.firstBallAvg; }, render: function (r) { return fix(r.a.firstBallAvg, 1); } },
+        { key: 'pattern', label: 'Pattern', optional: true, defaultDir: 'asc', value: function (r) { return r.g.pattern || null; }, render: function (r) { return r.g.pattern || '\u2014'; } },
+        { key: 'event', label: 'Event', optional: true, defaultDir: 'asc', value: function (r) { return r.g.event || null; }, render: function (r) { return cap(r.g.event); } },
+        { key: 'lane', label: 'Lane', optional: true, defaultDir: 'asc', value: function (r) { return r.g.lane || null; }, render: function (r) { return r.g.lane || '\u2014'; } },
+      ]);
+
+      var LIMIT = 15;
+      var more = rows.length > LIMIT;
+      var table = UI.table({ columns: columns, rows: rows, state: h.state.historySort, onSort: h.rerender, limit: more && !h.state.historyAll ? LIMIT : null });
+      var toggle = more ? el('p', { class: 'sh-pad' }, el('button', { type: 'button', class: 'sh-btn',
+        onclick: function () { h.state.historyAll = !h.state.historyAll; h.rerender(); },
+        text: h.state.historyAll ? 'Show only the first ' + LIMIT : 'Show all ' + rows.length + ' games' })) : null;
+
+      return UI.card('Games by ball', scope,
+        el('div', null, [chips, el('div', { class: 'card-body' }, tiles), table, toggle]),
+        'Every finished game, listed under the ball that threw most of its first balls, so a game where you switched shows under one ball only. Tap a date or score to open the game. Sort by any column: score to find a ball’s best games, opens to find where it let you down. The oil pattern filter above narrows the list.');
     }
 
     /* Which balls string strikes together: a hot streak is the plainest sign a ball is reading the lanes. */
