@@ -74,6 +74,7 @@
     bg: '#121212', panel: '#1b1b1b', line: '#2e2e2e', soft: '#8c8c8c', text: '#ffffff', blue: '#27b4ff',
     amber: '#e8b53c', green: '#2fd39a', red: '#f0605d', grey: '#404040', tenth: '#232323', white: '#f5f5f5',
     disc: '#2a2a2a', sub: '#b8b8b8', foot: '#666666',
+    hit: { pocket: '#2fd39a', high: '#ff9a2e', light: '#27b4ff', brooklyn: '#b48cff', other: '#9a9a9a' },
     flame: ['#ff9a2e', '#ff7a18', '#ff4a2a'], flameCore: '#ffd34d', ember: '#ff7a18',
     gold: ['#ffe58f', '#f4b822', '#b9790a'], goldInk: '#2b1a00',
   };
@@ -190,9 +191,35 @@
   }
 
   /* One game's card: ten frames, the marks, a leave diagram and the running total. */
+  var HIT_GLYPH = { pocket: '', high: 'H', light: 'L', brooklyn: 'B', other: 'O' };
+
+  /* One tick for how a first ball hit: a dot for the pocket, a letter for the rest. */
+  function hitTick(svg, k, x, y, size) {
+    if (k === 'pocket') svg.circle(x, y - size * 0.34, size * 0.26, { fill: SC.hit.pocket });
+    else svg.text(x, y, HIT_GLYPH[k], { fontSize: size, fontWeight: 800, fill: SC.hit[k], textAnchor: 'middle' });
+  }
+
+  /* The key to the ticks, centred on cx. */
+  function drawHitKey(svg, cx, y) {
+    var items = S.HITS.map(function (k) { return { k: k, label: S.HIT_LABELS[k], w: 26 + S.HIT_LABELS[k].length * 12.5 }; });
+    var lead = 'First ball', leadW = lead.length * 12.5 + 28, gap = 26;
+    var total = leadW + items.reduce(function (a, it) { return a + it.w + gap; }, -gap);
+    var x = cx - total / 2;
+    svg.text(x, y, lead, { fontSize: 22, fill: SC.soft });
+    x += leadW;
+    items.forEach(function (it) {
+      hitTick(svg, it.k, x + 8, y, 24);
+      svg.text(x + 26, y, it.label, { fontSize: 22, fill: SC.sub });
+      x += it.w + gap;
+    });
+  }
+
+  function hasHits(game) { return S.frameHits(game).some(function (row) { return row.some(Boolean); }); }
+
   function drawGame(svg, game, n, x0, y0, width, ctx) {
     var sc = S.score(game);
     var hot = S.heatFrames(game);
+    var hits = S.frameHits(game);
     svg.text(x0 + 12, y0 + 30, 'GAME ' + n, { fontSize: 36, fontWeight: 700, fill: SC.blue, letterSpacing: 1.5 });
     drawBadges(svg, game, x0 + 12 + 190, y0 + 28, ctx);
     svg.text(x0 + width - 12, y0 + 34, sc.complete ? String(sc.total) : String(sc.running), { fontSize: 50, fontWeight: 700, fill: SC.text, textAnchor: 'end' });
@@ -209,6 +236,10 @@
       if (hot[f]) svg.rect(fx, top, fw, h, { fill: '#ff6a00', opacity: 0.10 + 0.30 * hot[f].heat });
       if (f > 0) svg.line(fx, top, fx, top + h, { stroke: SC.line, strokeWidth: 2 });
       svg.text(cx, top + 31, String(f + 1), { fontSize: 20, fill: hot[f] ? SC.ember : SC.soft, fontWeight: hot[f] ? 700 : 400, textAnchor: 'middle' });
+      /* how each first ball hit, ticked at the right of the frame number */
+      (hits[f] || []).forEach(function (k, i, all) {
+        if (k) hitTick(svg, k, fx + fw - 20 - (all.length - 1 - i) * 28, top + 31, 22);
+      });
 
       var frame = sc.frames[f];
       if (!frame || !frame.marks.length) continue;
@@ -264,7 +295,8 @@
     /* In a series each game carries its own ball(s) on a line above it; a single game keeps the one at the top. */
     var LEAD = 72;
     var lead = list.map(function (g) { return series && S.ballsInGame(g).length ? LEAD : 0; });
-    var H = (series ? 290 : 430) + list.reduce(function (a, g, i) { return a + 336 + lead[i]; }, 0) + (series ? 314 : 200);
+    var anyHits = list.some(hasHits);
+    var H = (series ? 290 : 430) + list.reduce(function (a, g, i) { return a + 336 + lead[i]; }, 0) + (series ? 314 : 200) + (anyHits && series ? 64 : 0);
     var svg = Svg(W, H);
     svg.rect(0, 0, W, H, { fill: SC.bg });
 
@@ -327,6 +359,7 @@
     } else {
       y += 40;
     }
+    if (anyHits) drawHitKey(svg, W / 2, y + (series ? 30 : 40));
     svg.text(W / 2, H - 56, 'Shared from ' + (opts.brand || 'LeagueCraft'), { fontSize: 26, fill: SC.foot, textAnchor: 'middle' });
     return { svg: svg.toString(), width: W, height: H, total: total };
   }

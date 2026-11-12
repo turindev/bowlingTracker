@@ -132,6 +132,17 @@
     return out;
   }
 
+  /* How the first ball of each rack hit, frame by frame: ten lists (the tenth can have up to three
+     racks), each entry a hit key or null where it was not recorded. */
+  function frameHits(game) {
+    var out = [];
+    for (var f = 0; f < 10; f++) out.push([]);
+    walk(game).forEach(function (c) {
+      if (c.fresh && out[c.f]) out[c.f].push(c.shot.hit && HIT_LABELS[c.shot.hit] ? c.shot.hit : null);
+    });
+    return out;
+  }
+
   /* How many shots a frame takes, given the shots so far. null = unknown yet. */
   function shotsNeeded(frameIndex, shots) {
     if (!shots.length) return null;
@@ -1127,7 +1138,7 @@
   }
 
   var api = {
-    HITS: HITS, HIT_LABELS: HIT_LABELS, MISSES: MISSES, EVENTS: EVENTS,
+    HITS: HITS, HIT_LABELS: HIT_LABELS, frameHits: frameHits, MISSES: MISSES, EVENTS: EVENTS,
     ALL: ALL, DECK: DECK,
     cleanPins: cleanPins, leaveKey: leaveKey, leaveLabel: leaveLabel, leaveType: leaveType,
     isSplit: isSplit,

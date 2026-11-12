@@ -9,7 +9,7 @@
  *
  *   {
  *     "format": "leaguecraft-games", "version": 1,
- *     "sets": [{
+ *     "series": [{                         // "sets" is read too, as older files call it
  *       "key": "2026-10-12",                 // names the night, so importing twice is safe
  *       "date": "2026-10-12", "location": "Leisure Time Bowling",
  *       "pattern": "House", "event": "league", "lane": "23",   // all optional; event defaults to practice
@@ -94,7 +94,7 @@
    *   balls: [{ id, name }]            the arsenal as it is now
    *   existingKeys: [..]               importKeys already in the vault
  *   replace: true                    games already imported are replaced instead of skipped
-   *   makeId(prefix)                   makes ids for new balls, sets and games
+   *   makeId(prefix)                   makes ids for new balls, series and games
    * Returns { errors, warnings, sets, games, newBalls, duplicates }. If errors
    * is not empty nothing should be imported.
    */
@@ -109,7 +109,8 @@
     }
     if (data.format !== FORMAT) { out.errors.push('This is not a LeagueCraft games file (format should be "' + FORMAT + '").'); return out; }
     if (data.version !== 1) { out.errors.push('This file is version ' + data.version + '; this app reads version 1.'); return out; }
-    if (!Array.isArray(data.sets) || !data.sets.length) { out.errors.push('The file has no sets.'); return out; }
+    var nights = Array.isArray(data.series) ? data.series : data.sets;     /* older files say "sets" */
+    if (!Array.isArray(nights) || !nights.length) { out.errors.push('The file has no series.'); return out; }
 
     var known = {}, names = {};
     (opts.balls || []).forEach(function (b) { if (!b.deleted) { known[norm(b.name)] = b.id; names[b.id] = b.name; } });
@@ -146,8 +147,8 @@
       return id;
     }
 
-    data.sets.forEach(function (set, si) {
-      var where = 'Set ' + (si + 1) + (set.date ? ' (' + set.date + ')' : '');
+    nights.forEach(function (set, si) {
+      var where = 'Series ' + (si + 1) + (set.date ? ' (' + set.date + ')' : '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(set.date || ''))) { out.errors.push(where + ': date must look like 2026-10-12.'); return; }
       if (!Array.isArray(set.games) || !set.games.length) { out.errors.push(where + ': no games.'); return; }
       /* A night with no event is practice unless the importer was told otherwise: league and tournament should be a decision. */
@@ -180,7 +181,7 @@
         }
         seenKeys[importKey] = 'file';
         var ball = ballId(g.ball || set.ball);
-        if (!ball) { out.errors.push(label + ': which ball? Put a "ball" on the set or the game.'); return; }
+        if (!ball) { out.errors.push(label + ': which ball? Put a "ball" on the series or the game.'); return; }
         var game;
         try {
           game = buildGame({
@@ -206,7 +207,7 @@
 
         game.status = 'done';
         game.importKey = importKey;
-        /* Created in order, a minute apart, so a set lists its games in the order bowled. */
+        /* Created in order, a minute apart, so a series lists its games in the order bowled. */
         game.createdAt = set.date + 'T19:' + ('0' + Math.min(59, gi * 3)).slice(-2) + ':00.000Z';
         game.updatedAt = game.createdAt;
         entry.games.push({ gameNo: gi + 1, total: score.total, importKey: importKey, ball: g.ball || set.ball });
@@ -221,7 +222,7 @@
   /* A small file that shows the shape: a perfect game and one with a spare in every frame. */
   var EXAMPLE = JSON.stringify({
     format: FORMAT, version: 1,
-    sets: [{
+    series: [{
       key: '2026-10-13', date: '2026-10-13', location: 'Leisure Time Bowling', pattern: 'House', event: 'league', lane: '23',
       ball: 'Storm Bionic',
       games: [

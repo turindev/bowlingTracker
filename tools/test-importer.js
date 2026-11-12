@@ -107,6 +107,15 @@ check('all of it was open bowling', hist.games.every(g => g.event === 'practice'
 check('and the series are the ones printed on the screenshots', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join() === '589,599,576,660,233', hist.sets.map(x => x.games.reduce((t, g) => t + g.total, 0)).join());
 check('the sample and the history agree about the night they share, so importing both adds it once', (() => { const smp = run(sample, { balls: [] }); return smp.games.map(g => g.importKey).join() === hist.games.slice(0, 3).map(g => g.importKey).join(); })(), '');
 
+// a file may call its nights "series" (the preferred word) or "sets" (older files); both read the same
+{
+  const body = JSON.stringify({ format: 'leaguecraft-games', version: 1, series: [{ date: '2026-09-19', ball: 'Storm Bionic', games: [{ total: 300, frames: ['.', '.', '.', '.', '.', '.', '.', '.', '.', '. . .'] }] }] });
+  const r1 = run(body);
+  check('a file with "series" imports', !r1.errors.length && r1.games.length === 1, r1.errors.join());
+  check('and one with the older "sets" still does', !run(body.replace('"series"', '"sets"')).errors.length, '');
+  check('a file with neither says it has no series', /no series/.test(run('{"format":"leaguecraft-games","version":1}').errors.join()), run('{"format":"leaguecraft-games","version":1}').errors.join());
+}
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n') : '\nall importer assertions passed');
 process.exit(fails.length ? 1 : 0);

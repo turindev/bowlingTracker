@@ -24,6 +24,11 @@
   --s2: #eb6834;
   --s3: #1baf7a;
   --s4: #eda100;
+  --hit-pocket: #157f4a;
+  --hit-high: #b3560f;
+  --hit-light: #1f5fd0;
+  --hit-brooklyn: #7b3fb5;
+  --hit-other: #5d6679;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +50,11 @@
     --s2: #d95926;
     --s3: #199e70;
     --s4: #c98500;
+    --hit-pocket: #a6e22e;
+    --hit-high: #fd971f;
+    --hit-light: #66d9ef;
+    --hit-brooklyn: #ae81ff;
+    --hit-other: #a9a58f;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
   }
 }
@@ -67,6 +77,11 @@
   --s2: #d95926;
   --s3: #199e70;
   --s4: #c98500;
+  --hit-pocket: #a6e22e;
+  --hit-high: #fd971f;
+  --hit-light: #66d9ef;
+  --hit-brooklyn: #ae81ff;
+  --hit-other: #a9a58f;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .28);
 }
 
@@ -1366,6 +1381,18 @@ td.col-name .sub .team-no { margin-right: .35em; }
   border-bottom: 1px solid var(--border);
   padding: 1px 0;
 }
+/* How the first ball hit, a tick under the frame number: a dot for the pocket, a letter for the rest. */
+.sh-hitrow { display: flex; justify-content: center; align-items: center; gap: 4px; min-height: 13px; border-bottom: 1px solid var(--border); }
+.sh-hit { font-style: normal; font-size: 9.5px; font-weight: 800; line-height: 13px; letter-spacing: 0; }
+.sh-hit.is-pocket { color: var(--hit-pocket); }
+.sh-hit.is-high { color: var(--hit-high); }
+.sh-hit.is-light { color: var(--hit-light); }
+.sh-hit.is-brooklyn { color: var(--hit-brooklyn); }
+.sh-hit.is-other { color: var(--hit-other); }
+.sh-hitkey { margin: 6px 2px 0; font-size: 12px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; }
+.sh-hitkey .sh-hit { font-size: 12px; }
+.sh-hitkey-note { color: var(--text-dim); }
+@media (min-width: 640px) { .sh-hit { font-size: 11px; } }
 .sh-marks { display: flex; justify-content: flex-end; border-bottom: 1px solid var(--border); }
 .sh-mark {
   flex: 1 1 0;

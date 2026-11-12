@@ -23,6 +23,7 @@
   function pct(v) { return v == null ? '—' : Math.round(v * 100) + '%'; }
   function pct1(v) { return v == null ? '—' : (v * 100).toFixed(1) + '%'; }
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function nSeries(n) { return n + ' series'; }
   function signed(v, d) {
     if (v == null || !isFinite(v)) return '—';
     var t = Math.abs(v).toFixed(d == null ? 0 : d);
@@ -217,7 +218,7 @@
           el('div', { class: 'cal-dayhead' }, [el('h3', { text: longDay(s.date) }), meta ? el('p', { class: 'sh-note', text: meta }) : null]),
           scores,
           setIds.length ? el('div', { class: 'sh-stack' }, setIds.map(function (set) {
-            return el('div', { class: 'cal-setrow' }, [el('a', { href: '#/shots/set/' + set.id, text: set.complete ? 'Series ' + set.total : 'Set so far ' + set.total }), h.setBadgeChips(set)]);
+            return el('div', { class: 'cal-setrow' }, [el('a', { href: '#/shots/series/' + set.id, text: set.complete ? 'Series ' + set.total : 'Series so far ' + set.total }), h.setBadgeChips(set)]);
           })) : null,
           tiles,
         ]),
@@ -345,14 +346,14 @@
       if (sizes.length) {
         var sz = sizes[0].size;
         var ser = S.seriesStats(sets, { size: sz });
-        cards.push(section('Series', plural(ser.count, 'set') + ' of ' + sz + ' games',
+        cards.push(section('Series', nSeries(ser.count) + ' of ' + sz + ' games',
           el('div', { class: 'card-body' }, UI.statGrid([
             UI.stat('Average series', UI.num(ser.average)),
             UI.stat('High series', UI.num(ser.high)),
             UI.stat('Low series', UI.num(ser.low)),
-            UI.stat('600+ series', String(ser.over600), 'Sets averaging 200 or more a game.'),
-            UI.stat('Game to game', UI.avg(ser.spread, 0) + ' pins', 'How far apart your best and worst game of a set are, on average.'),
-            UI.stat('Finish vs start', (ser.fade > 0 ? '+' : '') + UI.avg(ser.fade, 0), 'Your last game of a set against your first. Positive means you finish stronger.'),
+            UI.stat('600+ series', String(ser.over600), 'Series averaging 200 or more a game.'),
+            UI.stat('Game to game', UI.avg(ser.spread, 0) + ' pins', 'How far apart your best and worst game of a series are, on average.'),
+            UI.stat('Finish vs start', (ser.fade > 0 ? '+' : '') + UI.avg(ser.fade, 0), 'Your last game of a series against your first. Positive means you finish stronger.'),
           ])),
           'Series only compare with series of the same length, so this is your usual length' + (sizes.length > 1 ? '. The Stats page has the others.' : '.')));
       }
@@ -388,7 +389,7 @@
       var honors = everything.filter(function (g) { return S.score(g).total >= ctx.honor.game; }).length;
       var chips = [];
       if (record) chips.push(['PR game', String(record.total), UI.shortDate(record.game.date), '#/shots/game/' + record.game.id]);
-      if (seriesBest) chips.push(['PR series', String(seriesBest.total), UI.shortDate(seriesBest.date), '#/shots/set/' + seriesBest.id]);
+      if (seriesBest) chips.push(['PR series', String(seriesBest.total), UI.shortDate(seriesBest.date), '#/shots/series/' + seriesBest.id]);
       chips.push(['Honor games', String(honors), ctx.honor.game + '+ games', null]);
       chips.push(['Best strike run', String(a.bestStreak), a.bestStreak ? S.runName(a.bestStreak) : 'no streak yet', null]);
       chips.push(['Turkeys or better', String(a.streaks3), 'runs of 3+ strikes', null]);
