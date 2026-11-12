@@ -411,6 +411,26 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   check('the 600+/700+ lines hold for either length: a 4-game 800 is a 700+', (() => { const e = S.seriesStats(S.setsOf(four('d', ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX'], '2026-10-22')), { size: 4 }); return e.high === 1200 && e.over700 === 1; })(), '');
 })();
 
+// --- how each first ball hit, frame by frame, for the scorecard's ticks -------------------
+{
+  let g = S.newGame({ ball: 'A' });
+  g = S.addShot(g, { standing: [], hit: 'pocket', ball: 'A' });                    // frame 1: strike in the pocket
+  g = S.addShot(g, { standing: [10], hit: 'high', ball: 'A' });                    // frame 2: high, then
+  g = S.addShot(g, { standing: [], ball: 'A' });                                   //   the spare
+  g = S.addShot(g, { standing: [7], ball: 'A' });                                  // frame 3: no hit recorded
+  g = S.addShot(g, { standing: [], ball: 'A' });
+  g = S.addShot(g, { standing: [4, 6], hit: 'brooklyn', ball: 'A' });              // frame 4: Brooklyn
+  const h = S.frameHits(g);
+  check('frameHits gives ten frames', h.length === 10, h.length);
+  check('a strike in the pocket is a pocket hit', h[0].length === 1 && h[0][0] === 'pocket', JSON.stringify(h[0]));
+  check('only the first ball of a rack counts, not the spare try', h[1].length === 1 && h[1][0] === 'high', JSON.stringify(h[1]));
+  check('a first ball with no hit recorded is null, keeping its place', h[2].length === 1 && h[2][0] === null, JSON.stringify(h[2]));
+  check('Brooklyn is kept as it was recorded', h[3][0] === 'brooklyn', JSON.stringify(h[3]));
+  check('frames not bowled are empty', h[9].length === 0 && h[5].length === 0, JSON.stringify([h[5], h[9]]));
+  const tenth = fromCard(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'XXX']);
+  check('the tenth frame can carry three racks', S.frameHits(tenth)[9].length === 3 && S.frameHits(tenth)[9].every(k => k === 'pocket'), JSON.stringify(S.frameHits(tenth)[9]));
+}
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall shot-tracker assertions passed');

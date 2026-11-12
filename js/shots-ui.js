@@ -43,6 +43,7 @@
   function pct(v) { return v == null ? '—' : Math.round(v * 100) + '%'; }
   function pct1(v) { return v == null ? '—' : (v * 100).toFixed(1) + '%'; }
   function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function nSeries(n) { return n + ' series'; }
 
   function library() { return getVault().library() || { balls: [], games: [] }; }
   /* The name printed on shared pictures. */
@@ -352,7 +353,7 @@
     if (page === 'glance') return getGlance().glance();
     if (page === 'games') return gamesPage();
     if (page === 'new') return newGamePage(p[1]);
-    if (page === 'set') return setPage(p[1]);
+    if (page === 'series' || page === 'set') return setPage(p[1]);          /* 'set' keeps old links working */
     if (page === 'game') return gamePage(p[1], p.slice(2));
     if (page === 'stats') return statsPage();
     if (page === 'arsenal' || page === 'balls') return arsenalPage();
@@ -536,7 +537,7 @@
     } else if (pending) {
       top.push(el('div', { class: 'sh-resume' }, [
         el('div', null, [
-          el('strong', { text: 'Set in progress' }),
+          el('strong', { text: 'Series in progress' }),
           el('span', { text: ' · ' + pending.games.length + ' of ' + pending.size + ' games · ' + pending.total + ' so far' }),
         ]),
         el('a', { class: 'sh-btn is-primary', href: '#/shots/new/' + pending.id, text: 'Bowl game ' + (pending.games.length + 1) }),
@@ -555,7 +556,7 @@
     var offDates = S.dateMismatches(library().games);
     if (offDates.length) {
       top.push(el('div', { class: 'sh-resume' }, [
-        el('span', { text: plural(offDates.length, 'game') + ' dated differently from the first game of their set.' }),
+        el('span', { text: plural(offDates.length, 'game') + ' dated differently from the first game of their series.' }),
         el('a', { class: 'sh-btn', href: '#/shots/tidy', text: 'Review' }),
       ]));
     }
@@ -569,7 +570,7 @@
             ? el('span', { class: 'sh-tag is-' + set.event, text: set.event === 'league' ? 'L' : 'T',
               title: set.event === 'league' ? 'League' : 'Tournament', role: 'img', 'aria-label': set.event === 'league' ? 'League' : 'Tournament' }) : null;
           return el('span', { class: 'sh-datecell' }, [
-            el('a', { href: set.standalone ? '#/shots/game/' + set.games[0].id : '#/shots/set/' + set.id, text: UI.shortDate(set.date) }),
+            el('a', { href: set.standalone ? '#/shots/game/' + set.games[0].id : '#/shots/series/' + set.id, text: UI.shortDate(set.date) }),
             tag,
           ]);
         } },
@@ -603,7 +604,7 @@
       head('Shot tracker', plural(doneCount, 'game') + ' recorded'),
       subnav('games'),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, top)),
-      UI.card('Sets and games', shown.length ? 'Newest first. Tap a date for the set.' : null, shown.length
+      UI.card('Series and games', shown.length ? 'Newest first. Tap a date for the series.' : null, shown.length
         ? UI.table({ columns: columns, rows: rows, state: ui.gamesState, onSort: rerender })
         : UI.empty('Start a game and finish it to see it here.')),
     ]);
@@ -613,14 +614,14 @@
   function setPage(id) {
     var set = S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === id; })[0];
     if (!set || set.standalone) {
-      draw([head('Set not found'), subnav('games'), UI.card(null, null, el('p', { class: 'sh-note' }, [
-        'That set is not in your vault. ', el('a', { href: '#/shots/games', text: 'Back to games' }), '.',
+      draw([head('Series not found'), subnav('games'), UI.card(null, null, el('p', { class: 'sh-note' }, [
+        'That series is not in your vault. ', el('a', { href: '#/shots/games', text: 'Back to games' }), '.',
       ]))]);
       return;
     }
     var done = set.games.filter(function (g) { return g.status === 'done'; });
     var a = S.analyze(done);
-    var heading = set.complete ? 'Series: ' + set.total : 'Set in progress: ' + set.total + ' so far';
+    var heading = set.complete ? 'Series: ' + set.total : 'Series in progress: ' + set.total + ' so far';
     var tiles = UI.statGrid([
       UI.stat(set.complete ? 'Series' : 'So far', String(set.total)),
       UI.stat('Average', UI.avg(set.average)),
@@ -632,6 +633,16 @@
       UI.stat('Open frames', String(a.opens)),
       UI.stat('First-ball avg', UI.avg(a.firstBallAvg)),
     ]);
+    /* Where the first balls went, of those where the hit was recorded. */
+    var hitTiles = a.hitsRecorded
+      ? el('div', { class: 'sh-stack' }, [
+        el('h3', { class: 'sh-subhead', text: 'How the first ball hit' }),
+        UI.statGrid(S.HITS.map(function (k) {
+          return UI.stat(S.HIT_LABELS[k] + ' %', pct1(a.hits[k].pct),
+            a.hits[k].n + ' of ' + plural(a.hitsRecorded, 'first ball') + ' where you recorded how it hit.');
+        })),
+      ])
+      : el('p', { class: 'sh-note', text: 'Record how each first ball hit (pocket, high, light, Brooklyn) and its shares appear here.' });
     var next = set.games.length < set.size;
     var blocks = set.games.map(function (g, i) {
       var sc = S.score(g);
@@ -642,6 +653,7 @@
           badgeChips(g),
           pinStrip(g),
           scorecard(g, null, { editable: true }),
+          hitKey(g),
           el('p', { class: 'sh-hint sh-tapnote' }, el('a', { href: '#/shots/game/' + g.id, text: g.status === 'done' ? 'Open this game' : 'Resume this game' })),
           el('div', { class: 'sh-actions sh-center' }, [
             set.games.length > 1 ? button('Remove from series', once(function () {
@@ -650,7 +662,7 @@
             })) : null,
             button('Delete', once(function () {
               if (!window.confirm('Delete game ' + (g.gameNo || i + 1) + '? This cannot be undone.')) return;
-              return deleteGame(g).then(function () { location.hash = set.games.length > 1 ? '#/shots/set/' + set.id : '#/shots/games'; rerender(); });
+              return deleteGame(g).then(function () { location.hash = set.games.length > 1 ? '#/shots/series/' + set.id : '#/shots/games'; rerender(); });
             }), 'danger'),
           ]),
         ]));
@@ -668,7 +680,7 @@
     var manage = UI.card('Manage this series', 'Games in it, and which games belong', el('div', { class: 'card-body sh-stack' }, [
       el('div', { class: 'sh-actions' }, [
         field('Games in the series', sizeSelect),
-        button('Set length', once(function () {
+        button('Change length', once(function () {
           var size = Number(sizeSelect.value);
           if (size === set.size) return;
           return saveGames(S.resizeSet(set.games, size)).then(function () { backgroundSync(); rerender(); });
@@ -695,6 +707,7 @@
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
         setBadgeChips(set),
         tiles,
+        hitTiles,
         next ? el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots/new/' + set.id, text: 'Bowl game ' + (set.games.length + 1) + ' of ' + set.size })) : null,
         done.length ? sharePanel(set.complete ? 'Share series scorecard' : 'Share scorecard so far', done, 'series-' + (set.date || today())) : null,
         set.games.length > 1 ? el('p', { class: 'sh-note', text: 'Games: ' + set.games.map(function (g) {
@@ -773,16 +786,16 @@
 
     /* Which set this game belongs to. */
     var setSelect = el('select', null, [
-      el('option', { value: 'new' }, 'A new set'),
-      el('option', { value: 'single' }, 'A single game, not in a set'),
+      el('option', { value: 'new' }, 'A new series'),
+      el('option', { value: 'single' }, 'A single game, not in a series'),
     ].concat(openSets.map(function (x) {
-      return el('option', { value: x.id }, (x.games.length < x.size ? 'Game ' + (x.games.length + 1) + ' of ' + x.size + ' in' : 'Add game ' + (x.games.length + 1) + ' to') + ' the set from ' + UI.shortDate(x.date) +
+      return el('option', { value: x.id }, (x.games.length < x.size ? 'Game ' + (x.games.length + 1) + ' of ' + x.size + ' in' : 'Add game ' + (x.games.length + 1) + ' to') + ' the series from ' + UI.shortDate(x.date) +
         ' (' + x.games.map(function (g) { return g.status === 'done' ? S.score(g).total : 'open'; }).join(', ') + ')');
     })));
     var sizeSelect = el('select', null, [2, 3, 4, 5, 6].map(function (n) {
       return el('option', { value: String(n), selected: n === 3 }, n + ' games');
     }));
-    var sizeField = field('Games in the set', sizeSelect, 'Three is the usual night.');
+    var sizeField = field('Games in the series', sizeSelect, 'Three is the usual night.');
     setSelect.value = chosen ? chosen.id : 'new';
     function syncSet() { sizeField.hidden = setSelect.value !== 'new'; }
     setSelect.addEventListener('change', function () {
@@ -873,7 +886,7 @@
     ]);
 
     draw([
-      head('New game', chosen ? 'Carrying on the set. Conditions and ball are as you left them.' : 'Set the conditions once; every shot is tagged with them.'),
+      head('New game', chosen ? 'Carrying on the series. Conditions and ball are as you left them.' : 'Set the conditions once; every shot is tagged with them.'),
       subnav('games'),
       UI.card(null, null, el('div', { class: 'card-body' }, [
         datalist('sh-locations', S.distinct(allGames(), 'location')),
@@ -960,10 +973,25 @@
   function badgeIcons(game) { return iconsFor(S.badges(game, badgeCtx())); }
   function setBadgeIcons(set) { return iconsFor(S.setBadges(set, badgeCtx())); }
 
+  /* A tick for how a first ball hit: a dot for the pocket, a letter for the rest. */
+  var HIT_GLYPH = { pocket: '\u2022', high: 'H', light: 'L', brooklyn: 'B', other: 'O' };
+  function hasHits(hits) { return hits.some(function (row) { return row.some(Boolean); }); }
+
+  /* The key to those ticks, for under a scorecard; nothing when no hit was recorded. */
+  function hitKey(game) {
+    if (!hasHits(S.frameHits(game))) return null;
+    return el('p', { class: 'sh-hitkey', 'aria-label': 'Key to the marks under the frame numbers' },
+      [el('span', { class: 'sh-hitkey-note', text: 'First ball:' })].concat(S.HITS.map(function (k) {
+        return el('span', { class: 'sh-hitkey-item' }, [el('i', { class: 'sh-hit is-' + k, text: HIT_GLYPH[k], 'aria-hidden': 'true' }), ' ' + S.HIT_LABELS[k]]);
+      })));
+  }
+
   function scorecard(game, pos, opts) {
     opts = opts || {};
     var sc = S.score(game);
     var hot = S.heatFrames(game);
+    var hits = S.frameHits(game);
+    var showHits = hasHits(hits);
     var changed = {};
     S.switches(game).forEach(function (x) { changed[x.frame - 1] = true; });
     var cells = [];
@@ -993,6 +1021,9 @@
         title: link ? 'Tap to correct frame ' + (f + 1) : (changed[f] ? 'Ball changed in this frame' : null),
       }, [
         el('span', { class: 'sh-fno' }, hot[f] && hot[f].first ? [String(f + 1), el('span', { class: 'sh-hotmark', 'aria-hidden': 'true' }, artSvg('flame', 1, 11))] : String(f + 1)),
+        showHits ? el('span', { class: 'sh-hitrow' }, (hits[f] || []).map(function (k) {
+          return k ? el('i', { class: 'sh-hit is-' + k, text: HIT_GLYPH[k], title: S.HIT_LABELS[k] + ' hit' }) : el('i', { class: 'sh-hit is-none', text: '\u00a0' });
+        })) : null,
         el('div', { class: 'sh-marks' }, marks),
         el('span', { class: 'sh-total', text: frame.total == null ? '' : String(frame.total) }),
       ]));
@@ -1245,7 +1276,7 @@
         var series = game.setId ? seriesOf(game) : [];
         return deleteGame(game).then(function () {
           ui.draft = null;
-          location.hash = series.filter(function (g) { return g.id !== game.id; }).length ? '#/shots/set/' + game.setId : '#/shots/games';
+          location.hash = series.filter(function (g) { return g.id !== game.id; }).length ? '#/shots/series/' + game.setId : '#/shots/games';
         });
       }), 'danger'),
     ]));
@@ -1575,7 +1606,7 @@
         el('div', { class: 'sh-grid' }, [field('Date', date), field('Event', event), field('Location', where), field('Lane', lane)]),
         field('Oil pattern', pattern),
         field('Notes', notes),
-        shared.length ? el('label', { class: 'sh-check' }, [whole, el('span', { text: 'Use the date, event, location, pattern and lane for all ' + (shared.length + 1) + ' games in this set (notes stay with this game)' })]) : null,
+        shared.length ? el('label', { class: 'sh-check' }, [whole, el('span', { text: 'Use the date, event, location, pattern and lane for all ' + (shared.length + 1) + ' games in this series (notes stay with this game)' })]) : null,
         err,
         el('div', { class: 'sh-actions' }, [
           el('button', { type: 'submit', class: 'sh-btn is-primary', text: 'Save details' }),
@@ -1629,7 +1660,7 @@
 
     return UI.card('Wrong ball?', 'Fix which ball was used. Your stats by ball follow the change', el('div', { class: 'card-body sh-stack' }, [
       el('div', { class: 'sh-stack' }, picks.map(function (p) { return p.picker.node; })),
-      others.length ? el('label', { class: 'sh-check' }, [wholeSet, el('span', { text: 'Also fix the other ' + plural(others.length, 'game') + ' in this set that used it' })]) : null,
+      others.length ? el('label', { class: 'sh-check' }, [wholeSet, el('span', { text: 'Also fix the other ' + plural(others.length, 'game') + ' in this series that used it' })]) : null,
       el('p', { class: 'sh-note', text: 'This changes the ball on every shot it threw. To change the ball for just one frame, tap that frame on the card.' }),
       err,
       el('div', { class: 'sh-actions' }, button('Change ball', apply, 'primary')),
@@ -1710,6 +1741,7 @@
         ballPics(game),
         badgeChips(game),
         scorecard(game, null, { editable: true }),
+        hitKey(game),
         el('p', { class: 'sh-hint sh-tapnote', text: 'Tap a frame on the card to correct just that frame.' }),
       ]),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
@@ -1720,8 +1752,8 @@
           : setLabel(game) + ' bowled. Series so far: ' + mySet.total + '.' }) : null,
         el('div', { class: 'sh-actions' }, [
           el('a', { class: 'sh-btn is-primary', href: mySet && mySet.games.length < mySet.size ? '#/shots/new/' + mySet.id : '#/shots/new',
-            text: mySet && mySet.games.length < mySet.size ? 'Bowl game ' + (mySet.games.length + 1) + ' of ' + mySet.size : 'Start a new set' }),
-          mySet ? el('a', { class: 'sh-btn', href: '#/shots/set/' + mySet.id, text: 'See the set' }) : null,
+            text: mySet && mySet.games.length < mySet.size ? 'Bowl game ' + (mySet.games.length + 1) + ' of ' + mySet.size : 'Start a new series' }),
+          mySet ? el('a', { class: 'sh-btn', href: '#/shots/series/' + mySet.id, text: 'See the series' }) : null,
         ]),
         S.switches(game).length ? el('p', { class: 'sh-note', text: 'A dot over a frame number on the card marks where the ball changed.' }) : null,
       ])),
@@ -1744,7 +1776,7 @@
           })) : null,
           button('Delete game', once(function () {
             if (!window.confirm('Delete this game? This cannot be undone.')) return;
-            return deleteGame(game).then(function () { location.hash = mySet && mySet.games.length > 1 ? '#/shots/set/' + mySet.id : '#/shots/games'; });
+            return deleteGame(game).then(function () { location.hash = mySet && mySet.games.length > 1 ? '#/shots/series/' + mySet.id : '#/shots/games'; });
           }), 'danger'),
         ]),
       ])),
@@ -2015,13 +2047,13 @@
           caption: [pos && !pos.solo ? 'game ' + pos.n + ' of ' + pos.of : null, ballNames(g)].filter(Boolean).join(' · ') };
       }),
       reference: stats.average == null ? null : { value: stats.average, label: 'avg ' + UI.avg(stats.average) },
-      label: 'Game scores over time, each set of games in its own colour',
+      label: 'Game scores over time, each series of games in its own colour',
     });
     var scoreChips = ordered.length > 30 ? el('div', { class: 'sh-chips is-inline', role: 'group', 'aria-label': 'How many games to show' }, [30, 60, 90].map(function (n) {
       return el('button', { type: 'button', class: 'sh-chip' + (limit === n ? ' is-on' : ''), 'aria-pressed': limit === n ? 'true' : 'false',
         onclick: function () { ui.scoreLimit = n; rerender(); } }, 'Last ' + n);
     })) : null;
-    var scoreHint = (ordered.length > shown.length ? 'Last ' + shown.length + ' of ' + ordered.length + ' games' : 'Every game, in order') + ' \u00b7 games of a set share a colour';
+    var scoreHint = (ordered.length > shown.length ? 'Last ' + shown.length + ' of ' + ordered.length + ' games' : 'Every game, in order') + ' \u00b7 games of a series share a colour';
 
     draw([
       head('Stats', plural(stats.games, 'game') + (f.ball ? ' with ' + ballName(f.ball) : '')),
@@ -2158,15 +2190,15 @@
   function tidyPage() {
     var found = S.dateMismatches(library().games);
     var off = ui.tidyOff || (ui.tidyOff = {});
-    var nodes = [head('Tidy up dates', 'Games that disagree with their set'), subnav('games')];
+    var nodes = [head('Tidy up dates', 'Games that disagree with their series'), subnav('games')];
     if (ui.tidyDone != null) {
       nodes.push(UI.card('Fixed', null, el('div', { class: 'card-body sh-stack' }, [
-        el('p', { class: 'sh-verdict', text: plural(ui.tidyDone, 'game') + ' moved to the date of their set.' }),
+        el('p', { class: 'sh-verdict', text: plural(ui.tidyDone, 'game') + ' moved to the date of their series.' }),
         el('div', { class: 'sh-actions' }, el('a', { class: 'sh-btn is-primary', href: '#/shots/games', text: 'Back to games' })),
       ])));
     }
     if (!found.length) {
-      if (ui.tidyDone == null) nodes.push(UI.card('Nothing to fix', null, el('p', { class: 'sh-note sh-pad', text: 'Every game in a set has the same date as the first game of that set.' })));
+      if (ui.tidyDone == null) nodes.push(UI.card('Nothing to fix', null, el('p', { class: 'sh-note sh-pad', text: 'Every game in a series has the same date as the first game of that series.' })));
       return draw(nodes);
     }
     var rows = found.map(function (m) {
@@ -2174,7 +2206,7 @@
       box.checked = !off[m.game.id];
       box.addEventListener('change', function () { off[m.game.id] = !box.checked; countLabel(); });
       return el('label', { class: 'sh-check sh-tidyrow' }, [box, el('span', null, [
-        el('strong', { text: UI.shortDate(m.to) + ' set, game ' + m.gameNo }),
+        el('strong', { text: UI.shortDate(m.to) + ' series, game ' + m.gameNo }),
         el('span', { class: 'sh-hint', text: ' is dated ' + UI.shortDate(m.from) + '. Move it to ' + UI.shortDate(m.to) + (m.game.status === 'done' ? ' (scored ' + S.score(m.game).total + ')' : ' (still open)') + '.' }),
       ])]);
     });
@@ -2191,7 +2223,7 @@
     }
     countLabel();
     nodes.push(UI.card('Dates to fix', plural(found.length, 'game'), el('div', { class: 'card-body sh-stack' }, [
-      el('p', { class: 'sh-note', text: 'A set is one night, so its games should share the first game\u2019s date. An old bug gave later games the day they were entered. Untick any that really were bowled on another day.' }),
+      el('p', { class: 'sh-note', text: 'A series is one night, so its games should share the first game\u2019s date. An old bug gave later games the day they were entered. Untick any that really were bowled on another day.' }),
       el('div', { class: 'sh-stack' }, rows),
       el('div', { class: 'sh-actions' }, [go]),
     ])));
@@ -2208,7 +2240,7 @@
     var scaled = view === 'all' && sizes.length > 1;
     var size = sizes.length ? (sizes.filter(function (x) { return x.size === view; })[0] || sizes[0]).size : 3;
     var ser = S.seriesStats(sets, scaled ? { perGames: 3 } : { size: size });
-    var lengthChips = sizes.length > 1 ? el('div', { class: 'sh-chips is-inline sh-pad', role: 'group', 'aria-label': 'Length of the sets' },
+    var lengthChips = sizes.length > 1 ? el('div', { class: 'sh-chips is-inline sh-pad', role: 'group', 'aria-label': 'Length of the series' },
       sizes.slice().sort(function (a, b) { return a.size - b.size; }).map(function (x) {
         var on = !scaled && x.size === size;
         return el('button', { type: 'button', class: 'sh-chip' + (on ? ' is-on' : ''), 'aria-pressed': on ? 'true' : 'false',
@@ -2217,22 +2249,22 @@
         onclick: function () { ui.seriesView = 'all'; rerender(); } }, 'All, per 3 games')])) : null;
     if (!ser.count) {
       return UI.card('Series', 'Games bowled together', UI.empty(
-        ser.slots.length ? 'Finish every game of a set and its series figures appear here.' : 'Start a game as part of a set to see series figures.'));
+        ser.slots.length ? 'Finish every game of a series and its figures appear here.' : 'Start a game as part of a series to see its figures.'));
     }
     var tiles = UI.statGrid([
       UI.stat('Series bowled', String(ser.count)),
-      UI.stat('Average series', UI.num(ser.average), 'The total of a set, averaged over every complete set shown' + (scaled ? ', each scaled to three games (a 4-game set is its total times 3/4)' : (sizes.length > 1 ? ', of ' + size + ' games' : '')) + '. Only sets with every game bowled count.'),
+      UI.stat('Average series', UI.num(ser.average), 'The total of a series, averaged over every complete series shown' + (scaled ? ', each scaled to three games (a 4-game series is its total times 3/4)' : (sizes.length > 1 ? ', of ' + size + ' games' : '')) + '. Only series with every game bowled count.'),
       UI.stat('High series', UI.num(ser.high)),
       UI.stat('Low series', UI.num(ser.low)),
-      UI.stat('600+ series', String(ser.over600), 'Sets averaging 200 or more a game, which is 600 over three.'),
-      UI.stat('700+ series', String(ser.over700), 'Sets averaging 233 or more a game, which is 700 over three.'),
-      UI.stat('Game to game', UI.avg(ser.spread, 0) + ' pins', 'How far apart your best and worst game of a set are, on average. Smaller is steadier.'),
-      UI.stat('Finish vs start', (ser.fade > 0 ? '+' : '') + UI.avg(ser.fade, 0), 'Your last game of a set against your first, on average. Positive means you finish stronger.'),
+      UI.stat('600+ series', String(ser.over600), 'Series averaging 200 or more a game, which is 600 over three.'),
+      UI.stat('700+ series', String(ser.over700), 'Series averaging 233 or more a game, which is 700 over three.'),
+      UI.stat('Game to game', UI.avg(ser.spread, 0) + ' pins', 'How far apart your best and worst game of a series are, on average. Smaller is steadier.'),
+      UI.stat('Finish vs start', (ser.fade > 0 ? '+' : '') + UI.avg(ser.fade, 0), 'Your last game of a series against your first, on average. Positive means you finish stronger.'),
     ]);
     var slotRows = ser.slots.map(function (x) { return { name: 'Game ' + x.slot, x: x }; });
     var slotTable = UI.table({
       columns: [
-        { key: 'n', label: 'Place in set', sortable: false, className: 'col-name', render: function (r) { return r.name; } },
+        { key: 'n', label: 'Place in series', sortable: false, className: 'col-name', render: function (r) { return r.name; } },
         { key: 'g', label: 'Games', sortable: false, render: function (r) { return String(r.x.games); } },
         { key: 'a', label: 'Avg', sortable: false, className: 'num-strong', render: function (r) { return UI.avg(r.x.average); } },
         { key: 'h', label: 'High', sortable: false, render: function (r) { return UI.num(r.x.high); } },
@@ -2248,14 +2280,14 @@
       reference: { value: ser.average, label: 'avg ' + UI.num(ser.average) },
       label: 'Series over time',
     });
-    return UI.card('Series', scaled ? plural(ser.count, 'set') + ', each scaled to 3 games' : plural(ser.count, 'set') + ' of ' + size + ' games bowled together',
+    return UI.card('Series', scaled ? nSeries(ser.count) + ', each scaled to 3 games' : nSeries(ser.count) + ' of ' + size + ' games bowled together',
       el('div', null, [
         lengthChips,
         el('div', { class: 'card-body' }, tiles),
         slotTable,
         ser.sets.length > 1 ? el('div', { class: 'card-body' }, trend) : null,
       ]),
-      'Games bowled in one sitting, added up. A set only counts once every game in it is bowled, so a half-finished night never pulls the average down. Sets of different lengths are never mixed: pick a length, or put them all on a per-3-games scale. The table shows whether you start strong or tire as the night goes on.');
+      'Games bowled in one sitting, added up. A series only counts once every game in it is bowled, so a half-finished night never pulls the average down. Series of different lengths are never mixed: pick a length, or put them all on a per-3-games scale. The table shows whether you start strong or tire as the night goes on.');
   }
 
   function compareCard(games) {
