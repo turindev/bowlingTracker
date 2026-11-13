@@ -42,7 +42,7 @@
 
   function pct(v) { return v == null ? '—' : Math.round(v * 100) + '%'; }
   function pct1(v) { return v == null ? '—' : (v * 100).toFixed(1) + '%'; }
-  function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function plural(n, w, many) { return n + ' ' + (n === 1 ? w : many || w + 's'); }
   function nSeries(n) { return n + ' series'; }
 
   function library() { return getVault().library() || { balls: [], games: [] }; }
@@ -610,6 +610,28 @@
     ]);
   }
 
+  /* The summary under a series or a single game: whatever leads (the total, the average...) and then
+     the same shot figures, then how the first ball hit. `a` is S.analyze over the games shown. */
+  function shotSummary(a, lead) {
+    var tiles = UI.statGrid(lead.concat([
+      UI.stat('Strike %', pct1(a.strikePct), a.strikes + ' strikes in ' + plural(a.racks, 'first ball') + ', fill balls included.'),
+      UI.stat('Spare %', pct1(a.sparePct), a.spares + ' of ' + plural(a.attempts, 'spare try', 'spare tries') + '.'),
+      UI.stat('Makeable spare %', pct1(a.makeablePct), a.makeable.made + ' of ' + a.makeable.attempts + ' tries that were not splits.'),
+      UI.stat('Open frames', String(a.opens)),
+      UI.stat('First-ball avg', UI.avg(a.firstBallAvg), 'Pins knocked down by the first ball, on average.'),
+    ]));
+    var hitTiles = a.hitsRecorded
+      ? el('div', { class: 'sh-stack' }, [
+        el('h3', { class: 'sh-subhead', text: 'How the first ball hit' }),
+        UI.statGrid(S.HITS.map(function (k) {
+          return UI.stat(S.HIT_LABELS[k] + ' %', pct1(a.hits[k].pct),
+            a.hits[k].n + ' of ' + plural(a.hitsRecorded, 'first ball') + ' where you recorded how it hit.');
+        })),
+      ])
+      : el('p', { class: 'sh-note', text: 'Record how each first ball hit (pocket, high, light, Brooklyn) and its shares appear here.' });
+    return { tiles: tiles, hitTiles: hitTiles };
+  }
+
   /* One set: its games together, with the series figures. */
   function setPage(id) {
     var set = S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === id; })[0];
@@ -622,27 +644,13 @@
     var done = set.games.filter(function (g) { return g.status === 'done'; });
     var a = S.analyze(done);
     var heading = set.complete ? 'Series: ' + set.total : 'Series in progress: ' + set.total + ' so far';
-    var tiles = UI.statGrid([
+    var summary = shotSummary(a, [
       UI.stat(set.complete ? 'Series' : 'So far', String(set.total)),
       UI.stat('Average', UI.avg(set.average)),
       UI.stat('High game', UI.num(a.high)),
       UI.stat('Low game', UI.num(a.low)),
-      UI.stat('Strike %', pct1(a.strikePct), a.strikes + ' strikes in ' + a.racks + ' first balls.'),
-      UI.stat('Spare %', pct1(a.sparePct), a.spares + ' of ' + a.attempts + ' spare tries.'),
-      UI.stat('Makeable spare %', pct1(a.makeablePct), a.makeable.made + ' of ' + a.makeable.attempts + ' tries that were not splits.'),
-      UI.stat('Open frames', String(a.opens)),
-      UI.stat('First-ball avg', UI.avg(a.firstBallAvg)),
     ]);
-    /* Where the first balls went, of those where the hit was recorded. */
-    var hitTiles = a.hitsRecorded
-      ? el('div', { class: 'sh-stack' }, [
-        el('h3', { class: 'sh-subhead', text: 'How the first ball hit' }),
-        UI.statGrid(S.HITS.map(function (k) {
-          return UI.stat(S.HIT_LABELS[k] + ' %', pct1(a.hits[k].pct),
-            a.hits[k].n + ' of ' + plural(a.hitsRecorded, 'first ball') + ' where you recorded how it hit.');
-        })),
-      ])
-      : el('p', { class: 'sh-note', text: 'Record how each first ball hit (pocket, high, light, Brooklyn) and its shares appear here.' });
+    var tiles = summary.tiles, hitTiles = summary.hitTiles;
     var next = set.games.length < set.size;
     var blocks = set.games.map(function (g, i) {
       var sc = S.score(g);
@@ -1671,15 +1679,8 @@
     var mySet = game.setId ? S.setsOf(allGames(), { all: true }).filter(function (x) { return x.id === game.setId; })[0] : null;
     var sc = S.score(game);
     var s = S.analyze([game]);
-    var tiles = UI.statGrid([
-      UI.stat('Score', String(sc.total)),
-      UI.stat('Strikes', String(s.strikes), 'Strikes out of ' + s.racks + ' first balls, fill balls included.'),
-      UI.stat('Spares', s.attempts ? s.spares + ' of ' + s.attempts : '—', 'Spares made out of the spare tries.'),
-      UI.stat('Makeable spares', s.makeable.attempts ? s.makeable.made + ' of ' + s.makeable.attempts : '—', 'Spares made out of the tries that were not splits.'),
-      UI.stat('Open frames', String(s.opens)),
-      UI.stat('First-ball avg', UI.avg(s.firstBallAvg), 'Pins knocked down by the first ball, on average.'),
-      UI.stat('Pocket', pct(s.hits.pocket.pct), 'Share of first balls that hit the pocket.'),
-    ]);
+    var summary = shotSummary(s, [UI.stat('Score', String(sc.total))]);
+    var tiles = summary.tiles, hitTiles = summary.hitTiles;
 
     var rows = [];
     S.walk(game).forEach(function (c) {
@@ -1746,6 +1747,7 @@
       ]),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, [
         tiles,
+        hitTiles,
         sharePanel('Share game scorecard', [game], 'game-' + (game.date || today())),
         mySet ? el('p', { class: 'sh-note sh-switch', text: mySet.complete
           ? 'Series complete: ' + mySet.total + ' (' + mySet.totals.join(' \u00b7 ') + ')'
