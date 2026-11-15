@@ -250,6 +250,16 @@
       }));
     }
 
+    /* "All patterns" and one chip per oil pattern, with how many games each has in the period. */
+    function patternChips(patterns, counts, cur) {
+      var all = Object.keys(counts).reduce(function (t, k) { return t + counts[k]; }, 0);
+      var items = [['', 'All patterns', all]].concat(patterns.map(function (p) { return [p, p, counts[p] || 0]; }));
+      return el('div', { class: 'sh-chips is-inline', role: 'group', 'aria-label': 'Oil pattern' }, items.map(function (it) {
+        return el('button', { type: 'button', class: 'sh-chip' + (cur === it[0] ? ' is-on' : ''), 'aria-pressed': cur === it[0] ? 'true' : 'false',
+          onclick: function () { ui.glancePattern = it[0]; h.rerender(); } }, it[1] + ' \u00b7 ' + it[2]);
+      }));
+    }
+
     function section(title, hint, body, explain) {
       return UI.card(title, hint, body, explain);
     }
@@ -257,8 +267,22 @@
     function glancePage() {
       var everything = S.finished(h.allGames());
       var period = ui.glancePeriod || 'all';
-      var pool = period === 'all' ? everything : S.filter(everything, h.periodRange(period));
+      var periodPool = period === 'all' ? everything : S.filter(everything, h.periodRange(period));
       var name = h.shareName();
+
+      /* The oil pattern narrows everything on the page; the period narrows all but the records. */
+      var patterns = [], patternCounts = {};
+      everything.forEach(function (g) { if (g.pattern && patterns.indexOf(g.pattern) === -1) patterns.push(g.pattern); });
+      periodPool.forEach(function (g) { if (g.pattern) patternCounts[g.pattern] = (patternCounts[g.pattern] || 0) + 1; });
+      patterns.sort(function (x, y) { return (patternCounts[y] || 0) - (patternCounts[x] || 0) || x.localeCompare(y); });
+      var pattern = ui.glancePattern && patterns.indexOf(ui.glancePattern) !== -1 ? ui.glancePattern : '';
+      var ofPattern = function (gs) { return pattern ? gs.filter(function (g) { return g.pattern === pattern; }) : gs; };
+      var pool = ofPattern(periodPool);
+      var recordPool = ofPattern(everything);
+      var filters = [
+        el('div', { class: 'gl-period' }, periodChips()),
+        patterns.length > 1 ? el('div', { class: 'gl-period' }, patternChips(patterns, patternCounts, pattern)) : null,
+      ];
 
       if (!everything.length) {
         h.draw([
@@ -271,6 +295,17 @@
               el('a', { class: 'sh-btn', href: '#/shots/import', text: 'Import games' }),
             ]),
           ])),
+        ]);
+        return;
+      }
+
+      if (!pool.length) {
+        h.draw([
+          h.head(name || 'Bowler at a glance', 'Everything about your game in one place'),
+          h.subnav('glance'),
+          UI.card(null, null, el('div', { class: 'card-body sh-stack' }, filters.concat([
+            UI.empty('No finished games' + (pattern ? ' on ' + pattern : '') + ' in this period. Pick another period or pattern above.'),
+          ]))),
         ]);
         return;
       }
@@ -293,9 +328,9 @@
         : 'Steady: the last ' + recent.length + ' games are right around your average (' + signed(formDelta, 1) + ')';
       cards.push(el('section', { class: 'card gl-hero' }, [
         el('div', { class: 'gl-hero-main' }, [
-          el('p', { class: 'gl-kicker', text: name ? name : 'Bowler at a glance' }),
+          el('p', { class: 'gl-kicker', text: (name ? name : 'Bowler at a glance') + (pattern ? ' \u00b7 ' + pattern : '') }),
           el('div', { class: 'gl-big', text: UI.avg(overall) }),
-          el('p', { class: 'gl-sub', text: 'average over ' + plural(a.games, 'game') + ' in ' + plural(list.length, 'session') }),
+          el('p', { class: 'gl-sub', text: 'average over ' + plural(a.games, 'game') + ' in ' + plural(list.length, 'session') + (pattern ? ' on ' + pattern : '') }),
         ]),
         el('div', { class: 'gl-hero-side' }, [
           el('div', { class: 'gl-pill' }, [el('span', { text: 'High game' }), el('strong', { text: UI.num(a.high) })]),
@@ -303,8 +338,7 @@
           el('div', { class: 'gl-pill' }, [el('span', { text: 'Since' }), el('strong', { text: firstDate ? UI.shortDate(firstDate) : '—' })]),
         ]),
         el('p', { class: 'gl-verdict', text: verdict + '.' }),
-        el('div', { class: 'gl-period' }, periodChips()),
-      ]));
+      ].concat(filters)));
 
       /* ---- form: the rolling average ---- */
       var prog = T.progress(pool, { window: 10 });
@@ -372,7 +406,7 @@
       }
 
       /* ---- oil patterns ---- */
-      var pats = S.compare(pool, 'pattern').filter(function (r) { return r.key && r.stats.games >= 3; }).sort(function (x, y) { return y.stats.average - x.stats.average; }).slice(0, 5);
+      var pats = S.compare(periodPool, 'pattern').filter(function (r) { return r.key && r.stats.games >= 3; }).sort(function (x, y) { return y.stats.average - x.stats.average; }).slice(0, 5);
       if (pats.length > 1) {
         cards.push(section('By oil pattern', 'Average game on each (three games or more)',
           el('div', { class: 'card-body' }, Charts.bars({
@@ -383,10 +417,11 @@
 
       /* ---- records and streaks ---- */
       var ctx = h.badgeCtx();
+      var rctx = pattern ? S.context(recordPool, {}) : ctx;          /* records on the pattern chosen */
       var record = null;
-      if (ctx.gameRecord) { var rg = everything.filter(function (g) { return g.id === ctx.gameRecord; })[0]; if (rg) record = { game: rg, total: S.score(rg).total }; }
-      var seriesBest = S.setsOf(everything).filter(function (x) { return ctx.seriesRecords[x.id]; })[0];
-      var honors = everything.filter(function (g) { return S.score(g).total >= ctx.honor.game; }).length;
+      if (rctx.gameRecord) { var rg = recordPool.filter(function (g) { return g.id === rctx.gameRecord; })[0]; if (rg) record = { game: rg, total: S.score(rg).total }; }
+      var seriesBest = S.setsOf(recordPool).filter(function (x) { return rctx.seriesRecords[x.id]; })[0];
+      var honors = recordPool.filter(function (g) { return S.score(g).total >= ctx.honor.game; }).length;
       var chips = [];
       if (record) chips.push(['PR game', String(record.total), UI.shortDate(record.game.date), '#/shots/game/' + record.game.id]);
       if (seriesBest) chips.push(['PR series', String(seriesBest.total), UI.shortDate(seriesBest.date), '#/shots/series/' + seriesBest.id]);
@@ -399,7 +434,7 @@
           var inner = [el('span', { class: 'gl-medal-k', text: c[0] }), el('strong', { text: c[1] }), el('small', { text: c[2] })];
           return c[3] ? el('a', { class: 'gl-medal', href: c[3] }, inner) : el('div', { class: 'gl-medal' }, inner);
         })),
-        'Personal records and honor lines cover every game you have finished, whatever period is chosen above. The honor line is set under Settings.'));
+        'Personal records and honor lines cover every game you have finished' + (pattern ? ' on ' + pattern : '') + ', whatever period is chosen above. The honor line is set under Settings.'));
 
       /* ---- arsenal ---- */
       var balls = T.balls(pool, { label: h.ballName, minGames: 1 }).slice(0, 4);
