@@ -513,6 +513,8 @@ main { padding: 20px 16px 48px; }
 .dist-row:hover .dist-track { background: var(--accent-soft); }
 
 .dist-row-wide { grid-template-columns: 98px minmax(0, 1fr) 50px; }
+/* A long name with a count after it wraps onto a second line rather than running off the left edge. */
+.dist-row-wide .dist-band { white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
 
 .dist-band.dist-link {
   color: var(--text);

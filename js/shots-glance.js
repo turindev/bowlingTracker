@@ -408,10 +408,10 @@
       /* ---- oil patterns ---- */
       var pats = S.compare(periodPool, 'pattern').filter(function (r) { return r.key && r.stats.games >= 3; }).sort(function (x, y) { return y.stats.average - x.stats.average; }).slice(0, 5);
       if (pats.length > 1) {
-        cards.push(section('By oil pattern', 'Average game on each (three games or more)',
+        cards.push(section('By oil pattern', 'Average game on each, with the number of games in brackets (three or more)',
           el('div', { class: 'card-body' }, Charts.bars({
             wideLabel: true,
-            rows: pats.map(function (r) { return { label: r.label, value: r.stats.average, display: UI.avg(r.stats.average), title: r.label + ': ' + plural(r.stats.games, 'game') + ', strike ' + pct(r.stats.strikePct) }; }),
+            rows: pats.map(function (r) { return { label: r.label + ' (' + r.stats.games + ')', value: r.stats.average, display: UI.avg(r.stats.average), title: r.label + ': ' + plural(r.stats.games, 'game') + ', strike ' + pct(r.stats.strikePct) }; }),
           }))));
       }
 
