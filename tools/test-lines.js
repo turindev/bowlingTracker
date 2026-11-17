@@ -343,6 +343,59 @@ check('Spicer\'s week-8 night confirms week 7: 4613 over 21 less 645 is the 3968
       spicer8.pins === 4613 && spicer8.games === 21 && spicer8.handicap === 0 && at(7).players.find(p => p.name === 'Matthew Spicer').pins === 3968,
       spicer8.pins + '/' + spicer8.games);
 
+// --- week 9: the same checks against the week-9 sheet ----------------------
+live = at(9);
+const STAND9 = {12:[24.5,22110,24084],6:[23.5,23457,24339],11:[22,21027,23520],16:[21,19098,23652],24:[20.5,24044,24215],19:[20,20525,23924],
+  23:[20,16809,23037],10:[19,22266,24000],14:[19,20694,23835],15:[19,22309,23710],4:[19,21570,23673],13:[18,23524,24139],
+  22:[18,21956,23750],5:[18,18952,23461],21:[17,20869,23986],3:[17,22638,23634],2:[16.5,20253,23373],1:[16,17441,23015],
+  9:[15,19612,23401],7:[15,19400,23333],17:[15,19082,23192],18:[15,15590,22787],8:[14,18186,23460],20:[10,19148,23231]};
+const off9 = Object.keys(STAND9).filter(n => {
+  const t = team(n), s = STAND9[n];
+  return through(n, 9) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 9 match the sheet', !off9.length,
+      off9.map(n => n + ': ' + [through(n, 9), team(n).pins, team(n).hdcpPins] + ' v ' + STAND9[n]).join('; '));
+const REV9 = { 13:[937,926,951,2814,3], 7:[971,813,827,2611,1], 15:[947,880,826,2653,1], 5:[888,948,860,2696,3],
+  9:[850,899,890,2639,4], 3:[762,873,867,2502,0], 11:[791,870,894,2555,2], 1:[882,850,892,2624,2],
+  8:[949,855,943,2747,3], 22:[893,880,809,2582,1], 6:[867,949,985,2801,4], 24:[812,889,911,2612,0],
+  4:[775,859,750,2384,0], 18:[833,889,768,2490,4], 2:[830,897,911,2638,1.5], 20:[947,885,911,2743,2.5],
+  14:[968,905,884,2757,3], 23:[809,807,887,2503,1], 16:[816,805,909,2530,3], 21:[781,823,898,2502,1],
+  10:[1009,959,802,2770,3], 19:[901,835,816,2552,1], 12:[906,833,857,2596,3], 17:[836,831,918,2585,1] };
+const offRev9 = Object.keys(REV9).filter(n => {
+  const w = night(n, 9);
+  return w.hdcpGameTotals.concat([w.hdcpSeries, w.points]).join(',') !== REV9[n].join(',');
+});
+check('every team\'s three handicap game totals, series and points in week 9 match the sheet', !offRev9.length,
+      offRev9.map(n => n + ': ' + night(n, 9).hdcpGameTotals.concat([night(n, 9).hdcpSeries, night(n, 9).points]) + ' v ' + REV9[n]).join('; '));
+const HT9 = { 'Ken Grizzard':682,'Ed Curtis':612,'Marty Tate':687,'Paul Presswood':643,'Leon Farmer':646,'Jon Boxwell':587,'Terry Cranfield':689,'Wesley Hicks':716,
+ 'Toby Crisp':631,'Wendell Defriece':683,'Robbie Defriece':596,'Keith White':592,'Jason Thompson':654,'Ben Deloach':554,'Jason Seda-Haas':631,'Darius Thompson':545,
+ 'Dale Dutcher':664,'Daryl Blair':623,'John Brogdon':652,'Bryan Martin':757,'Cam Miller':705,'Worm Davis':732,'Alex Davis':655,'Benson Colburn':709,
+ 'Davis Segui':539,'Jim Sedgwick':677,'James Gruver':663,'James Duffee':732,'Steve Smith':703,'Nick Grabe':668,'Mike Davis':641,'Starr Jensen':735,
+ 'Rodney Benefield':733,'Tim Charleson':700,'Darrell Smith':558,'Bobby Bryant':648,'Jeremy Malek':672,'Kamus Thompson':675,'John Jenner':641,'Derek Banther':782,
+ 'Josh Bomboy':667,'Josh Malek':664,'Jimmy Malek':669,'John Smeltzer':555,'Randy Dockery':632,'Cody LaCroix':652,'Shayne Terry':668,'Matthew Spicer':644,
+ 'Chad Green':744,'Lynn Collins':710,'Chris Neal':587,'Steven Adler':773,'Yogi Cabrera':721,'Mitchell Mayo':623,'Duane Mayo':673,'Mark Youngblood':740,
+ 'Hunter Moffitt':741,'Chris Daughtry':616,'Cameron Compton':642,'John Brooks':654,'Ken Ellis':622,'Richard Simpson':605,'Joey Zinn':636,'Avery Rhoden':722,
+ 'Butch Finkbeiner':690,'Treifor Grant':597,'Paul Queen':634,'Jerry Lance':569,'Tanner Collins':614,'Chuck Broesche':645,'Mark Thompson':618,'Jared King':675,
+ 'Jesse Cabrera':739,'Thomas Woody':681,'Tim Berthianne':715,'Joe Morgan':608,'Coty Rymer':632,'Sam Hunter':691,'Matt Clark':543,'John Hancock':636,
+ 'Porky Davis':722,'Bryant Johns':594,'Dave Terhune':631,'Lenny Kersten':635,'Al Vietor':639,'Matt Rayfield':634,'Jimmy Campbell':582,'Tyler Green':648,
+ 'Aaron White':618,'Michael Shipley':701,'Jason Day':665,'Oliver Lawson':628 };
+const offHt9 = [];
+live.teams.forEach(t => t.weeks.filter(w => w.number === 9).forEach(w => w.lines.forEach(l => {
+  if (HT9[l.name] != null && l.hdcpSeries !== HT9[l.name]) offHt9.push(l.name + ' ' + l.hdcpSeries + ' v ' + HT9[l.name]);
+})));
+check('all ' + Object.keys(HT9).length + ' printed bowler handicap totals for week 9 match', !offHt9.length, offHt9.join('; '));
+const PLACES9 = [12, 6, 11, 16, 24, 19, 23, 10, 14, 15, 4, 13, 22, 5, 21, 3, 2, 1, 9, 7, 17, 18, 8, 20];
+const rank9 = live.teams.slice().sort((a, b) => a.trend[a.trend.length - 1].rank - b.trend[b.trend.length - 1].rank).map(t => +t.id.slice(1));
+check('the team standings place all 24 teams as the week-9 sheet does', rank9.join(' ') === PLACES9.join(' '), rank9.join(' '));
+check('the three subs fit their teams\' printed game totals: Brogdon and Martin for 9 Pin City, Spicer for Hookers and Bowl',
+      games(5, 9) === '888,948,860' && games(12, 9) === '906,833,857', games(5, 9) + ' | ' + games(12, 9));
+check('Hancock is printed under Bowling Buddies but bowled for Team 21, whose totals only fit that way',
+      games(21, 9) === '781,823,898' && games(22, 9) === '893,880,809' && night(21, 9).lines.some(l => l.name === 'John Hancock') && !night(22, 9).lines.some(l => l.name === 'John Hancock'),
+      games(21, 9) + ' | ' + games(22, 9));
+check('three new bowlers: first night on a handicap off the average they bowled (Colburn 0, Brooks 9, Rhoden 0)',
+      ['Benson Colburn', 'John Brooks', 'Avery Rhoden'].map(n => live.players.find(p => p.name === n).handicapByWeek[9]).join() === '0,9,0',
+      ['Benson Colburn', 'John Brooks', 'Avery Rhoden'].map(n => live.players.find(p => p.name === n).handicapByWeek[9]).join());
+
 // the new rules, on the fixture
 {
   const fx2 = JSON.parse(JSON.stringify(fx));
