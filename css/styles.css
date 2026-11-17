@@ -756,6 +756,12 @@ main { padding: 20px 16px 48px; }
 
 .controls label { font-size: 13px; color: var(--text-dim); }
 
+/* A tick box under the search field, such as "Hide bowlers with fewer than 9 games". */
+.min-games { padding-top: 0; }
+.min-games label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.min-games input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.min-games .sub { color: var(--text-dim); }
+
 .control-field {
   flex: 1 1 160px;
   display: flex;
