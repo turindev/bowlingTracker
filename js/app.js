@@ -13,6 +13,8 @@
     players: { key: 'average', dir: 'desc' },
     teams: { key: 'points', dir: 'desc' },
     search: '',
+    /* The leaderboard can leave out bowlers with only a few games, whose averages say little. */
+    hideFewGames: false,
     teamWeek: {},
     /* Drill-down tables re-render by rebuilding the whole view, so their sort
        has to live out here or every header click would reset it. */
@@ -771,11 +773,36 @@
 
   /* ---------- individual leaderboard ---------- */
 
+  var MIN_GAMES = 9;
+  var MIN_GAMES_KEY = 'bowling-hide-few-games';
+  try { state.hideFewGames = localStorage.getItem(MIN_GAMES_KEY) === '1'; } catch (e) { /* private mode: it just will not be remembered */ }
+
+  /* "Hide bowlers with fewer than 9 games", remembered between visits. */
+  function fewGamesToggle(hidden, rerender) {
+    var box = el('input', {
+      type: 'checkbox', id: 'hide-few-games',
+      onchange: function () {
+        state.hideFewGames = box.checked;
+        try { localStorage.setItem(MIN_GAMES_KEY, box.checked ? '1' : '0'); } catch (e) { /* not remembered */ }
+        rerender(false);
+      },
+    });
+    box.checked = state.hideFewGames;
+    return el('div', { class: 'card-body min-games' }, el('label', { for: 'hide-few-games' }, [
+      box,
+      el('span', null, [
+        'Hide bowlers with fewer than ' + MIN_GAMES + ' games',
+        state.hideFewGames && hidden ? el('small', { class: 'sub', text: ' (' + hidden + ' hidden)' }) : null,
+      ]),
+    ]));
+  }
+
   function playersView() {
     function render(fromSearch) {
-      var rows = model.players.filter(function (p) {
+      var everyone = model.players.filter(function (p) {
         return p.games > 0 && !p.placeholder && matches(p, state.search);
       });
+      var rows = state.hideFewGames ? everyone.filter(function (p) { return p.games >= MIN_GAMES; }) : everyone;
 
       var columns = [
         { key: 'rank', label: '#', className: 'col-rank', sortable: false,
@@ -825,8 +852,8 @@
         tabs('players'),
         sampleNotice(),
         UI.card('Individual standings', 'Tap a column to sort',
-                el('div', null, [searchBox('Find a bowler or team', render), body]),
-                "Every bowler in the league with a recorded score. Tap any column to sort by it, tap again to reverse, and tap a name for that bowler's own page. +/- is how far a typical game sits from their average, so a low number is a steady bowler."),
+                el('div', null, [searchBox('Find a bowler or team', render), fewGamesToggle(everyone.length - rows.length, render), body]),
+                "Every bowler in the league with a recorded score, or only those with " + MIN_GAMES + " games or more when that box is ticked (the # column then ranks just those). Tap any column to sort by it, tap again to reverse, and tap a name for that bowler's own page. +/- is how far a typical game sits from their average, so a low number is a steady bowler."),
       ]);
       restoreFocus(fromSearch);
     }
