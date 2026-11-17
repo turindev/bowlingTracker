@@ -378,6 +378,18 @@
   }
 
   /* Pull in changes from other devices and push this one's, quietly. */
+  /* Pull in what other devices have saved (a ball added on the phone, say) and then run `done`. The page
+     is not redrawn: whoever asked draws its own part again. A failed sync (offline) is simply skipped. */
+  function pullThen(done) {
+    var v = getVault();
+    if (ui.syncing || !v.isUnlocked()) return;
+    ui.syncing = true;
+    v.sync().then(function () { ui.status = ''; }, function (e) { ui.status = e.message; }).then(function () {
+      ui.syncing = false;
+      done();
+    });
+  }
+
   function backgroundSync() {
     var v = getVault();
     if (ui.syncing || !v.isUnlocked()) return Promise.resolve();
@@ -1429,7 +1441,11 @@
           ]),
           ids.length > 1 ? el('button', {
             type: 'button', class: 'link-button', 'aria-expanded': d.ballOpen ? 'true' : 'false',
-            onclick: function () { d.ballOpen = !d.ballOpen; refresh(); },
+            onclick: function () {
+              d.ballOpen = !d.ballOpen; refresh();
+              /* A ball added on another device arrives now, without leaving the game. */
+              if (d.ballOpen) pullThen(function () { if (ui.panel === panel && d.ballOpen) refresh(); });
+            },
           }, d.ballOpen ? 'Done' : 'Change') : null,
         ]),
       ]),
