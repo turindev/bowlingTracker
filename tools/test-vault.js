@@ -66,6 +66,7 @@ const game = (id, at, extra) => Object.assign({ id, date: '2026-10-18', status: 
 
   const noToken = await throws(() => A.vault.sync());
   check('syncing without a token says so, and keeps the data', noToken && noToken.code === 'no-token' && A.vault.library().games.length === 1, noToken && noToken.code);
+  check('and still reports what it holds, since the pull worked', noToken.result && noToken.result.pushed === false && noToken.result.totals.games === 1, JSON.stringify(noToken && noToken.result));
   check('nothing was written to GitHub without a token', !gh.log.some(l => l.method !== 'GET'), JSON.stringify(gh.log.map(l => l.method)));
 
   await A.vault.setToken('github_pat_SECRETTOKEN');
@@ -114,6 +115,18 @@ const game = (id, at, extra) => Object.assign({ id, date: '2026-10-18', status: 
   check('a lost race is retried and still lands', raced.pushed === true && JSON.parse(gh.repo.branches['bowling-data']['bowling.enc.json'].text).format === Vault.FORMAT, '');
   await B.vault.sync();
   check('and the other device receives it', ids(B) === 'g1,g2,g3,g4', ids(B));
+
+  // a sync reports what it brought in, so a quiet failure to deliver can be seen
+  await A.vault.commit(lib => {
+    lib.balls.push({ id: 'b2', name: 'Brand New', updatedAt: '2026-10-20T11:00:00Z' });
+    lib.games.push(game('g5', '2026-10-20T11:05:00Z'));
+  });
+  const sent = await A.vault.sync();
+  check('a sync that sends reports it pushed and what the device holds', sent.pushed === true && sent.totals.games === 5 && sent.totals.balls === 2, JSON.stringify(sent));
+  const got = await B.vault.sync();
+  check('a sync that receives reports the new game and ball', got.pulled.games === 1 && got.pulled.balls === 1 && got.pushed === false && got.totals.games === 5, JSON.stringify(got));
+  const quiet = await B.vault.sync();
+  check('a sync with nothing new says so', quiet.pulled.games === 0 && quiet.pulled.balls === 0, JSON.stringify(quiet));
 
   // later edit wins; deletion propagates
   await A.vault.commit(lib => { lib.games.find(g => g.id === 'g2').notes = 'A edited'; lib.games.find(g => g.id === 'g2').updatedAt = '2026-10-21T10:00:00Z'; });
