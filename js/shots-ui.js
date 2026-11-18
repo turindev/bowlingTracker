@@ -390,14 +390,16 @@
     });
   }
 
-  function backgroundSync() {
+  function backgroundSync(report) {
     var v = getVault();
     if (ui.syncing || !v.isUnlocked()) return Promise.resolve();
     ui.syncing = true;
-    return v.sync().then(function () {
+    return v.sync().then(function (r) {
       ui.status = '';
+      ui.syncNote = report ? syncMessage(r) : '';
     }, function (e) {
       ui.status = e.message;
+      ui.syncNote = report ? syncMessage(e.result) : '';
     }).then(function () {
       ui.syncing = false;
       var page = ui.parts[0] || 'glance';
@@ -501,12 +503,22 @@
 
   /* ---------- games ---------- */
 
+  /* What a sync just did, in words: what came in, what went out, and what this device now holds. */
+  function syncMessage(r) {
+    if (!r || !r.pulled) return '';
+    var got = [r.pulled.games ? plural(r.pulled.games, 'game') : null, r.pulled.balls ? plural(r.pulled.balls, 'ball') : null].filter(Boolean);
+    return (got.length ? 'Got ' + got.join(' and ') + ' from your other devices.' : 'Nothing new from your other devices.') +
+      (r.pushed ? ' Saved this device\u2019s changes to GitHub.' : '') +
+      ' This device now has ' + plural(r.totals.games, 'game') + ' and ' + plural(r.totals.balls, 'ball') + '.';
+  }
+
   function syncLine() {
     var v = getVault();
     var bits = [];
     if (v.info.dirty) bits.push('Some games are only on this device so far.');
     else if (v.info.lastSync) bits.push('Synced at ' + new Date(v.info.lastSync).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '.');
     if (ui.status) bits.push(ui.status);
+    if (ui.syncNote) bits.push(ui.syncNote);
     return bits.join(' ');
   }
 
@@ -559,7 +571,9 @@
       el('a', { class: 'sh-btn ' + (open || pending ? '' : 'is-primary'), href: '#/shots/new', text: 'Start a game' }),
       button('Sync now', function () {
         ui.status = '';
-        backgroundSync();
+        ui.syncNote = 'Syncing\u2026';
+        rerender();
+        backgroundSync(true);
       }),
       el('a', { class: 'sh-btn', href: '#/shots/import', text: 'Import games' }),
     ]));
@@ -2622,7 +2636,7 @@
         el('div', { class: 'sh-actions' }, [
           button('Sync now', function () {
             note.textContent = 'Syncing…';
-            v.sync().then(function () { ui.status = ''; }, function (ex) { ui.status = ex.message; }).then(function () { rerender(); });
+            v.sync().then(function (r) { ui.status = ''; ui.syncNote = syncMessage(r); }, function (ex) { ui.status = ex.message; ui.syncNote = syncMessage(ex.result); }).then(function () { rerender(); });
           }, 'primary'),
         ]),
       ])),

@@ -164,6 +164,13 @@
 
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
+  /* How many items in `after` are new, or changed, compared with `before`: what a merge brought in. */
+  function changedCount(before, after) {
+    var byId = {};
+    (before || []).forEach(function (item) { byId[item.id] = JSON.stringify(item); });
+    return (after || []).filter(function (item) { return byId[item.id] !== JSON.stringify(item); }).length;
+  }
+
   /* ---------- GitHub ---------- */
 
   function github(cfg) {
@@ -448,6 +455,8 @@
       sync: function () {
         return queue(async function () {
           if (!library) throw VaultError('locked', 'The vault is locked.');
+          var pulled = { games: 0, balls: 0 };           /* what other devices had that this one did not */
+          var totals = function () { return { games: library.games.filter(function (g) { return !g.deleted; }).length, balls: library.balls.filter(function (b) { return !b.deleted; }).length }; };
           for (var attempt = 0; attempt < 4; attempt++) {
             var remote = await gh.getFile();
             var remoteLib = null;
@@ -457,7 +466,10 @@
                 throw VaultError('other-vault', 'The vault on GitHub was made with a different passphrase.');
               }
               remoteLib = await unseal(key, file);
+              var before = library;
               library = mergeLibraries(library, remoteLib);
+              pulled.games += changedCount(before.games, library.games);
+              pulled.balls += changedCount(before.balls, library.balls);
             }
             await persist();
 
@@ -466,10 +478,12 @@
               markDirty(false);
               info.lastSync = now();
               info.error = null;
-              return { pushed: false, at: info.lastSync };
+              return { pushed: false, at: info.lastSync, pulled: pulled, totals: totals() };
             }
             if (!(await readToken())) {
-              throw VaultError('no-token', 'Saved on this device. Add a GitHub token in Settings to sync it.');
+              var noToken = VaultError('no-token', 'Saved on this device. Add a GitHub token in Settings to sync it.');
+              noToken.result = { pushed: false, pulled: pulled, totals: totals() };   /* the pull still worked */
+              throw noToken;
             }
             var text = JSON.stringify(await seal(key, kdf, library));
             var message = 'Update private data (encrypted)';
@@ -486,7 +500,7 @@
             markDirty(false);
             info.lastSync = now();
             info.error = null;
-            return { pushed: true, at: info.lastSync };
+            return { pushed: true, at: info.lastSync, pulled: pulled, totals: totals() };
           }
         }).catch(function (e) {
           info.error = e.message;
