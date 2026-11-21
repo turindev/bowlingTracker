@@ -340,6 +340,10 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   ];
   const ctx = S.context(gs, {});
   const top = gs[4];
+  const tot = gs.map(total);
+  const ga = S.analyze(gs);
+  check('games at 220, 230, 240 and 250 or better are counted, each a subset of the one before',
+        [220, 230, 240, 250].every(n => ga['over' + n] === tot.filter(x => x >= n).length) && ga.over220 >= ga.over230 && ga.over230 >= ga.over240 && ga.over240 >= ga.over250 && ga.over250 >= 1, JSON.stringify([ga.over220, ga.over230, ga.over240, ga.over250]));
   check('the highest game holds the game record', ctx.gameRecord === top.id && ctx.gameBest === total(top), JSON.stringify(ctx));
   check('only that game gets the PR game badge', gs.filter(g => S.badges(g, ctx).some(b => b.key === 'pr')).map(g => g.id).join() === top.id, '');
   check('a PR badge says what it is and the score', (() => { const b = S.badges(top, ctx).find(x => x.key === 'pr'); return b.kind === 'game' && b.total === total(top) && /best game/.test(b.title); })(), '');

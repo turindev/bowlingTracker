@@ -474,7 +474,7 @@
     var counted = [];
     var out = {
       games: 0, average: null, high: null, low: null, sd: null,
-      over200: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null, switched: 0,
+      over200: 0, over220: 0, over230: 0, over240: 0, over250: 0, clean: 0, opens: 0, opensPerGame: null, switched: 0,
       nights: 0, nightsChanged: 0, changesBetween: 0, changesWithin: 0,
       racks: 0, strikes: 0, strikePct: null, strikesPerGame: null,
       attempts: 0, spares: 0, sparePct: null,
@@ -594,7 +594,7 @@
       out.high = Math.max.apply(null, totals);
       out.low = Math.min.apply(null, totals);
       out.over200 = totals.filter(function (t) { return t >= 200; }).length;
-      out.over250 = totals.filter(function (t) { return t >= 250; }).length;
+      [220, 230, 240, 250].forEach(function (n) { out['over' + n] = totals.filter(function (t) { return t >= n; }).length; });
       if (totals.length > 1) {
         out.sd = Math.sqrt(totals.reduce(function (a, t) {
           return a + (t - out.average) * (t - out.average);
