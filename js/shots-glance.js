@@ -428,7 +428,7 @@
       chips.push(['Honor games', String(honors), ctx.honor.game + '+ games', null]);
       chips.push(['Best strike run', String(a.bestStreak), a.bestStreak ? S.runName(a.bestStreak) : 'no streak yet', null]);
       chips.push(['Turkeys or better', String(a.streaks3), 'runs of 3+ strikes', null]);
-      chips.push(['250+ games', String(a.over250), 'of ' + plural(a.games, 'game'), null]);
+      [220, 230, 240, 250].forEach(function (n) { chips.push([n + '+ games', String(a['over' + n]), 'of ' + plural(a.games, 'game'), null]); });
       cards.push(section('Records and streaks', 'Your best, all time where it says so',
         el('div', { class: 'gl-medals' }, chips.map(function (c) {
           var inner = [el('span', { class: 'gl-medal-k', text: c[0] }), el('strong', { text: c[1] }), el('small', { text: c[2] })];
