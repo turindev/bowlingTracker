@@ -649,10 +649,11 @@
     var hitTiles = a.hitsRecorded
       ? el('div', { class: 'sh-stack' }, [
         el('h3', { class: 'sh-subhead', text: 'How the first ball hit' }),
-        UI.statGrid(S.HITS.map(function (k) {
+        UI.statGrid([UI.stat('Any pocket %', pct1(a.inPocket.pct),
+          a.inPocket.n + ' of ' + plural(a.hitsRecorded, 'first ball') + ': pocket, high and light together, so not Brooklyn or other.')].concat(S.HITS.map(function (k) {
           return UI.stat(S.HIT_LABELS[k] + ' %', pct1(a.hits[k].pct),
             a.hits[k].n + ' of ' + plural(a.hitsRecorded, 'first ball') + ' where you recorded how it hit.');
-        })),
+        }))),
       ])
       : el('p', { class: 'sh-note', text: 'Record how each first ball hit (pocket, high, light, Brooklyn) and its shares appear here.' });
     return { tiles: tiles, hitTiles: hitTiles };
@@ -1956,6 +1957,7 @@
       UI.stat('Spare %', pct1(stats.sparePct), 'Spares made out of the spare tries: ' + stats.spares + ' of ' + stats.attempts + '.'),
       UI.stat('Makeable spare %', pct1(stats.makeablePct), 'Spares made out of the tries that were not splits: ' + stats.makeable.made + ' of ' + stats.makeable.attempts + '. The ones you are expected to get.'),
       UI.stat('Pocket %', pct1(h.pocket.pct), 'Share of first balls that hit the pocket, of those where you recorded how it hit.'),
+      UI.stat('Any pocket %', pct1(stats.inPocket.pct), 'Pocket, high and light together: ' + stats.inPocket.n + ' of ' + stats.hitsRecorded + ' recorded first balls. Brooklyn and other are left out.'),
       UI.stat('First-ball avg', UI.avg(stats.firstBallAvg), 'Pins knocked down by the first ball, on average. Ten is a strike.'),
       UI.stat('Opens / game', UI.avg(stats.opensPerGame), 'Frames where the spare was missed. Splits missed count.'),
       UI.stat('Clean games', stats.games ? stats.clean + ' of ' + stats.games : '—', 'Games with no open frame.'),
@@ -1970,6 +1972,7 @@
     var hitRows = S.HITS.filter(function (k) { return h[k].n; }).map(function (k) {
       return { name: S.HIT_LABELS[k], key: k, hit: h[k] };
     });
+    var hitTableRows = hitRows.length ? hitRows.concat([{ name: 'Any pocket', key: 'any', hit: stats.inPocket }]) : hitRows;
     var hitBars = hitRows.map(function (r) {
       return { label: r.name, value: (r.hit.pct || 0) * 100, display: pct(r.hit.pct),
         title: r.name + ': ' + r.hit.n + ' shots, ' + pct(r.hit.strikePct) + ' were strikes' };
@@ -1984,10 +1987,10 @@
             { key: 'p', label: 'Share', sortable: false, render: function (r) { return pct(r.hit.pct); } },
             { key: 's', label: 'Strike %', sortable: false, className: 'num-strong', render: function (r) { return pct(r.hit.strikePct); } },
             { key: 'a', label: 'Avg pins', sortable: false, render: function (r) { return UI.avg(r.hit.avgPins); } },
-          ], rows: hitRows, state: null, onSort: function () {},
+          ], rows: hitTableRows, state: null, onSort: function () {},
         }),
       ]) : UI.empty('No first balls recorded yet.'),
-      'Where the ball met the pins, and what it did to them. Strike % is the share of that kind of hit that carried for a strike, so a low number on pocket hits means carry, not accuracy.' +
+      'Where the ball met the pins, and what it did to them. Any pocket is pocket, high and light together. Strike % is the share of that kind of hit that carried for a strike, so a low number on pocket hits means carry, not accuracy.' +
         ' Only first balls where you chose a hit are counted here, so the more you record, the more this tells you.');
 
     /* spares */
@@ -2351,6 +2354,7 @@
       col('strike', 'Strike %', function (r) { return r.s.strikePct; }, function (r) { return pct(r.s.strikePct); }),
       col('spare', 'Spare %', function (r) { return r.s.sparePct; }, function (r) { return pct(r.s.sparePct); }),
       col('makeable', 'Makeable %', function (r) { return r.s.makeablePct; }, function (r) { return pct(r.s.makeablePct); }),
+      col('anypocket', 'Any pocket', function (r) { return r.s.inPocket.pct; }, function (r) { return pct(r.s.inPocket.pct); }, { optional: true }),
       col('pocket', 'Pocket', function (r) { return r.s.hits.pocket.pct; }, function (r) { return pct(r.s.hits.pocket.pct); }, { optional: true }),
       col('high%', 'High', function (r) { return r.s.hits.high.pct; }, function (r) { return pct(r.s.hits.high.pct); }, { optional: true }),
       col('light', 'Light', function (r) { return r.s.hits.light.pct; }, function (r) { return pct(r.s.hits.light.pct); }, { optional: true }),

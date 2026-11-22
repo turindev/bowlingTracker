@@ -619,7 +619,7 @@
 
     /* ---- 7. what the ball does: strike, spare, pocket ---- */
     section('What each ball does on the pins',
-      'Shot by shot, not game by game: how often the first ball struck, how often spares were made (and the makeable ones, which leave out splits), and how often the first ball hit the pocket (of the first balls where you recorded it).',
+      'Shot by shot, not game by game: how often the first ball struck, how often spares were made (and the makeable ones, which leave out splits), and how often the first ball hit the pocket, alone and with high and light (of the first balls where you recorded it).',
       function (svg, x, y, w) {
         var h = 330, pl = 54, top = y + 38, bot = y + h - 50;
         var metrics = [
@@ -627,6 +627,7 @@
           ['Spare %', function (b) { return b.shots.sparePct; }],
           ['Makeable spare %', function (b) { return b.shots.makeablePct; }],
           ['Pocket % of hits', function (b) { return b.shots.hits.pocket.pct; }],
+          ['Any pocket %', function (b) { return b.shots.inPocket.pct; }],
         ];
         var sy = scale(0, 1, bot, top);
         [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {

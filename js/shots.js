@@ -630,6 +630,13 @@
       hit.strikePct = ratio(hit.strikes, hit.n);
       hit.avgPins = ratio(hit.pins, hit.n);
     });
+    /* Any pocket: a flush pocket hit plus high and light, the hits that still reached the pocket
+       area, leaving out Brooklyn and other. */
+    var any = out.inPocket = { n: 0, strikes: 0, pins: 0 };
+    ['pocket', 'high', 'light'].forEach(function (k) { any.n += out.hits[k].n; any.strikes += out.hits[k].strikes; any.pins += out.hits[k].pins; });
+    any.pct = ratio(any.n, out.hitsRecorded);
+    any.strikePct = ratio(any.strikes, any.n);
+    any.avgPins = ratio(any.pins, any.n);
     out.byFrame.forEach(function (f) { f.pct = ratio(f.strikes, f.racks); });
 
     out.leaves = Object.keys(leaves).map(function (k) {
