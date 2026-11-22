@@ -344,6 +344,15 @@ check('a new set game records its place and length', (() => { const n = S.newGam
   const ga = S.analyze(gs);
   check('games at 220, 230, 240 and 250 or better are counted, each a subset of the one before',
         [220, 230, 240, 250].every(n => ga['over' + n] === tot.filter(x => x >= n).length) && ga.over220 >= ga.over230 && ga.over230 >= ga.over240 && ga.over240 >= ga.over250 && ga.over250 >= 1, JSON.stringify([ga.over220, ga.over230, ga.over240, ga.over250]));
+  const marks = ['pocket', 'high', 'light', 'brooklyn', 'other', 'pocket', 'high', 'light', 'pocket', 'brooklyn', 'other', 'pocket'];
+  let hg = S.newGame({ ball: 'A', date: '2026-09-15' });
+  marks.forEach(m => { hg = S.addShot(hg, { standing: [], ball: 'A', hit: m }); });
+  hg.status = 'done';
+  const ha = S.analyze([hg]);
+  const wantAny = ['pocket', 'high', 'light'].reduce((n, k) => n + ha.hits[k].n, 0);
+  check('any pocket is pocket, high and light together, and leaves out Brooklyn and other',
+        ha.inPocket.n === wantAny && wantAny > 0 && ha.inPocket.n < ha.hitsRecorded && Math.abs(ha.inPocket.pct - wantAny / ha.hitsRecorded) < 1e-9, JSON.stringify(ha.inPocket) + ' of ' + ha.hitsRecorded);
+  check('any pocket carries its strike % and is null with no hits recorded', ha.inPocket.strikes === ['pocket', 'high', 'light'].reduce((n, k) => n + ha.hits[k].strikes, 0) && S.analyze([]).inPocket.pct === null, '');
   check('the highest game holds the game record', ctx.gameRecord === top.id && ctx.gameBest === total(top), JSON.stringify(ctx));
   check('only that game gets the PR game badge', gs.filter(g => S.badges(g, ctx).some(b => b.key === 'pr')).map(g => g.id).join() === top.id, '');
   check('a PR badge says what it is and the score', (() => { const b = S.badges(top, ctx).find(x => x.key === 'pr'); return b.kind === 'game' && b.total === total(top) && /best game/.test(b.title); })(), '');

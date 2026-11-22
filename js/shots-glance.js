@@ -469,6 +469,7 @@
             UI.statGrid([
               UI.stat('Splits', pct1(a.splitPct), 'How often the first ball left a split.'),
               UI.stat('Pocket %', pct1(a.hits.pocket.pct), 'Share of first balls that hit the pocket, of those where the hit was recorded.'),
+              UI.stat('Any pocket %', pct1(a.inPocket.pct), 'Pocket, high and light together, of those where the hit was recorded. Brooklyn and other are left out.'),
             ]),
             common.length ? el('div', null, [el('h4', { class: 'sh-subhead', text: 'Most common' }), el('div', { class: 'gl-leaves' }, common.map(row))]) : null,
             hard.length ? el('div', null, [el('h4', { class: 'sh-subhead', text: 'Hardest to pick up' }), el('div', { class: 'gl-leaves' }, hard.map(row))]) : null,
