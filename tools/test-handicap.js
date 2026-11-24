@@ -331,6 +331,58 @@ const offR9 = ROSTER9.filter(([n, h, pins, g]) => {
 check('real league, week 9: all ' + ROSTER9.length + ' bowlers\' pins, games and week-10 handicaps match the sheet',
       !offR9.length, offR9.map(([n, h, pins, g]) => n + ' ' + (who(n) ? [who(n).handicap, who(n).pins, who(n).games] : 'missing') + ' v ' + [h, pins, g]).join('; '));
 
+// And against the week-10 sheet. (Don Speer is left out: the sheet keeps his three
+// games as a temporary sub, 462 over 3, apart from the 922 over 6 on his team's roster.)
+live = upTo(10);
+const ROSTER10 = [
+  ['Ken Grizzard', 51, 4406, 27], ['Ed Curtis', 63, 3153, 21], ['Rick Goodwin', 64, 3565, 24],
+  ['Paul Presswood', 36, 4313, 24], ['Marty Tate', 52, 4397, 27], ['Leon Farmer', 23, 5263, 27],
+  ['Jon Boxwell', 33, 5513, 30], ['Terry Cranfield', 32, 4972, 27], ['Tony Bullington', 16, 2432, 12],
+  ['Wesley Hicks', 32, 4416, 24], ['Toby Crisp', 13, 5555, 27], ['Wendell Defriece', 12, 6193, 30],
+  ['Robbie Defriece', 14, 6141, 30], ['Keith White', 0, 6001, 27], ['Jason Thompson', 54, 4826, 30],
+  ['Ben Deloach', 0, 6573, 30], ['Jason Seda-Haas', 18, 5414, 27], ['Darius Thompson', 2, 6523, 30],
+  ['Michael Eisel', 24, 1171, 6], ['Aaron Jones', 59, 3708, 24], ['Dale Dutcher', 44, 5146, 30],
+  ['Daryl Blair', 50, 4932, 30], ['Spencer Foutz', 0, 6086, 27], ['Cam Miller', 21, 5887, 30],
+  ['Worm Davis', 7, 6366, 30], ['Alex Davis', 0, 7014, 30], ['Benson Colburn', 0, 1368, 6],
+  ['Davis Segui', 25, 5205, 27], ['Jim Sedgwick', 52, 4868, 30], ['James Gruver', 35, 4366, 24],
+  ['James Duffee', 24, 4062, 21], ['Steve Smith', 17, 5436, 27], ['Nick Grabe', 51, 4896, 30],
+  ['Mike Davis', 69, 4311, 30], ['Starr Jensen', 51, 4919, 30], ['Rodney Benefield', 46, 5061, 30],
+  ['Tim Charleson', 30, 5607, 30], ['Darrell Smith', 27, 5682, 30], ['Bobby Bryant', 32, 5539, 30],
+  ['Jeremy Malek', 13, 6167, 30], ['Kamus Thompson', 9, 5682, 27], ['John Jenner', 20, 5914, 30],
+  ['Derek Banther', 9, 6299, 30], ['Josh Bomboy', 10, 6260, 30], ['Josh Malek', 36, 4298, 24],
+  ['Jimmy Malek', 15, 5487, 27], ['John Smeltzer', 23, 5240, 27], ['Randy Dockery', 35, 4889, 27],
+  ['Cody LaCroix', 3, 6489, 30], ['Jayson Scoggins', 5, 4512, 21], ['Shayne Terry', 5, 6444, 30],
+  ['Scott Shafer', 11, 621, 3], ['Josh Rodda', 43, 516, 3], ['Chad Green', 0, 5934, 27],
+  ['Lynn Collins', 5, 6446, 30], ['Chris Neal', 0, 5131, 23], ['Steven Adler', 0, 5688, 25],
+  ['Zach Price', 10, 624, 3], ['Yogi Cabrera', 45, 5112, 30], ['Mitchell Mayo', 4, 5807, 27],
+  ['Duane Mayo', 48, 4988, 30], ['Mark Youngblood', 9, 6299, 30], ['Hunter Moffitt', 7, 5749, 27],
+  ['Chris Daughtry', 1, 5896, 27], ['Cameron Compton', 4, 6464, 30], ['Briton Helton', 0, 3320, 15],
+  ['John Brooks', 9, 627, 3], ['John Linan', 63, 4472, 30], ['Stan Stinnett', 48, 5008, 30],
+  ['Matt Linan', 27, 3986, 21], ['Stonewall Stinnett', 18, 6016, 30], ['Hamilton Hickman', 47, 3525, 21],
+  ['Ken Ellis', 50, 4938, 30], ['Richard Simpson', 34, 4925, 27], ['Joey Zinn', 40, 5259, 30],
+  ['Avery Rhoden', 0, 1437, 6], ['Butch Finkbeiner', 75, 4097, 30], ['Treifor Grant', 71, 4256, 30],
+  ['Paul Queen', 75, 4095, 30], ['Jerry Lance', 51, 3441, 21], ['Bill Rogers', 52, 945, 6],
+  ['Shane Armstrong', 51, 489, 3], ['Tanner Collins', 19, 5366, 27], ['Chuck Broesche', 55, 4751, 30],
+  ['Mark Thompson', 17, 4839, 24], ['Jared King', 0, 5957, 27], ['Jacob Brown', 11, 729, 3],
+  ['Jesse Cabrera', 51, 4899, 30], ['Thomas Woody', 54, 4791, 30], ['Tim Berthianne', 27, 4555, 24],
+  ['Joe Morgan', 22, 5276, 27], ['Keith Jackson', 11, 1243, 6], ['Coty Rymer', 0, 6735, 30],
+  ['Sam Hunter', 28, 5667, 30], ['Todd Deluca', 34, 4371, 24], ['Matt Clark', 54, 4300, 27],
+  ['Porky Davis', 11, 5591, 27], ['Bryant Johns', 36, 4883, 27], ['Dave Terhune', 32, 2774, 15],
+  ['Lenny Kersten', 17, 5433, 27], ['John Hancock', 0, 4249, 18], ['Al Vietor', 52, 4390, 27],
+  ['Matt Rayfield', 74, 4132, 30], ['Jimmy Campbell', 45, 4580, 27], ['Tyler Green', 55, 4746, 30],
+  ['Aaron White', 10, 5633, 27], ['Michael Shipley', 0, 6113, 27], ['Jason Day', 0, 6949, 30],
+  ['Oliver Lawson', 0, 5398, 24], ['James Campbell', 13, 617, 3], ['Grant Benton', 10, 1778, 9],
+  ['John Brogdon', 21, 1177, 6], ['Chad Clark', 38, 2128, 12], ['Don Dansby', 28, 2831, 15],
+  ['Michael Kimble', 17, 1811, 9], ['Tanner Kincaid', 13, 580, 3], ['Bryan Martin', 14, 4294, 21],
+  ['Steven Monroe', 13, 664, 3], ['Jaydon Phan', 20, 591, 3], ['Matthew Spicer', 0, 5958, 27],
+];
+const offR10 = ROSTER10.filter(([n, h, pins, g]) => {
+  const p = who(n);
+  return !p || p.handicap !== h || p.pins !== pins || p.games !== g;
+});
+check('real league, week 10: all ' + ROSTER10.length + ' bowlers\' pins, games and week-11 handicaps match the sheet',
+      !offR10.length, offR10.map(([n, h, pins, g]) => n + ' ' + (who(n) ? [who(n).handicap, who(n).pins, who(n).games] : 'missing') + ' v ' + [h, pins, g]).join('; '));
+
 console.log(ok.map(s => '  ok  ' + s).join('\n'));
 console.log(fails.length ? '\nFAILED:\n' + fails.map(s => '  x  ' + s).join('\n')
                          : '\nall handicap assertions passed');
