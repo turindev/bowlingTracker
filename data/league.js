@@ -177,6 +177,23 @@
  *  - The sheet's lane page (Today / Next Week) lists the pairings for the
  *    coming night, not the one just bowled: the week-8 sheet's Today row is
  *    exactly this week's matches.
+ *
+ * Week 10 notes, from the 11/17 sheet (headed Week 10 of 32, printed 11/21):
+ *  - Four subs bowled and each fits the printed team game totals to the pin:
+ *    Don Dansby for 9 Pin City (Michael Eisel out), Matthew Spicer for Too Easy
+ *    (Mitchell Mayo out), Michael Kimble for Team 21 (Todd Deluca out) and Bryan
+ *    Martin for Stars & Strikes (Al Vietor out).
+ *  - Three bowlers are printed under their own team but bowled for another, as
+ *    John Hancock did last week; only these readings fit both teams' game totals.
+ *    Marty Tate bowled for Balls Out (Matt Linan out), Benson Colburn for Nutz Out
+ *    Da Back (Briton Helton's team had no fourth) and Avery Rhoden for Team 24
+ *    (Michael Shipley and Oliver Lawson out). Their lines name the team they
+ *    bowled for; House Hacks, Strike Scratch Fever and Ruthless bowled their other four.
+ *  - James Campbell is new on Team 24, handicapped off the 205 he bowled (617 in
+ *    3 games), the same way as last week's new bowlers.
+ *  - Jason Day bowled a 300 in his second game (203, 300, 258 for 761).
+ *  - The sheet's lane page (Today / Next Week) again lists the coming nights:
+ *    11/24 and 12/1.
  */
 window.LEAGUE_DATA =
 {
@@ -1113,6 +1130,13 @@ window.LEAGUE_DATA =
       "name": "Avery Rhoden",
       "teamId": "t17",
       "entryAverage": 240,
+      "noBook": true
+    },
+    {
+      "id": "p125",
+      "name": "James Campbell",
+      "teamId": "t24",
+      "entryAverage": 205,
       "noBook": true
     }
   ],
@@ -8768,6 +8792,873 @@ window.LEAGUE_DATA =
           "lanes": "23-24",
           "homePoints": 3,
           "awayPoints": 1
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "date": "2026-11-17",
+      "scores": [
+        {
+          "playerId": "p1",
+          "games": [
+            161,
+            177,
+            137
+          ]
+        },
+        {
+          "playerId": "p2",
+          "games": [
+            126,
+            126,
+            152
+          ]
+        },
+        {
+          "playerId": "p4",
+          "games": [
+            144,
+            159,
+            159
+          ]
+        },
+        {
+          "playerId": "p98",
+          "games": [
+            176,
+            159,
+            247
+          ]
+        },
+        {
+          "playerId": "p5",
+          "games": [
+            195,
+            205,
+            196
+          ]
+        },
+        {
+          "playerId": "p6",
+          "games": [
+            186,
+            192,
+            181
+          ]
+        },
+        {
+          "playerId": "p7",
+          "games": [
+            203,
+            191,
+            221
+          ]
+        },
+        {
+          "playerId": "p99",
+          "games": [
+            139,
+            223,
+            211
+          ]
+        },
+        {
+          "playerId": "p9",
+          "games": [
+            246,
+            215,
+            190
+          ]
+        },
+        {
+          "playerId": "p10",
+          "games": [
+            258,
+            224,
+            233
+          ]
+        },
+        {
+          "playerId": "p11",
+          "games": [
+            193,
+            264,
+            197
+          ]
+        },
+        {
+          "playerId": "p12",
+          "games": [
+            237,
+            216,
+            195
+          ]
+        },
+        {
+          "playerId": "p13",
+          "games": [
+            147,
+            156,
+            134
+          ]
+        },
+        {
+          "playerId": "p14",
+          "games": [
+            180,
+            172,
+            275
+          ]
+        },
+        {
+          "playerId": "p15",
+          "games": [
+            183,
+            201,
+            199
+          ]
+        },
+        {
+          "playerId": "p16",
+          "games": [
+            225,
+            203,
+            225
+          ]
+        },
+        {
+          "playerId": "p18",
+          "games": [
+            159,
+            160,
+            146
+          ]
+        },
+        {
+          "playerId": "p19",
+          "games": [
+            159,
+            167,
+            167
+          ]
+        },
+        {
+          "playerId": "p20",
+          "games": [
+            150,
+            167,
+            142
+          ]
+        },
+        {
+          "playerId": "p112",
+          "games": [
+            160,
+            222,
+            212
+          ],
+          "teamId": "t5"
+        },
+        {
+          "playerId": "p21",
+          "games": [
+            159,
+            199,
+            268
+          ]
+        },
+        {
+          "playerId": "p22",
+          "games": [
+            178,
+            236,
+            203
+          ]
+        },
+        {
+          "playerId": "p23",
+          "games": [
+            226,
+            269,
+            202
+          ]
+        },
+        {
+          "playerId": "p24",
+          "games": [
+            266,
+            189,
+            210
+          ]
+        },
+        {
+          "playerId": "p30",
+          "games": [
+            115,
+            214,
+            184
+          ]
+        },
+        {
+          "playerId": "p29",
+          "games": [
+            200,
+            191,
+            213
+          ]
+        },
+        {
+          "playerId": "p101",
+          "games": [
+            179,
+            147,
+            195
+          ]
+        },
+        {
+          "playerId": "p31",
+          "games": [
+            172,
+            207,
+            168
+          ]
+        },
+        {
+          "playerId": "p25",
+          "games": [
+            203,
+            177,
+            180
+          ]
+        },
+        {
+          "playerId": "p27",
+          "games": [
+            140,
+            106,
+            142
+          ]
+        },
+        {
+          "playerId": "p28",
+          "games": [
+            135,
+            145,
+            164
+          ]
+        },
+        {
+          "playerId": "p26",
+          "games": [
+            173,
+            193,
+            198
+          ]
+        },
+        {
+          "playerId": "p33",
+          "games": [
+            194,
+            162,
+            180
+          ]
+        },
+        {
+          "playerId": "p34",
+          "games": [
+            199,
+            200,
+            202
+          ]
+        },
+        {
+          "playerId": "p35",
+          "games": [
+            171,
+            212,
+            147
+          ]
+        },
+        {
+          "playerId": "p36",
+          "games": [
+            181,
+            226,
+            203
+          ]
+        },
+        {
+          "playerId": "p37",
+          "games": [
+            197,
+            214,
+            234
+          ]
+        },
+        {
+          "playerId": "p38",
+          "games": [
+            246,
+            224,
+            195
+          ]
+        },
+        {
+          "playerId": "p39",
+          "games": [
+            188,
+            216,
+            168
+          ]
+        },
+        {
+          "playerId": "p40",
+          "games": [
+            185,
+            198,
+            258
+          ]
+        },
+        {
+          "playerId": "p44",
+          "games": [
+            193,
+            246,
+            178
+          ]
+        },
+        {
+          "playerId": "p41",
+          "games": [
+            150,
+            243,
+            173
+          ]
+        },
+        {
+          "playerId": "p43",
+          "games": [
+            204,
+            168,
+            195
+          ]
+        },
+        {
+          "playerId": "p102",
+          "games": [
+            212,
+            203,
+            221
+          ]
+        },
+        {
+          "playerId": "p45",
+          "games": [
+            176,
+            184,
+            160
+          ]
+        },
+        {
+          "playerId": "p47",
+          "games": [
+            195,
+            257,
+            268
+          ]
+        },
+        {
+          "playerId": "p48",
+          "games": [
+            256,
+            236,
+            259
+          ]
+        },
+        {
+          "playerId": "p46",
+          "games": [
+            203,
+            241,
+            215
+          ]
+        },
+        {
+          "playerId": "p49",
+          "games": [
+            200,
+            199,
+            215
+          ]
+        },
+        {
+          "playerId": "p50",
+          "games": [
+            223,
+            245,
+            216
+          ]
+        },
+        {
+          "playerId": "p51",
+          "games": [
+            225,
+            236,
+            267
+          ]
+        },
+        {
+          "playerId": "p52",
+          "games": [
+            215,
+            214,
+            246
+          ]
+        },
+        {
+          "playerId": "p53",
+          "games": [
+            152,
+            156,
+            146
+          ]
+        },
+        {
+          "playerId": "p55",
+          "games": [
+            171,
+            160,
+            160
+          ]
+        },
+        {
+          "playerId": "p56",
+          "games": [
+            173,
+            204,
+            190
+          ]
+        },
+        {
+          "playerId": "p97",
+          "games": [
+            227,
+            228,
+            246
+          ],
+          "teamId": "t14"
+        },
+        {
+          "playerId": "p57",
+          "games": [
+            213,
+            223,
+            246
+          ]
+        },
+        {
+          "playerId": "p59",
+          "games": [
+            224,
+            226,
+            258
+          ]
+        },
+        {
+          "playerId": "p109",
+          "games": [
+            257,
+            278,
+            224
+          ]
+        },
+        {
+          "playerId": "p122",
+          "games": [
+            234,
+            245,
+            180
+          ],
+          "teamId": "t15"
+        },
+        {
+          "playerId": "p61",
+          "games": [
+            133,
+            130,
+            193
+          ]
+        },
+        {
+          "playerId": "p62",
+          "games": [
+            171,
+            158,
+            188
+          ]
+        },
+        {
+          "playerId": "p64",
+          "games": [
+            211,
+            165,
+            184
+          ]
+        },
+        {
+          "playerId": "p3",
+          "games": [
+            160,
+            158,
+            152
+          ],
+          "teamId": "t16"
+        },
+        {
+          "playerId": "p65",
+          "games": [
+            141,
+            140,
+            165
+          ]
+        },
+        {
+          "playerId": "p66",
+          "games": [
+            150,
+            154,
+            187
+          ]
+        },
+        {
+          "playerId": "p67",
+          "games": [
+            223,
+            225,
+            160
+          ]
+        },
+        {
+          "playerId": "p68",
+          "games": [
+            166,
+            148,
+            200
+          ]
+        },
+        {
+          "playerId": "p69",
+          "games": [
+            117,
+            149,
+            127
+          ]
+        },
+        {
+          "playerId": "p70",
+          "games": [
+            125,
+            182,
+            112
+          ]
+        },
+        {
+          "playerId": "p71",
+          "games": [
+            146,
+            169,
+            118
+          ]
+        },
+        {
+          "playerId": "p72",
+          "games": [
+            181,
+            172,
+            135
+          ]
+        },
+        {
+          "playerId": "p73",
+          "games": [
+            192,
+            245,
+            190
+          ]
+        },
+        {
+          "playerId": "p74",
+          "games": [
+            178,
+            204,
+            210
+          ]
+        },
+        {
+          "playerId": "p75",
+          "games": [
+            202,
+            196,
+            192
+          ]
+        },
+        {
+          "playerId": "p76",
+          "games": [
+            189,
+            256,
+            247
+          ]
+        },
+        {
+          "playerId": "p77",
+          "games": [
+            153,
+            152,
+            143
+          ]
+        },
+        {
+          "playerId": "p79",
+          "games": [
+            147,
+            170,
+            170
+          ]
+        },
+        {
+          "playerId": "p80",
+          "games": [
+            158,
+            154,
+            153
+          ]
+        },
+        {
+          "playerId": "p105",
+          "games": [
+            215,
+            190,
+            171
+          ]
+        },
+        {
+          "playerId": "p81",
+          "games": [
+            175,
+            174,
+            214
+          ]
+        },
+        {
+          "playerId": "p82",
+          "games": [
+            193,
+            173,
+            231
+          ]
+        },
+        {
+          "playerId": "p106",
+          "games": [
+            141,
+            135,
+            130
+          ]
+        },
+        {
+          "playerId": "p113",
+          "games": [
+            183,
+            189,
+            225
+          ],
+          "teamId": "t21"
+        },
+        {
+          "playerId": "p85",
+          "games": [
+            201,
+            200,
+            213
+          ]
+        },
+        {
+          "playerId": "p86",
+          "games": [
+            125,
+            164,
+            195
+          ]
+        },
+        {
+          "playerId": "p118",
+          "games": [
+            184,
+            189,
+            179
+          ]
+        },
+        {
+          "playerId": "p88",
+          "games": [
+            184,
+            227,
+            183
+          ]
+        },
+        {
+          "playerId": "p90",
+          "games": [
+            155,
+            179,
+            165
+          ]
+        },
+        {
+          "playerId": "p91",
+          "games": [
+            170,
+            185,
+            192
+          ]
+        },
+        {
+          "playerId": "p92",
+          "games": [
+            195,
+            168,
+            174
+          ]
+        },
+        {
+          "playerId": "p108",
+          "games": [
+            182,
+            173,
+            199
+          ],
+          "teamId": "t23"
+        },
+        {
+          "playerId": "p93",
+          "games": [
+            162,
+            181,
+            235
+          ]
+        },
+        {
+          "playerId": "p95",
+          "games": [
+            203,
+            300,
+            258
+          ]
+        },
+        {
+          "playerId": "p125",
+          "games": [
+            232,
+            195,
+            190
+          ]
+        },
+        {
+          "playerId": "p124",
+          "games": [
+            247,
+            244,
+            224
+          ],
+          "teamId": "t24"
+        }
+      ],
+      "matches": [
+        {
+          "homeTeamId": "t15",
+          "awayTeamId": "t3",
+          "lanes": "1-2",
+          "homePoints": 3,
+          "awayPoints": 1
+        },
+        {
+          "homeTeamId": "t13",
+          "awayTeamId": "t1",
+          "lanes": "3-4",
+          "homePoints": 4,
+          "awayPoints": 0
+        },
+        {
+          "homeTeamId": "t11",
+          "awayTeamId": "t7",
+          "lanes": "5-6",
+          "homePoints": 3,
+          "awayPoints": 1
+        },
+        {
+          "homeTeamId": "t9",
+          "awayTeamId": "t5",
+          "lanes": "7-8",
+          "homePoints": 4,
+          "awayPoints": 0
+        },
+        {
+          "homeTeamId": "t4",
+          "awayTeamId": "t24",
+          "lanes": "9-10",
+          "homePoints": 0,
+          "awayPoints": 4
+        },
+        {
+          "homeTeamId": "t2",
+          "awayTeamId": "t22",
+          "lanes": "11-12",
+          "homePoints": 4,
+          "awayPoints": 0
+        },
+        {
+          "homeTeamId": "t8",
+          "awayTeamId": "t20",
+          "lanes": "13-14",
+          "homePoints": 3,
+          "awayPoints": 1
+        },
+        {
+          "homeTeamId": "t6",
+          "awayTeamId": "t18",
+          "lanes": "15-16",
+          "homePoints": 3,
+          "awayPoints": 1
+        },
+        {
+          "homeTeamId": "t16",
+          "awayTeamId": "t19",
+          "lanes": "17-18",
+          "homePoints": 0,
+          "awayPoints": 4
+        },
+        {
+          "homeTeamId": "t14",
+          "awayTeamId": "t17",
+          "lanes": "19-20",
+          "homePoints": 1,
+          "awayPoints": 3
+        },
+        {
+          "homeTeamId": "t12",
+          "awayTeamId": "t23",
+          "lanes": "21-22",
+          "homePoints": 3,
+          "awayPoints": 1
+        },
+        {
+          "homeTeamId": "t10",
+          "awayTeamId": "t21",
+          "lanes": "23-24",
+          "homePoints": 4,
+          "awayPoints": 0
         }
       ]
     }

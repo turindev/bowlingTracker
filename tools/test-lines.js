@@ -396,6 +396,47 @@ check('three new bowlers: first night on a handicap off the average they bowled 
       ['Benson Colburn', 'John Brooks', 'Avery Rhoden'].map(n => live.players.find(p => p.name === n).handicapByWeek[9]).join() === '0,9,0',
       ['Benson Colburn', 'John Brooks', 'Avery Rhoden'].map(n => live.players.find(p => p.name === n).handicapByWeek[9]).join());
 
+// --- week 10: the same checks against the week-10 sheet ---------------------
+live = at(10);
+const STAND10 = {1:[16,19364,25583],2:[20.5,22596,26088],3:[18,25306,26437],4:[19,23870,26186],5:[18,20963,26015],6:[26.5,26062,27037],7:[16,21585,25917],8:[17,20142,25971],9:[19,21889,26095],10:[23,24789,26679],11:[25,23413,26164],12:[27.5,24760,26899],13:[22,26225,26858],14:[20,22907,26342],15:[22,25117,26578],16:[21,21101,26192],17:[18,21141,25761],18:[16,17323,25330],19:[24,23026,26710],20:[11,21124,25654],21:[17,23032,26440],22:[18,24200,26270],23:[21,18946,25750],24:[24.5,26715,26952]};
+const off10 = Object.keys(STAND10).filter(n => {
+  const t = team(n), s = STAND10[n];
+  return through(n, 10) !== s[0] || t.pins !== s[1] || t.hdcpPins !== s[2];
+});
+check('every team\'s points, scratch and pins + hdcp after week 10 match the sheet', !off10.length,
+      off10.map(n => n + ': ' + [through(n, 10), team(n).pins, team(n).hdcpPins] + ' v ' + STAND10[n]).join('; '));
+const REV10 = {1:[822,836,910,2568,0],2:[847,935,933,2715,4],3:[979,964,860,2803,1],4:[806,803,904,2513,0],5:[809,897,848,2554,0],6:[860,924,914,2698,3],7:[799,892,893,2584,1],8:[836,806,869,2511,3],9:[884,939,871,2694,4],10:[868,904,907,2679,4],11:[845,946,853,2644,3],12:[885,973,957,2815,3],13:[869,900,950,2719,4],14:[821,846,840,2507,1],15:[948,992,928,2868,3],16:[854,790,896,2540,0],17:[850,837,882,2569,3],18:[839,942,762,2543,1],19:[856,996,934,2786,4],20:[822,815,786,2423,1],21:[789,768,897,2454,0],22:[786,872,862,2520,0],23:[894,897,922,2713,1],24:[866,942,929,2737,4]};
+const offRev10 = Object.keys(REV10).filter(n => {
+  const w = night(n, 10);
+  return w.hdcpGameTotals.concat([w.hdcpSeries, w.points]).join(',') !== REV10[n].join(',');
+});
+check('every team\'s three handicap game totals, series and points in week 10 match the sheet', !offRev10.length,
+      offRev10.map(n => n + ': ' + night(n, 10).hdcpGameTotals.concat([night(n, 10).hdcpSeries, night(n, 10).points]) + ' v ' + REV10[n]).join('; '));
+const HT10 = {'Ken Grizzard':628,'Ed Curtis':587,'Rick Goodwin':657,'Paul Presswood':696,'Marty Tate':623,'Leon Farmer':665,'Jon Boxwell':658,'Terry Cranfield':720,'Wesley Hicks':672,'Toby Crisp':693,'Wendell Defriece':763,'Robbie Defriece':699,'Keith White':648,'Jason Thompson':593,'Ben Deloach':627,'Jason Seda-Haas':634,'Darius Thompson':659,'Aaron Jones':642,'Dale Dutcher':622,'Daryl Blair':606,'Don Dansby':684,'Spencer Foutz':626,'Cam Miller':683,'Worm Davis':724,'Alex Davis':665,'Benson Colburn':659,'Davis Segui':579,'Jim Sedgwick':772,'James Gruver':620,'James Duffee':613,'Steve Smith':605,'Nick Grabe':532,'Mike Davis':651,'Starr Jensen':723,'Rodney Benefield':677,'Tim Charleson':694,'Darrell Smith':611,'Bobby Bryant':712,'Jeremy Malek':687,'Kamus Thompson':692,'John Jenner':632,'Derek Banther':668,'Josh Bomboy':644,'Josh Malek':680,'Jimmy Malek':606,'John Smeltzer':714,'Randy Dockery':622,'Cody LaCroix':738,'Jayson Scoggins':781,'Shayne Terry':674,'Chad Green':614,'Lynn Collins':702,'Chris Neal':728,'Steven Adler':675,'Yogi Cabrera':583,'Duane Mayo':635,'Mark Youngblood':588,'Matthew Spicer':701,'Hunter Moffitt':706,'Cameron Compton':726,'Briton Helton':777,'Stonewall Stinnett':608,'Hamilton Hickman':578,'Ken Ellis':641,'Richard Simpson':716,'Joey Zinn':634,'Avery Rhoden':715,'Butch Finkbeiner':615,'Treifor Grant':629,'Paul Queen':661,'Jerry Lance':638,'Tanner Collins':687,'Chuck Broesche':769,'Mark Thompson':638,'Jared King':692,'Jesse Cabrera':598,'Thomas Woody':649,'Tim Berthianne':534,'Joe Morgan':642,'Coty Rymer':563,'Sam Hunter':684,'Matt Clark':562,'Michael Kimble':645,'Porky Davis':647,'Bryant Johns':583,'Dave Terhune':645,'Lenny Kersten':645,'Matt Rayfield':730,'Jimmy Campbell':685,'Tyler Green':711,'Bryan Martin':587,'Aaron White':605,'Jason Day':761,'James Campbell':656};
+const offHt10 = [];
+live.teams.forEach(t => t.weeks.filter(w => w.number === 10).forEach(w => w.lines.forEach(l => {
+  if (HT10[l.name] != null && l.hdcpSeries !== HT10[l.name]) offHt10.push(l.name + ' ' + l.hdcpSeries + ' v ' + HT10[l.name]);
+})));
+check('all ' + Object.keys(HT10).length + ' printed bowler handicap totals for week 10 match', !offHt10.length, offHt10.join('; '));
+const PLACES10 = [12, 6, 11, 24, 19, 10, 13, 15, 16, 23, 2, 14, 4, 9, 3, 22, 5, 17, 21, 8, 7, 1, 18, 20];
+const rank10 = live.teams.slice().sort((a, b) => a.trend[a.trend.length - 1].rank - b.trend[b.trend.length - 1].rank).map(t => +t.id.slice(1));
+check('the team standings place all 24 teams as the week-10 sheet does', rank10.join(' ') === PLACES10.join(' '), rank10.join(' '));
+check('four subs fit their teams\' printed game totals: Dansby for 9 Pin City, Spicer for Too Easy, Kimble for Team 21, Martin for Stars & Strikes',
+      games(5, 10) === '809,897,848' && games(14, 10) === '821,846,840' && games(21, 10) === '789,768,897' && games(23, 10) === '894,897,922',
+      [5, 14, 21, 23].map(n => games(n, 10)).join(' | '));
+check('Tate, Colburn and Rhoden are printed under their own teams but bowled for Balls Out, Nutz and Team 24, whose totals only fit that way',
+      games(16, 10) === '854,790,896' && games(15, 10) === '948,992,928' && games(24, 10) === '866,942,929' &&
+      night(16, 10).lines.some(l => l.name === 'Marty Tate') && night(15, 10).lines.some(l => l.name === 'Benson Colburn') && night(24, 10).lines.some(l => l.name === 'Avery Rhoden') &&
+      !night(1, 10).lines.some(l => l.name === 'Marty Tate') && !night(6, 10).lines.some(l => l.name === 'Benson Colburn') && !night(17, 10).lines.some(l => l.name === 'Avery Rhoden'),
+      [16, 15, 24].map(n => games(n, 10)).join(' | '));
+const campbell = live.players.find(p => p.name === 'James Campbell');
+check('James Campbell\'s first night is on a handicap off the 205 he bowled (13), for Team 24',
+      campbell.handicapByWeek[10] === 13 && campbell.pins === 617 && campbell.games === 3 && night(24, 10).lines.some(l => l.name === 'James Campbell'),
+      campbell.handicapByWeek[10] + ' ' + campbell.pins + '/' + campbell.games);
+const day10 = live.players.find(p => p.name === 'Jason Day');
+check('Jason Day\'s 300 in game 2 makes his night 761 and his high game 300',
+      night(24, 10).lines.find(l => l.name === 'Jason Day').series === 761 && day10.highGame === 300, String(day10.highGame));
+
 // the new rules, on the fixture
 {
   const fx2 = JSON.parse(JSON.stringify(fx));
