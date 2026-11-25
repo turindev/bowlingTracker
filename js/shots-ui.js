@@ -16,6 +16,7 @@
     root: null, parts: [], token: 0,
     draft: null,
     filters: { pattern: '', location: '', event: '', ball: '', period: 'all' },
+    gameFilters: { pattern: '', location: '', event: '', ball: '', period: 'all' },   /* the games list keeps its own, apart from Stats */
     compareBy: 'ball', compareState: { key: 'games', dir: 'desc' },
     gamesState: { key: 'date', dir: 'desc' },
     editingBall: null, allLeaves: false, panel: null, game: null,
@@ -587,7 +588,20 @@
       ]));
     }
 
-    var rows = shown.map(function (set) { return { name: set.date || '', set: set }; });
+    /* The filters apply to a series as a whole: it stays if any of its games fit, so a series is
+       never shown with games missing from it. */
+    var gf = ui.gameFilters;
+    var doneGames = all.filter(function (g) { return g.status === 'done'; });
+    var period = periodRange(gf.period);
+    var matching = shown.filter(function (set) {
+      return set.games.some(function (g) {
+        if (g.status !== 'done') return false;
+        if (!S.filter([g], { pattern: gf.pattern, location: gf.location, event: gf.event, from: period.from }).length) return false;
+        return !gf.ball || S.ballsInGame(g).indexOf(gf.ball) !== -1;
+      });
+    });
+    var filtering = !!(gf.pattern || gf.location || gf.event || gf.ball || gf.period !== 'all');
+    var rows = matching.map(function (set) { return { name: set.date || '', set: set }; });
     var columns = [
       { key: 'date', label: 'Date', className: 'col-tight', defaultDir: 'desc', value: function (r) { return r.set.date; },
         render: function (r) {
@@ -626,13 +640,23 @@
       { key: 'location', label: 'Location', optional: true, value: function (r) { return r.set.location || ''; },
         render: function (r) { return r.set.location || '—'; } },
     ];
+    var listBody;
+    if (!shown.length) listBody = UI.empty('Start a game and finish it to see it here.');
+    else listBody = el('div', null, [
+      el('div', { class: 'card-body' }, gamesFilterBox(doneGames)),
+      matching.length
+        ? UI.table({ columns: columns, rows: rows, state: ui.gamesState, onSort: rerender })
+        : el('div', { class: 'card-body sh-stack' }, [
+          UI.empty('No series or games match these filters.'),
+          el('div', { class: 'sh-actions' }, button('Clear filters', clearGameFilters)),
+        ]),
+    ]);
     draw([
       head('Shot tracker', plural(doneCount, 'game') + ' recorded'),
       subnav('games'),
       UI.card(null, null, el('div', { class: 'card-body sh-stack' }, top)),
-      UI.card('Series and games', shown.length ? 'Newest first. Tap a date for the series.' : null, shown.length
-        ? UI.table({ columns: columns, rows: rows, state: ui.gamesState, onSort: rerender })
-        : UI.empty('Start a game and finish it to see it here.')),
+      UI.card('Series and games', shown.length
+        ? (filtering ? 'Showing ' + matching.length + ' of ' + shown.length + '. Newest first.' : 'Newest first. Tap a date for the series.') : null, listBody),
     ]);
   }
 
@@ -1818,6 +1842,41 @@
 
   /* ---------- stats ---------- */
 
+  function clearGameFilters() {
+    ui.gameFilters = { pattern: '', location: '', event: '', ball: '', period: 'all' };
+    rerender();
+  }
+
+  /* Type, oil pattern, location, ball and period for the games list. Folded away like the Stats
+     filters, with the summary line saying which are on. */
+  function gamesFilterBox(pool) {
+    var f = ui.gameFilters;
+    var periods = { all: 'All time', 30: 'Last 30 days', 90: 'Last 90 days', 365: 'Last year' };
+    var cap = function (e) { return e.charAt(0).toUpperCase() + e.slice(1); };
+    var active = [f.event ? cap(f.event) : null, f.pattern, f.location, f.ball ? ballName(f.ball) : null, f.period !== 'all' ? periods[f.period] : null].filter(Boolean);
+    var periodSelect = el('select', { onchange: function () { f.period = periodSelect.value; rerender(); } },
+      ['all', '30', '90', '365'].map(function (p) { return el('option', { value: p, selected: f.period === p }, periods[p]); }));
+    periodSelect.value = f.period;
+    var grid = el('div', { class: 'sh-filters' }, [
+      filterSelect('Type', 'event', S.EVENTS.filter(function (e) { return pool.some(function (g) { return g.event === e; }); }), cap, f),
+      filterSelect('Oil pattern', 'pattern', S.distinct(pool, 'pattern'), null, f),
+      filterSelect('Location', 'location', S.distinct(pool, 'location'), null, f),
+      filterSelect('Ball', 'ball', S.ballsUsed(pool), ballName, f),
+      el('div', { class: 'control-field' }, [el('span', { class: 'sh-label', text: 'Period' }), periodSelect]),
+    ]);
+    var box = el('details', { class: 'sh-filterbox' }, [
+      el('summary', null, [
+        el('span', { class: 'sh-filter-title', text: 'Filters' }),
+        el('span', { class: 'sh-filter-active' + (active.length ? ' is-on' : ''), text: active.length ? active.join(' \u00b7 ') : 'none' }),
+      ]),
+      grid,
+      active.length ? el('div', { class: 'sh-actions' }, button('Clear filters', clearGameFilters)) : null,
+    ]);
+    if (ui.gameFiltersOpen) box.setAttribute('open', '');
+    box.addEventListener('toggle', function () { ui.gameFiltersOpen = box.open; });
+    return box;
+  }
+
   function periodRange(period) {
     if (period === 'all') return {};
     var d = new Date();
@@ -1825,13 +1884,14 @@
     return { from: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) };
   }
 
-  function filterSelect(label, key, values, labelOf) {
+  function filterSelect(label, key, values, labelOf, state) {
+    state = state || ui.filters;
     var select = el('select', {
-      onchange: function () { ui.filters[key] = select.value; rerender(); },
+      onchange: function () { state[key] = select.value; rerender(); },
     }, [el('option', { value: '' }, 'All')].concat(values.map(function (v) {
-      return el('option', { value: v, selected: ui.filters[key] === v }, labelOf ? labelOf(v) : v);
+      return el('option', { value: v, selected: state[key] === v }, labelOf ? labelOf(v) : v);
     })));
-    select.value = ui.filters[key];
+    select.value = state[key];
     return el('div', { class: 'control-field' }, [el('span', { class: 'sh-label', text: label }), select]);
   }
 
